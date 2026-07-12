@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  REPORTER
+  AUDIENCE
+  VOLUNTEER
+  DADE
+}
+
+enum ArticleStatus {
+  DRAFT
+  REVIEW
+  REVISION
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String
+  avatarUrl String?
+  role      Role      @default(AUDIENCE)
+  locked    Boolean   @default(false)
+  suspended Boolean   @default(false)
+  permissions String[] @default([])
+  departmentId String?
+  department Department? @relation(fields: [departmentId], references: [id])
+  harmonyGroupId String?
+  harmonyGroup HarmonyGroup? @relation(fields: [harmonyGroupId], references: [id])
+  mutualLoveGroupId String?
+  mutualLoveGroup MutualLoveGroup? @relation(fields: [mutualLoveGroupId], references: [id])
+  cooperationUnitId String?
+  cooperationUnit CooperationUnit? @relation(fields: [cooperationUnitId], references: [id])
+  assignedCategories Category[] @relation("UserCategories")
+  articles  Article[]
+  comments  Comment[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  slug     String    @unique
+  archived Boolean   @default(false)
+  articles Article[]
+  assignedUsers User[] @relation("UserCategories")
+}
+
+model Department {
+  id       String @id @default(cuid())
+  name     String @unique
+  users    User[]
+  createdAt DateTime @default(now())
+}
+
+model OrgChartEntry {
+  id          String   @id @default(cuid())
+  harmony     String
+  mutualLove  String
+  cooperation String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([harmony, mutualLove, cooperation])
+}
+
+model HarmonyGroup {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  sortOrder   Int               @default(0)
+  mutualLoves MutualLoveGroup[]
+  users       User[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model MutualLoveGroup {
+  id           String            @id @default(cuid())
+  name         String
+  sortOrder    Int               @default(0)
+  harmonyId    String
+  harmony      HarmonyGroup      @relation(fields: [harmonyId], references: [id])
+  cooperations CooperationUnit[]
+  users        User[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([harmonyId, name])
+}
+
+model CooperationUnit {
+  id           String          @id @default(cuid())
+  name         String
+  sortOrder    Int             @default(0)
+  mutualLoveId String
+  mutualLove   MutualLoveGroup @relation(fields: [mutualLoveId], references: [id])
+  users        User[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([mutualLoveId, name])
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  excerpt     String
+  content     String
+  status      ArticleStatus @default(DRAFT)
+  isBreaking Boolean       @default(false)
+  isTrending Boolean       @default(false)
+  views       Int           @default(0)
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id])
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id])
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  comments    Comment[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  approved  Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  actorId   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}

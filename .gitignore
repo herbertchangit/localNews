@@ -1,0 +1,8 @@
+node_modules
+dist
+server-dist
+.env
+uploads/*
+!uploads/.gitkeep
+tmp/
+.tmp_sidebar_auth/

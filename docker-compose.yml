@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: news
+      POSTGRES_PASSWORD: news
+      POSTGRES_DB: newsroom
+    volumes:
+      - news_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news -d newsroom"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  app:
+    build: .
+    ports: ["18080:4000"]
+    environment:
+      DATABASE_URL: postgresql://news:news@db:5432/newsroom
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-in-production}
+      PORT: 4000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - avatar_data:/app/uploads
+volumes:
+  news_data:
+  avatar_data:
