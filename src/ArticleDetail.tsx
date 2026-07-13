@@ -38,7 +38,7 @@ const emptyDiscussion: Discussion = {
 const readSession = (): Session | null => { try { return JSON.parse(localStorage.getItem("ln_session") || "null"); } catch { return null; } };
 
 function ReaderHeader() {
-  return <PublicHeader tickerLabel="LOCAL NEWS" tickerText="Independent reporting for our community"><nav>{["Local", "Politics", "Business", "Sports", "Culture"].map((item) => <Link to="/" key={item}>{item}</Link>)}</nav></PublicHeader>;
+  return <PublicHeader><nav>{["Local", "Politics", "Business", "Sports", "Culture"].map((item) => <Link to="/" key={item}>{item}</Link>)}</nav></PublicHeader>;
 }
 
 function PhotoResponseControls({ photoId, state, disabled, onRespond }: { photoId: string; state?: ResponseState; disabled: boolean; onRespond: (photoId: string, category: ResponseCategory) => void }) {
