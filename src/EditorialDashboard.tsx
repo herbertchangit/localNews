@@ -18,6 +18,7 @@ type EditorialArticle = {
   id: string;
   title: string;
   status: "DRAFT" | "REVIEW" | "REVISION";
+  imageUrl: string | null;
   updatedAt: string;
   author: { name: string };
   category: { name: string };
@@ -122,7 +123,7 @@ export default function EditorialDashboard() {
         </Link>
         <div className="workspace"><small>WORKSPACE</small><b>Central News Desk</b></div>
         <button className="active"><LayoutDashboard />Overview</button>
-        <button><FileText />Stories<em>{articles.length}</em></button>
+        <button onClick={() => nav("/newsroom/stories")}><FileText />Stories<em>{articles.length}</em></button>
         {isAdmin && <button><Users />People</button>}
         {isAdmin && <button><BarChart3 />Analytics</button>}
         <button onClick={() => !isAdmin && nav("/newsroom/settings")}><Settings />Settings</button>
@@ -160,7 +161,7 @@ export default function EditorialDashboard() {
             {!loading && !articles.length && <div className="editorialEmpty">No stories waiting for verification. / 暫無待審核新聞。</div>}
             {!loading && articles.map((article) => (
               <div className="row" key={article.id}>
-                <div className="story"><div className="mini" /><span><b>{article.title}</b><small>{article.author.name} · {article.category.name}</small></span></div>
+                <div className="story"><div className={`mini ${article.imageUrl ? "hasImage" : ""}`} style={article.imageUrl ? { backgroundImage: `url(${article.imageUrl})` } : undefined} /><span><b>{article.title}</b><small>{article.author.name} · {article.category.name}</small></span></div>
                 <span className={`status ${article.status.toLowerCase()}`}>{article.status.replace("_", " ")}</span>
                 <span className="time">{new Date(article.updatedAt).toLocaleDateString()}</span>
                 <div className="rowActions">

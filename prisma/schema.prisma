@@ -121,6 +121,7 @@ model Article {
   slug        String        @unique
   excerpt     String
   content     String
+  imageUrl    String?
   status      ArticleStatus @default(DRAFT)
   isBreaking Boolean       @default(false)
   isTrending Boolean       @default(false)
