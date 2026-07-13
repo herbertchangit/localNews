@@ -380,6 +380,7 @@ const missionEn: Record<string, string> = Object.fromEntries(
 );
 Object.assign(zh, missionZh);
 const originals = new WeakMap<Node, string>();
+const sidebarLabels = new WeakMap<Node, { en: string; zh: string }>();
 const attrOriginals = new WeakMap<Element, Map<string, string>>();
 function translate(root: ParentNode, lang: "en" | "zh") {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -387,18 +388,22 @@ function translate(root: ParentNode, lang: "en" | "zh") {
   while ((n = walker.nextNode())) {
     const raw = n.nodeValue || "",
       key = raw.trim(),
-      bilingualCategory = key === "News Categories / 新聞類別",
+      sidebarParts = n.parentElement?.closest("aside") ? key.split(" / ") : [],
+      parsedSidebarLabel =
+        sidebarParts.length === 2 && /[\u3400-\u9fff]/.test(sidebarParts[1])
+          ? { en: sidebarParts[0], zh: sidebarParts[1] }
+          : undefined,
+      sidebarLabel = sidebarLabels.get(n) || parsedSidebarLabel,
       mission = lang === "zh" ? missionZh[key] : missionEn[key],
       dynamic = key.startsWith("Organization: ")
         ? `志業/角色：${key.slice(14)}`
         : "";
-    if (bilingualCategory) {
-      if (!originals.has(n))
-        originals.set(n, raw.replace(key, "News Categories"));
-      n.nodeValue = raw.replace(
-        key,
-        lang === "zh" ? "新聞類別" : "News Categories",
-      );
+    if (sidebarLabel) {
+      if (parsedSidebarLabel && !sidebarLabels.has(n)) {
+        sidebarLabels.set(n, parsedSidebarLabel);
+        originals.set(n, raw.replace(key, parsedSidebarLabel.en));
+      }
+      n.nodeValue = raw.replace(key, sidebarLabel[lang]);
     } else if (mission) {
       n.nodeValue = raw.replace(key, mission);
     } else if (lang === "zh" && (zh[key] || dynamic)) {
