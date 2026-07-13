@@ -90,6 +90,11 @@ const zh: Record<string, string> = {
   "Activity logs": "活动日志",
   "Search people, email or department": "搜索姓名、邮箱或部门",
   "All roles": "所有角色",
+  All: "全部",
+  "News categories": "新聞類別",
+  "Finding the latest published reporting.": "正在尋找最新發布的新聞。",
+  "Choose another news category or return to all published stories.": "請選擇其他新聞類別，或返回全部已發布新聞。",
+  "Show all stories": "顯示全部新聞",
   Person: "人员",
   Assignment: "分配",
   Role: "角色",
@@ -400,7 +405,9 @@ function translate(root: ParentNode, lang: "en" | "zh") {
       mission = lang === "zh" ? missionZh[key] : missionEn[key],
       dynamic = key.startsWith("Organization: ")
         ? `志業/角色：${key.slice(14)}`
-        : "";
+        : key.startsWith("No published stories in ")
+          ? `「${key.slice(24, -1)}」沒有已發布新聞。`
+          : "";
     if (sidebarLabel) {
       if (parsedSidebarLabel && !sidebarLabels.has(n)) {
         sidebarLabels.set(n, parsedSidebarLabel);
