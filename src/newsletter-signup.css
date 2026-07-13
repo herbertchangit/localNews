@@ -1,0 +1,14 @@
+.signupNewsletter{padding:50px clamp(20px,5vw,64px)}
+.signupNewsletter h2{margin:10px 0;font-size:clamp(30px,4vw,42px)}
+.signupNewsletter>p{margin:0 auto;color:#b7c5be}
+.signupNewsletter form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:10px;align-items:end;max-width:1080px;margin:28px auto 14px;text-align:left}
+.signupNewsletter label{display:flex;flex-direction:column;gap:7px;color:#dbe4df;font-size:10px;font-weight:700;letter-spacing:.04em}
+.signupNewsletter input{width:100%;min-width:0;height:48px;padding:0 13px;border:1px solid #ffffff2e;background:#fff;color:#183e31;border-radius:3px;outline:none}
+.signupNewsletter input:focus{border-color:#d2b474;box-shadow:0 0 0 3px #d2b47433}
+.signupNewsletter button{height:48px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:3px;white-space:nowrap;cursor:pointer}
+.signupNewsletter button:disabled{opacity:.65;cursor:wait}
+.signupNewsletter button svg{width:16px}
+.signupNewsletter>small{display:block;color:#91aa9e;font-size:10px}
+.signupError{max-width:1080px;margin:18px auto -10px;padding:10px 12px;background:#fff0ed;color:#8f2f29;border-left:3px solid #d6655d;text-align:left;font-size:12px}
+@media(max-width:1000px){.signupNewsletter form{grid-template-columns:repeat(2,minmax(0,1fr))}.signupNewsletter button{grid-column:1/-1}}
+@media(max-width:520px){.signupNewsletter{padding:42px 20px!important}.signupNewsletter form{grid-template-columns:1fr;padding:0}.signupNewsletter button{grid-column:auto}.signupNewsletter input{width:100%}}

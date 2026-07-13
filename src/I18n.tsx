@@ -21,7 +21,15 @@ const zh: Record<string, string> = {
   "What your city is talking about": "全城热议",
   "View newsroom": "查看新闻中心",
   "STAY INFORMED": "掌握资讯",
-  "News that belongs to you.": "属于你的新闻。",
+  "Join us with your HearT": "與我們用心同行",
+  "Create your DaDe reader account and follow every published story.":
+    "建立您的大德讀者帳號，閱讀每一篇已發布新聞。",
+  "Stay area": "居住地區",
+  "City or area": "城市或地區",
+  "At least 8 characters": "至少 8 個字元",
+  "Sign Up": "註冊",
+  "Signing up…": "註冊中…",
+  "Every new account is registered as DaDe.": "所有新帳號均註冊為大德。",
   "A concise local briefing, delivered every weekday morning.":
     "每个工作日早晨，为你送上精简本地简报。",
   "Join the briefing": "订阅简报",
