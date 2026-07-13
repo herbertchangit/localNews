@@ -18,18 +18,20 @@ type Article = {
 };
 type ResponseCategory = "UNDERSTANDING" | "TOLERANCE" | "GRATITUDE" | "CONTENTMENT";
 type StoryComment = { id: string; body: string; createdAt: string; user: { id: string; name: string; avatarUrl?: string | null } };
-type Discussion = { responses: Record<ResponseCategory, number>; viewerResponse: ResponseCategory | null; comments: StoryComment[] };
+type ResponseState = { responses: Record<ResponseCategory, number>; viewerResponse: ResponseCategory | null };
+type Discussion = ResponseState & { photoResponses: Record<string, ResponseState>; comments: StoryComment[] };
 type Session = { token: string; user: { id: string; name: string } };
 
-const responseOptions: { value: ResponseCategory; english: string; chinese: string }[] = [
-  { value: "UNDERSTANDING", english: "Understanding", chinese: "善解" },
-  { value: "TOLERANCE", english: "Tolerance", chinese: "包容" },
-  { value: "GRATITUDE", english: "Gratitude", chinese: "感恩" },
-  { value: "CONTENTMENT", english: "Contentment", chinese: "知足" },
+const responseOptions: { value: ResponseCategory; english: string; chinese: string; shortChinese: string }[] = [
+  { value: "UNDERSTANDING", english: "Understanding", chinese: "善解", shortChinese: "善" },
+  { value: "TOLERANCE", english: "Tolerance", chinese: "包容", shortChinese: "容" },
+  { value: "GRATITUDE", english: "Gratitude", chinese: "感恩", shortChinese: "恩" },
+  { value: "CONTENTMENT", english: "Contentment", chinese: "知足", shortChinese: "足" },
 ];
+const emptyResponseState: ResponseState = { responses: { UNDERSTANDING: 0, TOLERANCE: 0, GRATITUDE: 0, CONTENTMENT: 0 }, viewerResponse: null };
 const emptyDiscussion: Discussion = {
-  responses: { UNDERSTANDING: 0, TOLERANCE: 0, GRATITUDE: 0, CONTENTMENT: 0 },
-  viewerResponse: null,
+  ...emptyResponseState,
+  photoResponses: {},
   comments: [],
 };
 const readSession = (): Session | null => { try { return JSON.parse(localStorage.getItem("ln_session") || "null"); } catch { return null; } };
@@ -42,6 +44,11 @@ function ReaderHeader() {
   </header></>;
 }
 
+function PhotoResponseControls({ photoId, state, disabled, onRespond }: { photoId: string; state?: ResponseState; disabled: boolean; onRespond: (photoId: string, category: ResponseCategory) => void }) {
+  const current = state || emptyResponseState;
+  return <div className="photoResponses" aria-label="Photo responses">{responseOptions.map((option) => <button type="button" key={option.value} className={current.viewerResponse === option.value ? "selected" : ""} data-english={option.english} aria-label={`${option.english} / ${option.shortChinese}: ${current.responses[option.value]} photo responses`} aria-pressed={current.viewerResponse === option.value} disabled={disabled} onClick={() => onRespond(photoId, option.value)}><span aria-hidden="true">{option.shortChinese}</span><em aria-hidden="true">{current.responses[option.value]}</em></button>)}</div>;
+}
+
 export default function ArticleDetail() {
   const { slug } = useParams();
   const session = readSession();
@@ -51,6 +58,7 @@ export default function ArticleDetail() {
   const [discussion, setDiscussion] = useState<Discussion>(emptyDiscussion);
   const [discussionLoading, setDiscussionLoading] = useState(false);
   const [responseBusy, setResponseBusy] = useState(false);
+  const [photoResponseBusy, setPhotoResponseBusy] = useState<string | null>(null);
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [notice, setNotice] = useState("");
@@ -106,6 +114,20 @@ export default function ArticleDetail() {
     finally { setCommentBusy(false); }
   };
 
+  const savePhotoResponse = async (photoId: string, category: ResponseCategory) => {
+    if (!article || !session || photoResponseBusy) return;
+    setPhotoResponseBusy(photoId);
+    setNotice("");
+    try {
+      const response = await fetch(`/api/articles/${article.id}/photos/${photoId}/responses`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify({ category }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save photo response");
+      setDiscussion((current) => ({ ...current, photoResponses: { ...current.photoResponses, [photoId]: data } }));
+      setNotice("Photo response saved");
+    } catch (caught: any) { setNotice(caught.message); }
+    finally { setPhotoResponseBusy(null); }
+  };
+
   if (loading) return <><ReaderHeader /><main className="articleState">Loading full story… / 正在載入完整新聞…</main></>;
   if (!article || error) return <><ReaderHeader /><main className="articleState"><h1>Story not found / 找不到新聞</h1><p>{error}</p><Link to="/"><ArrowLeft />Back to local news / 返回本地新聞</Link></main></>;
 
@@ -122,9 +144,9 @@ export default function ArticleDetail() {
         <p>{article.excerpt}</p>
         <div><b>By {article.author.name}</b><span><Clock />{readMinutes} min read</span><span><Eye />{article.views.toLocaleString()} views</span><time>{new Date(article.publishedAt || Date.now()).toLocaleDateString()}</time></div>
       </header>
-      {photos[0] && <figure className="articleLeadPhoto"><img src={photos[0].url} alt={photos[0].caption || article.title} />{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}</figure>}
+      {photos[0] && <figure className="articleLeadPhoto"><img src={photos[0].url} alt={photos[0].caption || article.title} />{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={!session || discussionLoading || !!photoResponseBusy} onRespond={savePhotoResponse} />}</figure>}
       <div className="articleBody">{paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
-      {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片</h2></div><div>{photos.slice(1).map((photo) => <figure key={photo.id}><img src={photo.url} alt={photo.caption || article.title} />{photo.caption && <figcaption>{photo.caption}</figcaption>}</figure>)}</div></section>}
+      {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片</h2></div><div>{photos.slice(1).map((photo) => <figure key={photo.id}><img src={photo.url} alt={photo.caption || article.title} />{photo.caption && <figcaption>{photo.caption}</figcaption>}<PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={!session || discussionLoading || !!photoResponseBusy} onRespond={savePhotoResponse} /></figure>)}</div></section>}
     </article>
     <section className="storyDiscussion" aria-labelledby="story-discussion-title">
       <div className="discussionTitle"><small>READER VOICES</small><h2 id="story-discussion-title">Responses and comments</h2><p>Share how this story speaks to you and join the conversation.</p></div>

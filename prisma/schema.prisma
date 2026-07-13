@@ -54,6 +54,7 @@ model User {
   articles           Article[]
   comments           Comment[]
   responses          StoryResponse[]
+  photoResponses     PhotoResponse[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 }
@@ -148,14 +149,15 @@ model Article {
 }
 
 model ArticlePhoto {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   url       String
   caption   String?
-  sortOrder Int      @default(0)
+  sortOrder Int             @default(0)
   articleId String
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  article   Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  responses PhotoResponse[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@index([articleId, sortOrder])
 }
@@ -183,6 +185,20 @@ model StoryResponse {
 
   @@unique([userId, articleId])
   @@index([articleId, category])
+}
+
+model PhotoResponse {
+  id        String           @id @default(cuid())
+  category  ResponseCategory
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photoId   String
+  photo     ArticlePhoto     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([userId, photoId])
+  @@index([photoId, category])
 }
 
 model AuditLog {

@@ -393,6 +393,8 @@ Object.assign(zh, {
   "Post comment": "發布留言",
   "Posting…": "發布中……",
   "Response saved": "回應已儲存",
+  "Photo responses": "照片回應",
+  "Photo response saved": "照片回應已儲存",
   "Comment posted": "留言已發布",
   Comments: "留言",
   "Loading comments…": "正在載入留言……",

@@ -16,6 +16,17 @@
 .responseOptions button.selected em{border-color:#174f3a}
 .responseOptions button:disabled{cursor:default;opacity:.78}
 .responseHint{font-size:11px;color:#6d7971;margin:24px 0 0;text-align:center}
+.photoResponses{display:flex;align-items:center;justify-content:center;gap:9px;padding:11px 10px;background:#f1f3ee;border-top:1px solid #d7ddd7}
+.photoResponses button{position:relative;width:38px;height:38px;flex:0 0 38px;border:1px solid #aebfb3;border-radius:50%;background:#fff;color:#174f3a;display:grid;place-items:center;padding:0;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .15s ease}
+.photoResponses button>span{font:800 15px 'Libre Franklin',sans-serif}
+.photoResponses button em{position:absolute;right:-5px;top:-5px;min-width:17px;height:17px;border-radius:9px;background:#d6b96c;color:#26382f;border:1px solid #f1f3ee;font:800 normal 8px/15px 'DM Sans';text-align:center}
+.photoResponses button::after{content:attr(data-english);position:absolute;left:50%;bottom:calc(100% + 8px);z-index:8;transform:translate(-50%,4px);background:#183f31;color:#fff;padding:5px 7px;border-radius:3px;font:700 9px 'DM Sans';white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .14s ease,transform .14s ease,visibility .14s ease}
+.photoResponses button:hover,.photoResponses button:focus-visible{border-color:#174f3a;transform:translateY(-2px)}
+.photoResponses button:hover::after,.photoResponses button:focus-visible::after{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.photoResponses button:focus-visible{outline:2px solid #d6b96c;outline-offset:2px}
+.photoResponses button.selected{background:#174f3a;border-color:#174f3a;color:#fff;box-shadow:0 0 0 2px #cedbd2}
+.photoResponses button.selected em{border-color:#174f3a}
+.photoResponses button:disabled{cursor:default;opacity:.72}
 .discussionSignIn{margin-top:22px;text-align:center}
 .discussionSignIn a{display:inline-block;background:#174f3a;color:#fff;padding:11px 15px;font-size:12px;font-weight:800}
 .commentForm{margin-top:25px;border:1px solid #d5dcd5;padding:22px}
@@ -41,4 +52,4 @@
 .commentList article header time{font-size:10px;color:#7b857e}
 .commentList article p{white-space:pre-wrap;margin:7px 0 0;font-size:14px;line-height:1.65;color:#3d4942}
 .commentsEmpty{background:#f2f3ef;color:#727c75;text-align:center;padding:30px;margin:18px 0 0;font-size:13px}
-@media(max-width:700px){.storyDiscussion{margin-top:50px}.responsePanel{padding:26px 14px 22px}.responseOptions{gap:20px}.responseOptions button{width:92px;height:92px;flex-basis:92px}.responseOptions button>span{font-size:21px}.responseOptions button::after{bottom:calc(100% + 8px)}.commentList article header{align-items:flex-start;flex-direction:column;gap:3px}}
+@media(max-width:700px){.storyDiscussion{margin-top:50px}.responsePanel{padding:26px 14px 22px}.responseOptions{gap:20px}.responseOptions button{width:92px;height:92px;flex-basis:92px}.responseOptions button>span{font-size:21px}.responseOptions button::after{bottom:calc(100% + 8px)}.photoResponses{gap:8px}.photoResponses button{width:35px;height:35px;flex-basis:35px}.commentList article header{align-items:flex-start;flex-direction:column;gap:3px}}
