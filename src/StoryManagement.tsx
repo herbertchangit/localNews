@@ -4,6 +4,7 @@ import {
   BarChart3,
   Camera,
   FileText,
+  EyeOff,
   ImagePlus,
   LayoutDashboard,
   Pencil,
@@ -60,6 +61,7 @@ export default function StoryManagement() {
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
+  const [unpublishBusy, setUnpublishBusy] = useState("");
   const [notice, setNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const headers = useMemo(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${current?.token || ""}` }), [current?.token]);
@@ -150,6 +152,17 @@ export default function StoryManagement() {
     finally { setHeadlineBusy(""); }
   };
 
+  const unpublish = async (story: Story) => {
+    if (!window.confirm("Unpublish this story? It will be removed from public news. / 取消發布此新聞？它將從公開新聞中移除。")) return;
+    setUnpublishBusy(story.id);
+    try {
+      const updated = await api(`/api/articles/${story.id}/unpublish`, { method: "PATCH" });
+      setStories((items) => items.map((item) => item.id === updated.id ? updated : item));
+      setNotice("Story unpublished and returned to draft / 新聞已取消發布並轉回草稿");
+    } catch (error: any) { setNotice(error.message); }
+    finally { setUnpublishBusy(""); }
+  };
+
   const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
   const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
   const activePhotos = photos.filter((photo) => !photo.removed);
@@ -179,7 +192,7 @@ export default function StoryManagement() {
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}</small></div>
             <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <div className="storyActions"><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}</div>
+            <div className="storyActions"><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}</div>
           </div>;
         })}
       </div>

@@ -365,6 +365,7 @@ Object.assign(zh, {
   "published stories": "篇已發布新聞",
   "Scroll Daily Brief left": "向左捲動每日簡報",
   "Scroll Daily Brief right": "向右捲動每日簡報",
+  "Unpublish": "取消發布",
 });
 const missionZh: Record<string, string> = {
   "Charity Mission": "慈善志業",
