@@ -1,0 +1,56 @@
+.pwaControls {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #ffffff2e;
+  border-radius: 8px;
+  background: #123a2df2;
+  box-shadow: 0 12px 35px #071d1660;
+  color: #fff;
+}
+
+.pwaControls button,
+.pwaOffline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 5px;
+  font: 700 12px/1.2 inherit;
+}
+
+.pwaControls button {
+  cursor: pointer;
+  background: #d2b474;
+  color: #123a2d;
+}
+
+.pwaControls button:hover {
+  background: #e0c48a;
+}
+
+.pwaControls svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pwaOffline {
+  background: #ffffff14;
+}
+
+@media (max-width: 560px) {
+  .pwaControls {
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
