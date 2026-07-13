@@ -377,6 +377,27 @@ Object.assign(zh, {
   "Scroll Daily Brief right": "向右捲動每日簡報",
   "Unpublish": "取消發布",
 });
+Object.assign(zh, {
+  "READER VOICES": "讀者心聲",
+  "Responses and comments": "回應與留言",
+  "Share how this story speaks to you and join the conversation.": "分享這篇新聞帶給你的感受，並加入交流。",
+  "Your response": "你的回應",
+  Understanding: "善解",
+  Tolerance: "包容",
+  Gratitude: "感恩",
+  Contentment: "知足",
+  "Choose one response. You can change it at any time.": "請選擇一項回應，你可隨時更改。",
+  "Sign in to respond or comment": "登入以回應或留言",
+  "Share a comment": "分享留言",
+  "Write your comment…": "寫下你的留言……",
+  "Post comment": "發布留言",
+  "Posting…": "發布中……",
+  "Response saved": "回應已儲存",
+  "Comment posted": "留言已發布",
+  Comments: "留言",
+  "Loading comments…": "正在載入留言……",
+  "No comments yet. Start the conversation.": "尚無留言，歡迎開始交流。",
+});
 const missionZh: Record<string, string> = {
   "Charity Mission": "慈善志業",
   "Medical Mission": "醫療志業",
