@@ -12,6 +12,8 @@ const zh: Record<string, string> = {
   Sports: "体育",
   Culture: "文化",
   Newsroom: "新闻中心",
+  Login: "登入",
+  Logout: "登出",
   "Developing story": "持续报道",
   "Read full story": "阅读完整报道",
   "Live from the heart of our community": "来自社区中心的现场报道",

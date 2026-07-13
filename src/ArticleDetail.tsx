@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowLeft, Clock, Eye, Menu, MessageCircle, Search, Send } from "lucide-react";
+import { ArrowLeft, Clock, Eye, MessageCircle, Send } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import PublicHeader from "./PublicHeader";
 
 type Photo = { id: string; url: string; caption: string | null; sortOrder: number };
 type Article = {
@@ -37,11 +38,7 @@ const emptyDiscussion: Discussion = {
 const readSession = (): Session | null => { try { return JSON.parse(localStorage.getItem("ln_session") || "null"); } catch { return null; } };
 
 function ReaderHeader() {
-  return <><div className="ticker"><b>LOCAL NEWS</b><span>Independent reporting for our community</span></div><header>
-    <Link to="/" className="brand"><span>LN</span><div>LOCAL NEWS<small>THE CITY, CLEARLY</small></div></Link>
-    <nav>{["Local", "Politics", "Business", "Sports", "Culture"].map((item) => <Link to="/" key={item}>{item}</Link>)}</nav>
-    <div className="actions"><button aria-label="Search"><Search /></button><Link className="studio" to="/newsroom">Newsroom</Link><button className="mobile"><Menu /></button></div>
-  </header></>;
+  return <PublicHeader tickerLabel="LOCAL NEWS" tickerText="Independent reporting for our community"><nav>{["Local", "Politics", "Business", "Sports", "Culture"].map((item) => <Link to="/" key={item}>{item}</Link>)}</nav></PublicHeader>;
 }
 
 function PhotoResponseControls({ photoId, state, disabled, onRespond }: { photoId: string; state?: ResponseState; disabled: boolean; onRespond: (photoId: string, category: ResponseCategory) => void }) {
