@@ -2,6 +2,7 @@ node_modules
 dist
 server-dist
 .env
+.env.production
 uploads/*
 !uploads/.gitkeep
 tmp/
