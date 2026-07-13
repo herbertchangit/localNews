@@ -21,11 +21,11 @@ type StoryComment = { id: string; body: string; createdAt: string; user: { id: s
 type Discussion = { responses: Record<ResponseCategory, number>; viewerResponse: ResponseCategory | null; comments: StoryComment[] };
 type Session = { token: string; user: { id: string; name: string } };
 
-const responseOptions: { value: ResponseCategory; label: string; symbol: string }[] = [
-  { value: "UNDERSTANDING", label: "Understanding", symbol: "善" },
-  { value: "TOLERANCE", label: "Tolerance", symbol: "容" },
-  { value: "GRATITUDE", label: "Gratitude", symbol: "恩" },
-  { value: "CONTENTMENT", label: "Contentment", symbol: "足" },
+const responseOptions: { value: ResponseCategory; english: string; chinese: string }[] = [
+  { value: "UNDERSTANDING", english: "Understanding", chinese: "善解" },
+  { value: "TOLERANCE", english: "Tolerance", chinese: "包容" },
+  { value: "GRATITUDE", english: "Gratitude", chinese: "感恩" },
+  { value: "CONTENTMENT", english: "Contentment", chinese: "知足" },
 ];
 const emptyDiscussion: Discussion = {
   responses: { UNDERSTANDING: 0, TOLERANCE: 0, GRATITUDE: 0, CONTENTMENT: 0 },
@@ -130,7 +130,7 @@ export default function ArticleDetail() {
       <div className="discussionTitle"><small>READER VOICES</small><h2 id="story-discussion-title">Responses and comments</h2><p>Share how this story speaks to you and join the conversation.</p></div>
       <div className="responsePanel">
         <h3>Your response</h3>
-        <div className="responseOptions">{responseOptions.map((option) => <button type="button" key={option.value} className={discussion.viewerResponse === option.value ? "selected" : ""} aria-pressed={discussion.viewerResponse === option.value} disabled={responseBusy || discussionLoading || !session} onClick={() => saveResponse(option.value)}><span>{option.symbol}</span><b>{option.label}</b><em>{discussion.responses[option.value]}</em></button>)}</div>
+        <div className="responseOptions">{responseOptions.map((option) => <button type="button" key={option.value} className={discussion.viewerResponse === option.value ? "selected" : ""} data-english={option.english} aria-label={`${option.english} / ${option.chinese}: ${discussion.responses[option.value]} responses`} aria-pressed={discussion.viewerResponse === option.value} disabled={responseBusy || discussionLoading || !session} onClick={() => saveResponse(option.value)}><span aria-hidden="true">{option.chinese}</span><em aria-hidden="true">{discussion.responses[option.value]}</em></button>)}</div>
         {session ? <p className="responseHint">Choose one response. You can change it at any time.</p> : <div className="discussionSignIn"><Link to="/login" state={{ from: `/stories/${slug}` }}>Sign in to respond or comment</Link></div>}
       </div>
       {session && <form className="commentForm" onSubmit={postComment}><label htmlFor="story-comment">Share a comment</label><textarea id="story-comment" value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Write your comment…" maxLength={1000} rows={4} /><div><small>{commentBody.length} / 1000</small><button disabled={commentBusy || commentBody.trim().length < 2}>{commentBusy ? "Posting…" : <><Send />Post comment</>}</button></div></form>}
