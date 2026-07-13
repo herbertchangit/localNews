@@ -12,7 +12,7 @@ async function main() {
   const departments = await Promise.all(['Central News Desk','Politics Desk','Business Desk','Sports Desk','Digital & Audience','Charity Mission','Medical Mission','Education Mission','Humanistic Mission'].map(name => p.department.upsert({ where: { name }, update: {}, create: { name } })));
   const users = await Promise.all([
     ['admin@local.news','Harper Cole',Role.ADMIN,0],
-    ['editor@local.news','Nadia Brooks',Role.VOLUNTEER,0],
+    ['editor@local.news','Nadia Brooks',Role.EDITOR,0],
     ['reporter@local.news','Aisha Rahman',Role.VOLUNTEER,1],
     ['reader@local.news','Sam Reader',Role.DADE,4]
   ].map(([email,name,role,department]) => p.user.upsert({ where: { email: email as string }, update: { role: role as Role, departmentId: departments[department as number].id }, create: { email: email as string, name: name as string, role: role as Role, password, departmentId: departments[department as number].id, permissions: role === Role.ADMIN ? ['users.manage','articles.publish','analytics.view','comments.moderate'] : [] } })));

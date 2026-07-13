@@ -39,7 +39,7 @@ const blank = {
   name: "",
   email: "",
   password: "Demo123!",
-  role: "REPORTER",
+  role: "VOLUNTEER",
   locked: false,
   suspended: false,
   permissions: [] as string[],
@@ -391,7 +391,7 @@ export default function AccountManagement() {
                   value={edit.role}
                   onChange={(e) => setEdit({ ...edit, role: e.target.value })}
                 >
-                  {["ADMIN", "EDITOR", "REPORTER", "AUDIENCE"].map((x) => (
+                  {["ADMIN", "EDITOR", "VOLUNTEER", "DADE"].map((x) => (
                     <option key={x}>{x}</option>
                   ))}
                 </select>

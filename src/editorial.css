@@ -1,0 +1,1 @@
+.editorialDashboard .rowActions{display:flex;gap:3px}.editorialDashboard .rowActions button{cursor:pointer}.editorialDashboard .rowActions button:disabled{cursor:not-allowed;opacity:.28}.editorialEmpty{padding:36px 20px;text-align:center;color:#748078;font-size:12px}.editorialStats .stat:last-child strong{font-size:18px;line-height:31px}.status.draft{color:#66736b}
