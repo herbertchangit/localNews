@@ -342,6 +342,9 @@ Object.assign(zh, {
   "Story content": "新聞內容",
   "Save draft": "儲存草稿",
   "Saving…": "儲存中…",
+  Saved: "已儲存",
+  "Your profile changes are being saved.": "正在儲存你的個人資料變更。",
+  "Your profile is up to date.": "你的個人資料已更新。",
   "New story": "新增新聞",
   "Draft saved:": "草稿已儲存：",
 });
