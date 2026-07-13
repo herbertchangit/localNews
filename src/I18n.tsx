@@ -213,6 +213,8 @@ const zh: Record<string, string> = {
 Object.assign(zh, {
   "Organization Chart": "组织架构",
   "Open Organization Chart Maintenance": "打开组织架构维护",
+  "News Categories": "新聞類別",
+  "Open News Category Management": "開啟新聞類別管理",
   "SETTINGS / ORGANIZATION CHART": "设置 / 组织架构",
   "Organization chart maintenance": "组织架构维护",
   "Maintain the Harmony, MutualLove and Cooperation hierarchy.":
