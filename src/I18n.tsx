@@ -362,6 +362,9 @@ Object.assign(zh, {
   "Headline": "頭條",
   "Set as headline": "設為頭條",
   "Remove headline": "移除頭條",
+  "published stories": "篇已發布新聞",
+  "Scroll Daily Brief left": "向左捲動每日簡報",
+  "Scroll Daily Brief right": "向右捲動每日簡報",
 });
 const missionZh: Record<string, string> = {
   "Charity Mission": "慈善志業",
