@@ -10,12 +10,21 @@ type SignupForm = {
 };
 
 const emptyForm: SignupForm = { name: "", email: "", stayArea: "", password: "" };
+const isSignedIn = () => {
+  try {
+    const session = JSON.parse(localStorage.getItem("ln_session") || "null");
+    return Boolean(session?.token && session?.user);
+  } catch {
+    return false;
+  }
+};
 
 export default function NewsletterSignup() {
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const signedIn = isSignedIn();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -38,6 +47,8 @@ export default function NewsletterSignup() {
       setBusy(false);
     }
   };
+
+  if (signedIn) return null;
 
   return <section className="newsletter signupNewsletter">
     <span>STAY INFORMED</span>
