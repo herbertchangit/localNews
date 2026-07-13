@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
-import { FileText, ImagePlus, Plus, Save, X } from "lucide-react";
+import { FileText, ImagePlus, Plus, Save, Trash2, X } from "lucide-react";
 
 type Category = { id: string; name: string };
+type DraftPhoto = { id: string; dataUrl: string; caption: string };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -49,12 +50,17 @@ export default function StoryComposer() {
 }
 
 function StoryModal({ categories, token, onClose, onCreated }: { categories: Category[]; token: string; onClose: () => void; onCreated: (title: string) => void }) {
-  const [form, setForm] = useState({ title: "", excerpt: "", content: "", categoryId: categories[0]?.id || "" }), [photoData, setPhotoData] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const choosePhoto = async (file?: File) => {
-    if (!file) return;
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setError("Use a PNG, JPEG or WebP photo");
-    if (file.size > 5 * 1024 * 1024) return setError("Story photo must be 5 MB or smaller");
-    setPhotoData(await fileToDataUrl(file));
+  const [form, setForm] = useState({ title: "", excerpt: "", content: "", categoryId: categories[0]?.id || "" }), [photos, setPhotos] = useState<DraftPhoto[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const choosePhotos = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    const incoming = Array.from(files);
+    if (photos.length + incoming.length > 12) return setError("A story can have up to 12 photos / 每篇新聞最多可有 12 張照片");
+    for (const file of incoming) {
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setError("Use PNG, JPEG or WebP photos / 請使用 PNG、JPEG 或 WebP 照片");
+      if (file.size > 5 * 1024 * 1024) return setError("Each photo must be 5 MB or smaller / 每張照片不得超過 5 MB");
+    }
+    const additions = await Promise.all(incoming.map(async (file): Promise<DraftPhoto> => ({ id: crypto.randomUUID(), dataUrl: await fileToDataUrl(file), caption: "" })));
+    setPhotos((items) => [...items, ...additions]);
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
@@ -62,13 +68,25 @@ function StoryModal({ categories, token, onClose, onCreated }: { categories: Cat
       const response = await fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(form) });
       const story = await response.json();
       if (!response.ok) throw new Error(story.error || "Could not save story");
-      if (photoData) {
-        const photoResponse = await fetch(`/api/newsroom/articles/${story.id}/image`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ dataUrl: photoData }) });
+      for (const photo of photos) {
+        const photoResponse = await fetch(`/api/newsroom/articles/${story.id}/photos`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ dataUrl: photo.dataUrl, caption: photo.caption }) });
         const photoResult = await photoResponse.json();
-        if (!photoResponse.ok) throw new Error(photoResult.error || "Draft saved, but photo upload failed");
+        if (!photoResponse.ok) throw new Error(photoResult.error || "Draft saved, but a photo upload failed");
       }
       onCreated(story.title);
-    } catch (caught: any) { setError(caught.message); } finally { setBusy(false); }
+    } catch (caught: any) { setError(caught.message); }
+    finally { setBusy(false); }
   };
-  return <div className="modalBackdrop"><form className="userModal storyComposerModal" onSubmit={submit}><div className="modalHead"><div><small>NEW STORY</small><h2>Create story draft</h2></div><button type="button" onClick={onClose}><X /></button></div><div className="storyComposerIntro"><FileText /><p>Start a draft for editorial review. It will not be published automatically.</p></div>{error && <div className="storyComposerError">{error}</div>}<label>Story photo / 新聞照片<div className="composerPhotoField">{photoData ? <img src={photoData} alt="Story preview" /> : <ImagePlus />}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => choosePhoto(event.target.files?.[0])} /></div></label><label>Story title<input required minLength={8} maxLength={180} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label>News category<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}><option value="">Select category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Summary<textarea required minLength={20} rows={3} value={form.excerpt} onChange={(event) => setForm({ ...form, excerpt: event.target.value })} /></label><label>Story content<textarea required minLength={40} rows={8} value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} /></label><div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="new" disabled={busy}><Save />{busy ? "Saving…" : "Save draft"}</button></div></form></div>;
+  return <div className="modalBackdrop"><form className="userModal storyComposerModal" onSubmit={submit}>
+    <div className="modalHead"><div><small>NEW STORY · 新增新聞</small><h2>Create story draft / 建立新聞草稿</h2></div><button type="button" onClick={onClose}><X /></button></div>
+    <div className="storyComposerIntro"><FileText /><p>Start a draft for editorial review. It will not be published automatically.</p></div>
+    {error && <div className="storyComposerError">{error}</div>}
+    <label>Story photos and captions / 新聞照片及說明<div className="composerPhotoField"><ImagePlus /><span>Add up to 12 photos / 最多新增 12 張照片</span><input multiple type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => choosePhotos(event.target.files)} /></div></label>
+    {!!photos.length && <div className="composerGallery">{photos.map((photo, index) => <div key={photo.id}><img src={photo.dataUrl} alt={`Story preview ${index + 1}`} /><label>Caption / 圖片說明<input maxLength={240} placeholder="Describe this photo / 說明這張照片" value={photo.caption} onChange={(event) => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, caption: event.target.value } : item))} /></label><button type="button" onClick={() => setPhotos((items) => items.filter((item) => item.id !== photo.id))}><Trash2 />Remove / 移除</button></div>)}</div>}
+    <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+    <label>News category / 新聞類別<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}><option value="">Select category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+    <label>Summary / 摘要<textarea required minLength={20} rows={3} value={form.excerpt} onChange={(event) => setForm({ ...form, excerpt: event.target.value })} /></label>
+    <label>Story content / 新聞內容<textarea required minLength={40} rows={8} value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} /></label>
+    <div className="modalActions"><button type="button" onClick={onClose}>Cancel / 取消</button><button className="new" disabled={busy}><Save />{busy ? "Saving…" : "Save draft / 儲存草稿"}</button></div>
+  </form></div>;
 }

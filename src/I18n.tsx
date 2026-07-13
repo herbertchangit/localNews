@@ -343,6 +343,22 @@ Object.assign(zh, {
   "New story": "新增新聞",
   "Draft saved:": "草稿已儲存：",
 });
+Object.assign(zh, {
+  "Read Story": "閱讀新聞",
+  "Independent reporting for our community": "為社區提供獨立報導",
+  "Back to local news": "返回本地新聞",
+  "Loading full story…": "正在載入完整新聞…",
+  "Story not found": "找不到新聞",
+  "STORY GALLERY": "新聞相簿",
+  "More from this story": "更多新聞照片",
+  "Story photos and captions": "新聞照片及說明",
+  "Add photos": "新增照片",
+  "Caption": "圖片說明",
+  "Describe this photo": "說明這張照片",
+  "No photos yet": "尚未有照片",
+  "Remove": "移除",
+  "Edit": "編輯",
+});
 const missionZh: Record<string, string> = {
   "Charity Mission": "慈善志業",
   "Medical Mission": "醫療志業",

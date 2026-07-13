@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 
 type Category = { id: string; name: string };
+type StoryPhoto = { id: string; url: string; caption: string | null; sortOrder: number };
+type EditablePhoto = StoryPhoto & { dataUrl?: string; removed?: boolean; originalCaption?: string };
 type Story = {
   id: string;
   title: string;
@@ -23,6 +25,7 @@ type Story = {
   content: string;
   status: string;
   imageUrl: string | null;
+  photos: StoryPhoto[];
   updatedAt: string;
   author: { name: string };
   category: Category;
@@ -31,20 +34,16 @@ type Story = {
 type Session = { token: string; user: { name: string; role: string } };
 
 const session = (): Session | null => {
-  try {
-    return JSON.parse(localStorage.getItem("ln_session") || "null");
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(localStorage.getItem("ln_session") || "null"); }
+  catch { return null; }
 };
 
-const fileToDataUrl = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read photo"));
-    reader.readAsDataURL(file);
-  });
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result));
+  reader.onerror = () => reject(new Error("Could not read photo"));
+  reader.readAsDataURL(file);
+});
 
 export default function StoryManagement() {
   const nav = useNavigate();
@@ -55,16 +54,12 @@ export default function StoryManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [editing, setEditing] = useState<Story | null>(null);
-  const [photoData, setPhotoData] = useState("");
-  const [removePhoto, setRemovePhoto] = useState(false);
+  const [photos, setPhotos] = useState<EditablePhoto[]>([]);
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-  const headers = useMemo(
-    () => ({ "Content-Type": "application/json", Authorization: `Bearer ${current?.token || ""}` }),
-    [current?.token],
-  );
+  const headers = useMemo(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${current?.token || ""}` }), [current?.token]);
 
   const api = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
@@ -76,18 +71,12 @@ export default function StoryManagement() {
   const load = async () => {
     setBusy(true);
     try {
-      const [items, options] = await Promise.all([
-        api("/api/newsroom/articles"),
-        api("/api/story-options"),
-      ]);
+      const [items, options] = await Promise.all([api("/api/newsroom/articles"), api("/api/story-options")]);
       setStories(items);
       setCategories(options.categories);
       setCanCreate(Boolean(options.canCreate));
-    } catch (error: any) {
-      setNotice(error.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (error: any) { setNotice(error.message); }
+    finally { setBusy(false); }
   };
 
   useEffect(() => {
@@ -99,16 +88,28 @@ export default function StoryManagement() {
 
   const open = (story: Story) => {
     setEditing({ ...story });
-    setPhotoData("");
-    setRemovePhoto(false);
+    setPhotos((story.photos || []).map((photo) => ({ ...photo, originalCaption: photo.caption || "" })));
   };
 
-  const selectPhoto = async (file?: File) => {
-    if (!file) return;
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setNotice("Use a PNG, JPEG or WebP photo");
-    if (file.size > 5 * 1024 * 1024) return setNotice("Story photo must be 5 MB or smaller");
-    setPhotoData(await fileToDataUrl(file));
-    setRemovePhoto(false);
+  const selectPhotos = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    const incoming = Array.from(files);
+    const activeCount = photos.filter((photo) => !photo.removed).length;
+    if (activeCount + incoming.length > 12) return setNotice("A story can have up to 12 photos / 每篇新聞最多可有 12 張照片");
+    for (const file of incoming) {
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setNotice("Use PNG, JPEG or WebP photos / 請使用 PNG、JPEG 或 WebP 照片");
+      if (file.size > 5 * 1024 * 1024) return setNotice("Each photo must be 5 MB or smaller / 每張照片不得超過 5 MB");
+    }
+    const additions = await Promise.all(incoming.map(async (file, index): Promise<EditablePhoto> => ({
+      id: `new-${crypto.randomUUID()}`,
+      url: "",
+      dataUrl: await fileToDataUrl(file),
+      caption: "",
+      sortOrder: activeCount + index,
+      originalCaption: "",
+    })));
+    setPhotos((items) => [...items, ...additions]);
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   const save = async (event: React.FormEvent) => {
@@ -118,89 +119,77 @@ export default function StoryManagement() {
     try {
       let updated = await api(`/api/newsroom/articles/${editing.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          title: editing.title,
-          excerpt: editing.excerpt,
-          content: editing.content,
-          categoryId: editing.categoryId,
-        }),
+        body: JSON.stringify({ title: editing.title, excerpt: editing.excerpt, content: editing.content, categoryId: editing.categoryId }),
       });
-      if (photoData) {
-        updated = await api(`/api/newsroom/articles/${editing.id}/image`, {
-          method: "POST",
-          body: JSON.stringify({ dataUrl: photoData }),
-        });
-      } else if (removePhoto && editing.imageUrl) {
-        updated = await api(`/api/newsroom/articles/${editing.id}/image`, { method: "DELETE" });
+      for (const photo of photos) {
+        if (photo.id.startsWith("new-") && !photo.removed) {
+          updated = await api(`/api/newsroom/articles/${editing.id}/photos`, { method: "POST", body: JSON.stringify({ dataUrl: photo.dataUrl, caption: photo.caption || "" }) });
+        } else if (photo.removed && !photo.id.startsWith("new-")) {
+          updated = await api(`/api/newsroom/articles/${editing.id}/photos/${photo.id}`, { method: "DELETE" });
+        } else if (!photo.removed && (photo.caption || "") !== (photo.originalCaption || "")) {
+          updated = await api(`/api/newsroom/articles/${editing.id}/photos/${photo.id}`, { method: "PATCH", body: JSON.stringify({ caption: photo.caption || "" }) });
+        }
       }
-      setStories((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      setStories((items) => items.map((item) => item.id === updated.id ? updated : item));
       setEditing(null);
-      setNotice(
-        isAdmin || isEditor
-          ? "Story updated / 新聞已更新"
-          : "Story updated and returned for review / 新聞已更新並送交審核",
-      );
-    } catch (error: any) {
-      setNotice(error.message);
-    } finally {
-      setSaving(false);
-    }
+      setNotice(isAdmin || isEditor ? "Story and photo gallery updated / 新聞及相簿已更新" : "Story updated and returned for review / 新聞已更新並送交審核");
+    } catch (error: any) { setNotice(error.message); }
+    finally { setSaving(false); }
   };
 
   const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
   const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
-  const preview = photoData || (removePhoto ? "" : editing?.imageUrl || "");
+  const activePhotos = photos.filter((photo) => !photo.removed);
 
-  return (
-    <div className="dash">
-      <aside>
-        <Link to="/" className="brand light"><span>LN</span><div>LOCAL NEWS<small>NEWSROOM OS</small></div></Link>
-        <div className="workspace"><small>WORKSPACE</small><b>Central News Desk</b></div>
-        <button onClick={() => nav("/newsroom")}><LayoutDashboard />Overview</button>
-        <button className="active"><FileText />Stories<em>{stories.length}</em></button>
-        {isAdmin && <button><Users />People</button>}
-        {isAdmin && <button><BarChart3 />Analytics</button>}
-        <button onClick={() => !isAdmin && nav("/newsroom/settings")}><Settings />Settings</button>
-        <div className="profile"><div>{initials}</div><span><b>{current?.user.name}</b><small>{roleLabel}</small></span></div>
-      </aside>
-      <section className="content storyManagement">
-        <div className="top">
-          <div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Story management / 新聞管理</h1><p>Edit story content and manage its photo. / 編輯新聞內容及管理照片。</p></div>
-          {canCreate && <button className="new"><Plus />New story</button>}
-        </div>
-        {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
-        <div className="panel storyManagerPanel">
-          <div className="storyManagerHeader"><span>Photo / 照片</span><span>Story / 新聞</span><span>Status / 狀態</span><span>Updated / 更新</span><span>Action / 操作</span></div>
-          {busy && <div className="editorialEmpty">Loading stories… / 正在載入新聞…</div>}
-          {!busy && !stories.length && <div className="editorialEmpty">No editable stories. / 暫無可編輯新聞。</div>}
-          {!busy && stories.map((story) => (
-            <div className="storyManagerRow" key={story.id}>
-              <div className={`storyPhoto ${story.imageUrl ? "hasPhoto" : ""}`} style={story.imageUrl ? { backgroundImage: `url(${story.imageUrl})` } : undefined}>{!story.imageUrl && <Camera />}</div>
-              <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}</small></div>
-              <span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>
-              <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-              <button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>
-            </div>
-          ))}
-        </div>
-      </section>
-      {editing && (
-        <div className="modalBackdrop" onMouseDown={() => setEditing(null)}>
-          <form className="userModal storyEditorModal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
-            <div className="modalHead"><div><small>EDIT STORY · 編輯新聞</small><h2>{editing.title}</h2></div><button type="button" onClick={() => setEditing(null)}><X /></button></div>
-            <div className="storyPhotoEditor">
-              <div className={preview ? "hasPhoto" : ""} style={preview ? { backgroundImage: `url(${preview})` } : undefined}>{!preview && <ImagePlus />}</div>
-              <section><b>Story photo / 新聞照片</b><p>PNG, JPEG or WebP · maximum 5 MB</p><span><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />{preview ? "Replace photo" : "Upload photo"}</button>{preview && <button type="button" className="removeStoryPhoto" onClick={() => { setPhotoData(""); setRemovePhoto(true); }}><Trash2 />Remove</button>}</span></section>
-              <input ref={fileRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => selectPhoto(event.target.files?.[0])} />
-            </div>
-            <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label>
-            <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => setEditing({ ...editing, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-            <label>Summary / 摘要<textarea required minLength={20} rows={3} value={editing.excerpt} onChange={(event) => setEditing({ ...editing, excerpt: event.target.value })} /></label>
-            <label>Story content / 新聞內容<textarea required minLength={40} rows={9} value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} /></label>
-            <div className="modalActions"><button type="button" onClick={() => setEditing(null)}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
-          </form>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="dash">
+    <aside>
+      <Link to="/" className="brand light"><span>LN</span><div>LOCAL NEWS<small>NEWSROOM OS</small></div></Link>
+      <div className="workspace"><small>WORKSPACE</small><b>Central News Desk</b></div>
+      <button onClick={() => nav("/newsroom")}><LayoutDashboard />Overview</button>
+      <button className="active"><FileText />Stories<em>{stories.length}</em></button>
+      {isAdmin && <button><Users />People</button>}
+      {isAdmin && <button><BarChart3 />Analytics</button>}
+      <button onClick={() => !isAdmin && nav("/newsroom/settings")}><Settings />Settings</button>
+      <div className="profile"><div>{initials}</div><span><b>{current?.user.name}</b><small>{roleLabel}</small></span></div>
+    </aside>
+    <section className="content storyManagement">
+      <div className="top"><div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Story management / 新聞管理</h1><p>Edit story content and manage its photo gallery. / 編輯新聞內容及管理相簿。</p></div>{canCreate && <button className="new"><Plus />New story</button>}</div>
+      {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
+      <div className="panel storyManagerPanel">
+        <div className="storyManagerHeader"><span>Photos / 照片</span><span>Story / 新聞</span><span>Status / 狀態</span><span>Updated / 更新</span><span>Action / 操作</span></div>
+        {busy && <div className="editorialEmpty">Loading stories… / 正在載入新聞…</div>}
+        {!busy && !stories.length && <div className="editorialEmpty">No editable stories. / 暫無可編輯新聞。</div>}
+        {!busy && stories.map((story) => {
+          const lead = story.photos?.[0]?.url || story.imageUrl;
+          return <div className="storyManagerRow" key={story.id}>
+            <div className={`storyPhoto ${lead ? "hasPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined}>{!lead && <Camera />}<span>{story.photos?.length || 0}</span></div>
+            <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}</small></div>
+            <span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>
+            <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
+            <button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>
+          </div>;
+        })}
+      </div>
+    </section>
+    {editing && <div className="modalBackdrop" onMouseDown={() => setEditing(null)}>
+      <form className="userModal storyEditorModal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="modalHead"><div><small>EDIT STORY · 編輯新聞</small><h2>{editing.title}</h2></div><button type="button" onClick={() => setEditing(null)}><X /></button></div>
+        <section className="storyGalleryEditor">
+          <div className="storyGalleryHeading"><div><b>Story photos and captions / 新聞照片及說明</b><p>Up to 12 PNG, JPEG or WebP photos · maximum 5 MB each</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add photos / 新增照片</button></div>
+          <input ref={fileRef} hidden multiple type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => selectPhotos(event.target.files)} />
+          {!activePhotos.length && <div className="emptyPhotoGallery"><ImagePlus /><span>No photos yet / 尚未有照片</span></div>}
+          <div className="storyGalleryGrid">{activePhotos.map((photo, index) => <div className="storyGalleryItem" key={photo.id}>
+            <div style={{ backgroundImage: `url(${photo.dataUrl || photo.url})` }}><span>{index + 1}</span></div>
+            <label>Caption / 圖片說明<textarea maxLength={240} rows={2} placeholder="Describe this photo / 說明這張照片" value={photo.caption || ""} onChange={(event) => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, caption: event.target.value } : item))} /></label>
+            <button type="button" onClick={() => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, removed: true } : item))}><Trash2 />Remove / 移除</button>
+          </div>)}</div>
+        </section>
+        <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label>
+        <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => setEditing({ ...editing, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+        <label>Summary / 摘要<textarea required minLength={20} rows={3} value={editing.excerpt} onChange={(event) => setEditing({ ...editing, excerpt: event.target.value })} /></label>
+        <label>Story content / 新聞內容<textarea required minLength={40} rows={9} value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} /></label>
+        <div className="modalActions"><button type="button" onClick={() => setEditing(null)}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
+      </form>
+    </div>}
+  </div>;
 }
