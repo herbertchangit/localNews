@@ -125,6 +125,7 @@ model Article {
   status      ArticleStatus @default(DRAFT)
   isBreaking Boolean       @default(false)
   isTrending Boolean       @default(false)
+  isHeadline Boolean       @default(false)
   views       Int           @default(0)
   authorId    String
   author      User          @relation(fields: [authorId], references: [id])

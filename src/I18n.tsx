@@ -358,6 +358,10 @@ Object.assign(zh, {
   "No photos yet": "尚未有照片",
   "Remove": "移除",
   "Edit": "編輯",
+  "HEADLINE": "頭條",
+  "Headline": "頭條",
+  "Set as headline": "設為頭條",
+  "Remove headline": "移除頭條",
 });
 const missionZh: Record<string, string> = {
   "Charity Mission": "慈善志業",

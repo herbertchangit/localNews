@@ -10,6 +10,7 @@ import {
   Plus,
   Save,
   Settings,
+  Star,
   Trash2,
   Users,
   X,
@@ -24,6 +25,7 @@ type Story = {
   excerpt: string;
   content: string;
   status: string;
+  isHeadline: boolean;
   imageUrl: string | null;
   photos: StoryPhoto[];
   updatedAt: string;
@@ -57,6 +59,7 @@ export default function StoryManagement() {
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [headlineBusy, setHeadlineBusy] = useState("");
   const [notice, setNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const headers = useMemo(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${current?.token || ""}` }), [current?.token]);
@@ -137,6 +140,16 @@ export default function StoryManagement() {
     finally { setSaving(false); }
   };
 
+  const toggleHeadline = async (story: Story) => {
+    setHeadlineBusy(story.id);
+    try {
+      const updated = await api(`/api/articles/${story.id}/headline`, { method: "PATCH", body: JSON.stringify({ isHeadline: !story.isHeadline }) });
+      setStories((items) => items.map((item) => item.id === updated.id ? updated : updated.isHeadline ? { ...item, isHeadline: false } : item));
+      setNotice(updated.isHeadline ? "Story selected as headline / 新聞已設為頭條" : "Story removed from headline / 新聞已從頭條移除");
+    } catch (error: any) { setNotice(error.message); }
+    finally { setHeadlineBusy(""); }
+  };
+
   const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
   const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
   const activePhotos = photos.filter((photo) => !photo.removed);
@@ -164,9 +177,9 @@ export default function StoryManagement() {
           return <div className="storyManagerRow" key={story.id}>
             <div className={`storyPhoto ${lead ? "hasPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined}>{!lead && <Camera />}<span>{story.photos?.length || 0}</span></div>
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}</small></div>
-            <span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>
+            <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>
+            <div className="storyActions"><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}</div>
           </div>;
         })}
       </div>
