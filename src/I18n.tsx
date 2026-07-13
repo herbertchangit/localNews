@@ -387,11 +387,19 @@ function translate(root: ParentNode, lang: "en" | "zh") {
   while ((n = walker.nextNode())) {
     const raw = n.nodeValue || "",
       key = raw.trim(),
+      bilingualCategory = key === "News Categories / 新聞類別",
       mission = lang === "zh" ? missionZh[key] : missionEn[key],
       dynamic = key.startsWith("Organization: ")
         ? `志業/角色：${key.slice(14)}`
         : "";
-    if (mission) {
+    if (bilingualCategory) {
+      if (!originals.has(n))
+        originals.set(n, raw.replace(key, "News Categories"));
+      n.nodeValue = raw.replace(
+        key,
+        lang === "zh" ? "新聞類別" : "News Categories",
+      );
+    } else if (mission) {
       n.nodeValue = raw.replace(key, mission);
     } else if (lang === "zh" && (zh[key] || dynamic)) {
       if (!originals.has(n)) originals.set(n, raw);
