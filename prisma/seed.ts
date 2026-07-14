@@ -3,6 +3,9 @@ import bcrypt from 'bcryptjs';
 const p = new PrismaClient();
 
 async function main() {
+  if (!await p.jingSiMessage.count()) {
+    await p.jingSiMessage.create({ data: { content: '不断地付出就是在造福，面对人事就是在修慧，若能福慧双具，就是慧命增长。' } });
+  }
   const initialized = await p.user.findUnique({ where: { email: 'admin@local.news' }, select: { id: true } });
   if (initialized) {
     console.log('Database already initialized; preserving user-managed records.');

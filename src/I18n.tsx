@@ -387,6 +387,7 @@ Object.assign(zh, {
   "Unpublish": "取消發布",
 });
 Object.assign(zh, {
+  "Open JingSi Management": "開啟靜思語管理",
   "READER VOICES": "讀者心聲",
   "Responses and comments": "回應與留言",
   "Share how this story speaks to you and join the conversation.": "分享這篇新聞帶給你的感受，並加入交流。",

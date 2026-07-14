@@ -9,13 +9,25 @@ function readHeaderSession(): HeaderSession | null {
   catch { return null; }
 }
 
-const jingSiMessage = "不断地付出就是在造福，面对人事就是在修慧，若能福慧双具，就是慧命增长。";
+const defaultJingSiMessage = "不断地付出就是在造福，面对人事就是在修慧，若能福慧双具，就是慧命增长。";
 
 export default function PublicHeader({ children, className = "" }: { children?: ReactNode; className?: string }) {
   const location = useLocation();
   const session = readHeaderSession();
   const tickerRef = useRef<HTMLDivElement>(null);
   const [tickerHidden, setTickerHidden] = useState(false);
+  const [jingSiMessage, setJingSiMessage] = useState(defaultJingSiMessage);
+  useEffect(() => {
+    let active = true;
+    const load = () => fetch("/api/jingsi/current", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((message) => { if (active && message?.content) setJingSiMessage(message.content); })
+      .catch(() => undefined);
+    load();
+    const timer = window.setInterval(load, 60_000);
+    window.addEventListener("localnews:jingsi-updated", load);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("localnews:jingsi-updated", load); };
+  }, []);
   useEffect(() => {
     const update = () => setTickerHidden((tickerRef.current?.getBoundingClientRect().bottom ?? 1) <= 0);
     update();
