@@ -16,6 +16,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import RichTextEditor from "./RichTextEditor";
+import { richTextToPlainText } from "./richTextUtils";
 
 type Category = { id: string; name: string };
 type StoryPhoto = { id: string; url: string; caption: string | null; sortOrder: number };
@@ -120,6 +122,9 @@ export default function StoryManagement() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editing) return;
+    if (richTextToPlainText(editing.excerpt).length < 20) return setNotice("Summary must contain at least 20 characters.");
+    if (richTextToPlainText(editing.excerpt).length > 600) return setNotice("Summary must contain no more than 600 characters.");
+    if (richTextToPlainText(editing.content).length < 40) return setNotice("Story content must contain at least 40 characters.");
     setSaving(true);
     try {
       let updated = await api(`/api/newsroom/articles/${editing.id}`, {
@@ -212,8 +217,8 @@ export default function StoryManagement() {
         </section>
         <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label>
         <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => setEditing({ ...editing, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-        <label>Summary / 摘要<textarea required minLength={20} rows={3} value={editing.excerpt} onChange={(event) => setEditing({ ...editing, excerpt: event.target.value })} /></label>
-        <label>Story content / 新聞內容<textarea required minLength={40} rows={9} value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} /></label>
+        <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact label="Summary / 摘要" placeholder="Write a short story summary…" minLength={20} maxLength={600} value={editing.excerpt} onChange={(excerpt) => setEditing((current) => current ? { ...current, excerpt } : current)} /></div>
+        <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor label="Story content / 新聞內容" placeholder="Write the full story…" minLength={40} value={editing.content} onChange={(content) => setEditing((current) => current ? { ...current, content } : current)} /></div>
         <div className="modalActions"><button type="button" onClick={() => setEditing(null)}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
       </form>
     </div>}

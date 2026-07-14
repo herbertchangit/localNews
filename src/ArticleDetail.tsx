@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Clock, Eye, MessageCircle, Send } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import PublicHeader from "./PublicHeader";
+import RichText from "./RichText";
+import { richTextToPlainText } from "./richTextUtils";
 
 type Photo = { id: string; url: string; caption: string | null; sortOrder: number };
 type Article = {
@@ -129,8 +131,7 @@ export default function ArticleDetail() {
   if (!article || error) return <><ReaderHeader /><main className="articleState"><h1>Story not found / 找不到新聞</h1><p>{error}</p><Link to="/"><ArrowLeft />Back to local news / 返回本地新聞</Link></main></>;
 
   const photos = article.photos?.length ? article.photos : article.imageUrl ? [{ id: "cover", url: article.imageUrl, caption: null, sortOrder: 0 }] : [];
-  const paragraphs = article.content.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
-  const readMinutes = Math.max(2, Math.ceil(article.content.split(/\s+/).length / 220));
+  const readMinutes = Math.max(2, Math.ceil(richTextToPlainText(article.content).split(/\s+/).length / 220));
 
   return <div className="articlePage"><ReaderHeader /><main className="articleMain">
     <Link className="articleBack" to="/"><ArrowLeft />Back to local news / 返回本地新聞</Link>
@@ -138,11 +139,11 @@ export default function ArticleDetail() {
       <header className="articleHeading">
         <span>{article.category.name}</span>
         <h1>{article.title}</h1>
-        <p>{article.excerpt}</p>
+        <RichText value={article.excerpt} className="articleSummaryRichText" />
         <div><b>By {article.author.name}</b><span><Clock />{readMinutes} min read</span><span><Eye />{article.views.toLocaleString()} views</span><time>{new Date(article.publishedAt || Date.now()).toLocaleDateString()}</time></div>
       </header>
       {photos[0] && <figure className="articleLeadPhoto"><img src={photos[0].url} alt={photos[0].caption || article.title} />{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={!session || discussionLoading || !!photoResponseBusy} onRespond={savePhotoResponse} />}</figure>}
-      <div className="articleBody">{paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
+      <RichText value={article.content} className="articleBody" />
       {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片</h2></div><div>{photos.slice(1).map((photo) => <figure key={photo.id}><img src={photo.url} alt={photo.caption || article.title} />{photo.caption && <figcaption>{photo.caption}</figcaption>}<PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={!session || discussionLoading || !!photoResponseBusy} onRespond={savePhotoResponse} /></figure>)}</div></section>}
     </article>
     <section className="storyDiscussion" aria-labelledby="story-discussion-title">

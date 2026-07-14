@@ -1,0 +1,151 @@
+.richTextEditor {
+  border: 1px solid #cbd8d2;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.richTextEditor:focus-within {
+  border-color: #177c68;
+  box-shadow: 0 0 0 3px rgba(23, 124, 104, .12);
+}
+
+.richTextToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  padding: 7px 8px;
+  border-bottom: 1px solid #e3ebe7;
+  background: #f7faf8;
+}
+
+.richTextTool {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: #31584e;
+  background: transparent;
+  cursor: pointer;
+}
+
+.richTextTool:hover,
+.richTextTool:focus-visible {
+  color: #0e624f;
+  background: #e5f1ed;
+  outline: none;
+}
+
+.richTextToolbarDivider {
+  width: 1px;
+  height: 22px;
+  margin: 0 3px;
+  background: #d8e2dd;
+}
+
+.richTextEditorSurface {
+  min-height: 220px;
+  padding: 15px 16px;
+  color: #193d34;
+  font: inherit;
+  line-height: 1.65;
+  outline: none;
+  overflow-y: auto;
+}
+
+.richTextEditorSurfaceCompact {
+  min-height: 112px;
+}
+
+.richTextEditorSurface:empty::before {
+  content: attr(data-placeholder);
+  color: #91a59d;
+  pointer-events: none;
+}
+
+.richTextCounter {
+  padding: 5px 10px 7px;
+  color: #648178;
+  background: #fff;
+  font-size: 11px;
+  text-align: right;
+}
+
+.richTextCounterInvalid {
+  color: #a45b37;
+}
+
+.richTextContent > :first-child,
+.richTextEditorSurface > :first-child {
+  margin-top: 0;
+}
+
+.richTextContent > :last-child,
+.richTextEditorSurface > :last-child {
+  margin-bottom: 0;
+}
+
+.richTextContent h2,
+.richTextContent h3,
+.richTextEditorSurface h2,
+.richTextEditorSurface h3 {
+  margin: 1.2em 0 .45em;
+  color: inherit;
+  line-height: 1.25;
+}
+
+.richTextContent h2,
+.richTextEditorSurface h2 {
+  font-size: 1.45em;
+}
+
+.richTextContent h3,
+.richTextEditorSurface h3 {
+  font-size: 1.2em;
+}
+
+.richTextContent ul,
+.richTextContent ol,
+.richTextEditorSurface ul,
+.richTextEditorSurface ol {
+  margin: .8em 0;
+  padding-left: 1.65em;
+}
+
+.richTextContent blockquote,
+.richTextEditorSurface blockquote {
+  margin: 1em 0;
+  padding: .65em 1em;
+  border-left: 4px solid #d3a84b;
+  color: #42675d;
+  background: #f7faf8;
+}
+
+.richTextContent a,
+.richTextEditorSurface a {
+  color: #087a64;
+  text-decoration: underline;
+}
+
+.storyRichTextField > span:first-child {
+  display: block;
+  margin-bottom: 7px;
+  color: #294c43;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .richTextEditorSurface {
+    min-height: 180px;
+  }
+
+  .richTextEditorSurfaceCompact {
+    min-height: 100px;
+  }
+}
