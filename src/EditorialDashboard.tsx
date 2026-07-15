@@ -13,6 +13,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
+import { openStoryComposer } from "./StoryComposer";
 
 type EditorialArticle = {
   id: string;
@@ -141,7 +142,7 @@ export default function EditorialDashboard() {
           </div>
           <div>
             <button className="icon" aria-label="Notifications"><Bell /></button>
-            {canCreate && <button className="new"><Plus />New story</button>}
+            {canCreate && <button className="new" onClick={openStoryComposer}><Plus />New story</button>}
           </div>
         </div>
         {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
