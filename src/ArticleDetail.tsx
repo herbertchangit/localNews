@@ -21,7 +21,8 @@ type Article = {
 };
 type ResponseCategory = "UNDERSTANDING" | "TOLERANCE" | "GRATITUDE" | "CONTENTMENT";
 type StoryComment = { id: string; body: string; createdAt: string; user: { id: string; name: string; avatarUrl?: string | null } };
-type ResponseState = { responses: Record<ResponseCategory, number>; viewerResponse: ResponseCategory | null };
+type ResponseUser = { id: string; name: string };
+type ResponseState = { responses: Record<ResponseCategory, number>; responders: Record<ResponseCategory, ResponseUser[]>; viewerResponse: ResponseCategory | null };
 type Discussion = ResponseState & { photoResponses: Record<string, ResponseState>; comments: StoryComment[] };
 type Session = { token: string; user: { id: string; name: string } };
 
@@ -31,7 +32,8 @@ const responseOptions: { value: ResponseCategory; english: string; chinese: stri
   { value: "GRATITUDE", english: "Gratitude", chinese: "感恩", shortChinese: "恩" },
   { value: "CONTENTMENT", english: "Contentment", chinese: "知足", shortChinese: "足" },
 ];
-const emptyResponseState: ResponseState = { responses: { UNDERSTANDING: 0, TOLERANCE: 0, GRATITUDE: 0, CONTENTMENT: 0 }, viewerResponse: null };
+const emptyResponders: Record<ResponseCategory, ResponseUser[]> = { UNDERSTANDING: [], TOLERANCE: [], GRATITUDE: [], CONTENTMENT: [] };
+const emptyResponseState: ResponseState = { responses: { UNDERSTANDING: 0, TOLERANCE: 0, GRATITUDE: 0, CONTENTMENT: 0 }, responders: emptyResponders, viewerResponse: null };
 const emptyDiscussion: Discussion = {
   ...emptyResponseState,
   photoResponses: {},
@@ -43,9 +45,13 @@ function ReaderHeader() {
   return <PublicHeader><nav>{["Local", "Politics", "Business", "Sports", "Culture"].map((item) => <Link to="/" key={item}>{item}</Link>)}</nav></PublicHeader>;
 }
 
-function PhotoResponseControls({ photoId, state, disabled, onRespond }: { photoId: string; state?: ResponseState; disabled: boolean; onRespond: (photoId: string, category: ResponseCategory) => void }) {
+function ResponseNames({ id, option, users }: { id: string; option: typeof responseOptions[number]; users: ResponseUser[] }) {
+  return <span className="responseNames" id={id} role="tooltip"><strong>{option.english}</strong><small>{users.length ? users.map((user) => user.name).join(", ") : "No responses yet"}</small></span>;
+}
+
+function PhotoResponseControls({ photoId, state, disabled, openResponders, onToggle, onRespond }: { photoId: string; state?: ResponseState; disabled: boolean; openResponders: string; onToggle: (key: string) => void; onRespond: (photoId: string, category: ResponseCategory) => void }) {
   const current = state || emptyResponseState;
-  return <div className="photoResponses" aria-label="Photo responses">{responseOptions.map((option) => <button type="button" key={option.value} className={current.viewerResponse === option.value ? "selected" : ""} data-english={option.english} aria-label={`${option.english} / ${option.shortChinese}: ${current.responses[option.value]} photo responses`} aria-pressed={current.viewerResponse === option.value} disabled={disabled} onClick={() => onRespond(photoId, option.value)}><span aria-hidden="true">{option.shortChinese}</span><em aria-hidden="true">{current.responses[option.value]}</em></button>)}</div>;
+  return <div className="photoResponses" aria-label="Photo responses">{responseOptions.map((option) => { const key = `photo-${photoId}-${option.value}`, users = current.responders?.[option.value] || [], tooltipId = `${key}-responders`; return <button type="button" key={option.value} className={`${current.viewerResponse === option.value ? "selected " : ""}${openResponders === key ? "showResponders" : ""}`} aria-label={`${option.english} / ${option.shortChinese}: ${current.responses[option.value]} photo responses${users.length ? `. Responded by ${users.map((user) => user.name).join(", ")}` : ". No responders yet"}`} aria-describedby={tooltipId} aria-expanded={openResponders === key} aria-pressed={current.viewerResponse === option.value} disabled={disabled} onClick={() => { onToggle(key); onRespond(photoId, option.value); }}><span className="responseGlyph" aria-hidden="true">{option.shortChinese}</span><em aria-hidden="true">{current.responses[option.value]}</em><ResponseNames id={tooltipId} option={option} users={users} /></button>; })}</div>;
 }
 
 export default function ArticleDetail() {
@@ -61,6 +67,7 @@ export default function ArticleDetail() {
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [notice, setNotice] = useState("");
+  const [openResponders, setOpenResponders] = useState("");
 
   const authHeaders = session ? { Authorization: `Bearer ${session.token}` } : {};
   useEffect(() => {
@@ -91,7 +98,7 @@ export default function ArticleDetail() {
       const response = await fetch(`/api/articles/${article.id}/responses`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify({ category }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save response");
-      setDiscussion((current) => ({ ...current, responses: data.responses, viewerResponse: data.viewerResponse }));
+      setDiscussion((current) => ({ ...current, responses: data.responses, responders: data.responders, viewerResponse: data.viewerResponse }));
       setNotice("Response saved");
     } catch (caught: any) { setNotice(caught.message); }
     finally { setResponseBusy(false); }
@@ -142,15 +149,15 @@ export default function ArticleDetail() {
         <RichText value={article.excerpt} className="articleSummaryRichText" />
         <div><b>By {article.author.name}</b><span><Clock />{readMinutes} min read</span><span><Eye />{article.views.toLocaleString()} views</span><time>{new Date(article.publishedAt || Date.now()).toLocaleDateString()}</time></div>
       </header>
-      {photos[0] && <figure className="articleLeadPhoto"><img src={photos[0].url} alt={photos[0].caption || article.title} />{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={!session || discussionLoading || !!photoResponseBusy} onRespond={savePhotoResponse} />}</figure>}
+      {photos[0] && <figure className="articleLeadPhoto"><img src={photos[0].url} alt={photos[0].caption || article.title} />{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>}
       <RichText value={article.content} className="articleBody" />
-      {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片</h2></div><div>{photos.slice(1).map((photo) => <figure key={photo.id}><img src={photo.url} alt={photo.caption || article.title} />{photo.caption && <figcaption>{photo.caption}</figcaption>}<PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={!session || discussionLoading || !!photoResponseBusy} onRespond={savePhotoResponse} /></figure>)}</div></section>}
+      {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片</h2></div><div>{photos.slice(1).map((photo) => <figure key={photo.id}><img src={photo.url} alt={photo.caption || article.title} />{photo.caption && <figcaption>{photo.caption}</figcaption>}<PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} /></figure>)}</div></section>}
     </article>
     <section className="storyDiscussion" aria-labelledby="story-discussion-title">
       <div className="discussionTitle"><small>READER VOICES</small><h2 id="story-discussion-title">Responses and comments</h2><p>Share how this story speaks to you and join the conversation.</p></div>
       <div className="responsePanel">
         <h3>Your response</h3>
-        <div className="responseOptions">{responseOptions.map((option) => <button type="button" key={option.value} className={discussion.viewerResponse === option.value ? "selected" : ""} data-english={option.english} aria-label={`${option.english} / ${option.chinese}: ${discussion.responses[option.value]} responses`} aria-pressed={discussion.viewerResponse === option.value} disabled={responseBusy || discussionLoading || !session} onClick={() => saveResponse(option.value)}><span aria-hidden="true">{option.chinese}</span><em aria-hidden="true">{discussion.responses[option.value]}</em></button>)}</div>
+        <div className="responseOptions">{responseOptions.map((option) => { const key = `story-${option.value}`, users = discussion.responders?.[option.value] || [], tooltipId = `${key}-responders`; return <button type="button" key={option.value} className={`${discussion.viewerResponse === option.value ? "selected " : ""}${openResponders === key ? "showResponders" : ""}`} aria-label={`${option.english} / ${option.chinese}: ${discussion.responses[option.value]} responses${users.length ? `. Responded by ${users.map((user) => user.name).join(", ")}` : ". No responders yet"}`} aria-describedby={tooltipId} aria-expanded={openResponders === key} aria-pressed={discussion.viewerResponse === option.value} disabled={responseBusy || discussionLoading} onClick={() => { setOpenResponders((current) => current === key ? "" : key); saveResponse(option.value); }}><span className="responseGlyph" aria-hidden="true">{option.chinese}</span><em aria-hidden="true">{discussion.responses[option.value]}</em><ResponseNames id={tooltipId} option={option} users={users} /></button>; })}</div>
         {session ? <p className="responseHint">Choose one response. You can change it at any time.</p> : <div className="discussionSignIn"><Link to="/login" state={{ from: `/stories/${slug}` }}>Sign in to respond or comment</Link></div>}
       </div>
       {session && <form className="commentForm" onSubmit={postComment}><label htmlFor="story-comment">Share a comment</label><textarea id="story-comment" value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Write your comment…" maxLength={1000} rows={4} /><div><small>{commentBody.length} / 1000</small><button disabled={commentBusy || commentBody.trim().length < 2}>{commentBusy ? "Posting…" : <><Send />Post comment</>}</button></div></form>}
