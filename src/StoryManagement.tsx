@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import { richTextToPlainText } from "./richTextUtils";
+import { openStoryComposer } from "./StoryComposer";
 
 type Category = { id: string; name: string };
 type StoryPhoto = { id: string; url: string; caption: string | null; sortOrder: number };
@@ -184,7 +185,7 @@ export default function StoryManagement() {
       <div className="profile"><div>{initials}</div><span><b>{current?.user.name}</b><small>{roleLabel}</small></span></div>
     </aside>
     <section className="content storyManagement">
-      <div className="top"><div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Story management / 新聞管理</h1><p>Edit story content and manage its photo gallery. / 編輯新聞內容及管理相簿。</p></div>{canCreate && <button className="new"><Plus />New story</button>}</div>
+      <div className="top"><div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Story management / 新聞管理</h1><p>Edit story content and manage its photo gallery. / 編輯新聞內容及管理相簿。</p></div>{canCreate && <button className="new" onClick={openStoryComposer}><Plus />New story</button>}</div>
       {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
       <div className="panel storyManagerPanel">
         <div className="storyManagerHeader"><span>Photos / 照片</span><span>Story / 新聞</span><span>Status / 狀態</span><span>Updated / 更新</span><span>Action / 操作</span></div>

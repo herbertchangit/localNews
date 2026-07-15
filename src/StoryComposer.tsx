@@ -8,6 +8,10 @@ import { richTextToPlainText } from "./richTextUtils";
 type Category = { id: string; name: string };
 type DraftPhoto = { id: string; dataUrl: string; caption: string };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
+const OPEN_STORY_COMPOSER_EVENT = "localnews:open-story-composer";
+
+export const openStoryComposer = () => window.dispatchEvent(new Event(OPEN_STORY_COMPOSER_EVENT));
+
 const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result));
@@ -26,21 +30,23 @@ export default function StoryComposer() {
       .catch(() => setCanCreate(false));
   }, [token]);
   useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_STORY_COMPOSER_EVENT, show);
+    return () => window.removeEventListener(OPEN_STORY_COMPOSER_EVENT, show);
+  }, []);
+  useEffect(() => {
     setHost(null);
     if (!canCreate || !["/newsroom", "/newsroom/stories"].includes(location.pathname)) return;
-    const existing = [...document.querySelectorAll<HTMLButtonElement>(".dash .content .top button.new")].find((button) => button.textContent?.includes("New story"));
-    if (existing) {
-      const show = () => setOpen(true);
-      existing.addEventListener("click", show);
-      return () => existing.removeEventListener("click", show);
-    }
     const top = document.querySelector<HTMLElement>(".audienceTop");
-    if (!top) return;
-    const mount = document.createElement("span");
-    mount.className = "storyComposerMount";
-    top.append(mount);
-    setHost(mount);
-    return () => mount.remove();
+    const mount = top ? document.createElement("span") : null;
+    if (mount && top) {
+      mount.className = "storyComposerMount";
+      top.append(mount);
+      setHost(mount);
+    }
+    return () => {
+      mount?.remove();
+    };
   }, [canCreate, location.pathname]);
   const created = (title: string) => {
     setOpen(false); setNotice(title);
