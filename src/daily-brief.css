@@ -1,1 +1,42 @@
-.dailyBriefActions{display:flex;align-items:center;gap:7px}.dailyBriefActions small{font-size:9px;color:#727d75;margin-right:5px}.dailyBriefActions button{width:36px;height:36px;border:1px solid #cbd0c9;background:#fff;color:#174f3a;display:grid;place-items:center;cursor:pointer}.dailyBriefActions button:hover:not(:disabled){background:#174f3a;color:#fff;border-color:#174f3a}.dailyBriefActions button:disabled{opacity:.35;cursor:default}.dailyBriefActions svg{width:17px}.dailyBriefTrack{display:flex;gap:28px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding-bottom:16px;scrollbar-width:thin;scrollbar-color:#aeb8b0 #e5e7e2}.dailyBriefTrack::-webkit-scrollbar{height:7px}.dailyBriefTrack::-webkit-scrollbar-track{background:#e5e7e2}.dailyBriefTrack::-webkit-scrollbar-thumb{background:#aeb8b0}.dailyBriefTrack article{flex:0 0 calc((100% - 56px)/3);min-width:0;scroll-snap-align:start}.dailyBriefTrack .thumb{width:100%}@media(max-width:850px){.dailyBriefTrack article{flex-basis:calc((100% - 28px)/2)}}@media(max-width:560px){.sectionTitle{align-items:flex-start;gap:15px;flex-direction:column}.dailyBriefActions{width:100%}.dailyBriefActions small{margin-right:auto}.dailyBriefTrack article{flex-basis:88%}}
+.dailyBrief{padding-top:48px}
+.dailyBriefActions{display:flex;align-items:center}
+.dailyBriefActions small{font-size:10px;color:#727d75}
+.dailyBriefTrack{display:flex;flex-direction:column;gap:18px;margin-top:28px}
+.dailyBriefTrack article{display:grid;grid-template-columns:minmax(280px,36%) 1fr;gap:34px;padding:20px;background:#fff;border:1px solid #d9ddd6;box-shadow:0 1px 0 rgba(20,58,45,.04);transition:border-color .2s,transform .2s}
+.dailyBriefTrack article:hover{border-color:#aeb9b1;transform:translateY(-2px)}
+.dailyBriefThumbLink{display:block;min-width:0}
+.dailyBriefTrack .thumb{width:100%;height:100%;min-height:238px}
+.dailyBriefStoryBody{display:flex;flex-direction:column;min-width:0;padding:5px 8px 2px 0}
+.dailyBriefStoryMeta{display:flex;align-items:center;gap:14px}
+.dailyBriefStoryMeta>span{padding-right:14px;border-right:1px solid #ccd2cc;color:#a13a31;font-size:9px;font-weight:800;letter-spacing:.13em}
+.dailyBriefStoryMeta .meta{margin:0}
+.dailyBriefTrack h3{font:800 clamp(24px,3vw,36px)/1.08 'Libre Franklin';letter-spacing:-.04em;margin:15px 0 12px}
+.dailyBriefTrack h3 a:hover{color:#a13a31}
+.dailyBriefTrack .cardRichSummary{color:#657068;font-size:14px;line-height:1.65;margin:0;max-width:720px}
+.dailyBriefStoryFooter{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-top:auto;padding-top:22px}
+.dailyBriefStoryFooter .cardReadStory{margin:0;flex:0 0 auto}
+.dailyBriefStoryFooter .articleFoot{flex:1;max-width:310px}
+.dailyBriefTrack article+article{position:relative}
+.dailyBriefTrack article+article:before{content:'';position:absolute;left:-1px;top:20px;bottom:20px;width:3px;background:#d0b474}
+
+@media(max-width:850px){
+  .dailyBriefTrack article{grid-template-columns:minmax(220px,34%) 1fr;gap:24px}
+  .dailyBriefTrack .thumb{min-height:220px}
+  .dailyBriefTrack h3{font-size:25px}
+  .dailyBriefStoryFooter{align-items:flex-start;flex-direction:column;gap:12px}
+  .dailyBriefStoryFooter .articleFoot{width:100%;max-width:none}
+}
+
+@media(max-width:600px){
+  .dailyBrief{padding-top:28px}
+  .sectionTitle{align-items:flex-start;gap:15px;flex-direction:column}
+  .dailyBriefActions{width:100%}
+  .dailyBriefTrack{gap:16px;margin-top:20px}
+  .dailyBriefTrack article{grid-template-columns:1fr;gap:20px;padding:14px}
+  .dailyBriefTrack .thumb{height:220px;min-height:0}
+  .dailyBriefStoryBody{padding:0 4px 4px}
+  .dailyBriefTrack h3{font-size:25px;margin-top:13px}
+  .dailyBriefStoryMeta{justify-content:space-between}
+  .dailyBriefStoryMeta>span{padding-right:0;border-right:0}
+  .dailyBriefStoryFooter{padding-top:17px}
+}
