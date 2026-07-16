@@ -3,7 +3,7 @@ import { ArrowLeft, Clock, Eye, MessageCircle, Send } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import PublicHeader from "./PublicHeader";
 import RichText from "./RichText";
-import { richTextToPlainText } from "./richTextUtils";
+import { firstHttpUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
 
 type Photo = { id: string; url: string; caption: string | null; sortOrder: number };
 type Article = {
@@ -137,7 +137,10 @@ export default function ArticleDetail() {
   if (loading) return <><ReaderHeader /><main className="articleState">Loading full story… / 正在載入完整新聞…</main></>;
   if (!article || error) return <><ReaderHeader /><main className="articleState"><h1>Story not found / 找不到新聞</h1><p>{error}</p><Link to="/"><ArrowLeft />Back to local news / 返回本地新聞</Link></main></>;
 
-  const photos = article.photos?.length ? article.photos : article.imageUrl ? [{ id: "cover", url: article.imageUrl, caption: null, sortOrder: 0 }] : [];
+  const contentUrl = firstHttpUrl(article.content);
+  const contentPreview = contentUrl ? previewImageForUrl(contentUrl) : null;
+  const fallbackPhoto = article.imageUrl || contentPreview;
+  const photos = article.photos?.length ? article.photos : fallbackPhoto ? [{ id: "cover", url: fallbackPhoto, caption: null, sortOrder: 0 }] : [];
   const readMinutes = Math.max(2, Math.ceil(richTextToPlainText(article.content).split(/\s+/).length / 220));
 
   return <div className="articlePage"><ReaderHeader /><main className="articleMain">
