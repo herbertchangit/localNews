@@ -1,0 +1,147 @@
+.articleMediaCard {
+  background: #101714;
+  border: 0;
+  color: inherit;
+  cursor: zoom-in;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  width: 100%;
+}
+
+.articleMediaCard img,
+.articleMediaCard video {
+  transition: filter .25s ease, transform .25s ease;
+}
+
+.articleMediaCard:hover img,
+.articleMediaCard:hover video,
+.articleMediaCard:focus-visible img,
+.articleMediaCard:focus-visible video {
+  filter: brightness(.82);
+  transform: scale(1.015);
+}
+
+.articleMediaCue {
+  align-items: center;
+  background: rgba(16, 47, 37, .9);
+  bottom: 14px;
+  color: #fff;
+  display: flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 8px 11px;
+  pointer-events: none;
+  position: absolute;
+  right: 14px;
+}
+
+.articleMediaCue svg {
+  height: 13px;
+  width: 13px;
+}
+
+.storyLightbox {
+  align-items: center;
+  background: rgba(5, 12, 9, .92);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.storyLightbox > section {
+  background: #0d1511;
+  box-shadow: 0 22px 80px rgba(0, 0, 0, .5);
+  color: #fff;
+  max-height: calc(100vh - 48px);
+  max-width: 1180px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.storyLightbox header {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
+.storyLightbox header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.storyLightbox header b { font-size: 11px; }
+.storyLightbox header span { color: #b9c5be; font-size: 9px; }
+
+.storyLightbox header button,
+.storyLightboxStage > button {
+  align-items: center;
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.storyLightbox header button svg { width: 18px; }
+
+.storyLightboxStage {
+  align-items: center;
+  background: #050806;
+  display: flex;
+  height: min(72vh, 760px);
+  justify-content: center;
+  position: relative;
+  touch-action: pan-y;
+}
+
+.storyLightboxStage img,
+.storyLightboxStage video {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.storyLightboxStage iframe {
+  border: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.storyLightboxStage > button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.storyLightboxStage > button:hover,
+.storyLightboxStage > button:focus-visible,
+.storyLightbox header button:hover,
+.storyLightbox header button:focus-visible {
+  background: #fff;
+  color: #173f32;
+}
+
+.storyLightboxPrevious { left: 16px; }
+.storyLightboxNext { right: 16px; }
+.storyLightbox > section > p { margin: 0; padding: 12px 16px; font-size: 10px; color: #d4ddd7; }
+
+@media (max-width: 700px) {
+  .storyLightbox { padding: 0; }
+  .storyLightbox > section { max-height: 100vh; }
+  .storyLightboxStage { height: calc(100vh - 66px); }
+  .storyLightboxStage > button { height: 38px; width: 38px; }
+  .storyLightboxPrevious { left: 8px; }
+  .storyLightboxNext { right: 8px; }
+}

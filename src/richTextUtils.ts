@@ -45,6 +45,38 @@ export function richTextToPlainText(value: string) {
     .trim();
 }
 
+export function linkifyRichText(value: string) {
+  const html = toRichTextHtml(value);
+  let insideLink = false;
+
+  const linked = html.split(/(<[^>]+>)/g).map((token) => {
+    if (/^<a\b/i.test(token)) {
+      insideLink = true;
+      return token;
+    }
+    if (/^<\/a\b/i.test(token)) {
+      insideLink = false;
+      return token;
+    }
+    if (insideLink || token.startsWith("<")) return token;
+
+    return token.replace(/https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&()*+,;=%]+/gi, (match) => {
+      const trailing = match.match(/[),.;!?]+$/)?.[0] || "";
+      const visibleUrl = trailing ? match.slice(0, -trailing.length) : match;
+      const href = visibleUrl.replace(/&amp;/gi, "&");
+      try {
+        const parsed = new URL(href);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return match;
+      } catch {
+        return match;
+      }
+      return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${visibleUrl}</a>${trailing}`;
+    });
+  }).join("");
+
+  return sanitizeRichText(linked);
+}
+
 export function firstHttpUrl(value: string) {
   const match = value.match(/https?:\/\/[^\s<>"']+/i);
   if (!match) return null;
@@ -84,6 +116,14 @@ export function previewImageForUrl(value: string) {
     return /\.(?:avif|gif|jpe?g|png|webp)$/i.test(url.pathname) ? url.href : null;
   } catch {
     return null;
+  }
+}
+
+export function isVideoUrl(value: string) {
+  try {
+    return /\.(?:mov|mp4|webm)$/i.test(new URL(value, "http://localhost").pathname);
+  } catch {
+    return false;
   }
 }
 

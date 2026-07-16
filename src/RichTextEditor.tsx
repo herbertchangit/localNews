@@ -11,7 +11,7 @@ import {
   RemoveFormatting,
   Underline,
 } from "lucide-react";
-import { richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
+import { linkifyRichText, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
 
 type Props = {
   value: string;
@@ -21,6 +21,7 @@ type Props = {
   minLength: number;
   maxLength?: number;
   compact?: boolean;
+  fieldName?: string;
 };
 
 export default function RichTextEditor({
@@ -31,6 +32,7 @@ export default function RichTextEditor({
   minLength,
   maxLength,
   compact = false,
+  fieldName,
 }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastValue = useRef<string | null>(null);
@@ -54,9 +56,10 @@ export default function RichTextEditor({
     return () => document.removeEventListener("selectionchange", rememberSelection);
   }, []);
 
-  const emitChange = () => {
+  const emitChange = (autoLink = false) => {
     if (!editorRef.current) return;
-    const next = sanitizeRichText(editorRef.current.innerHTML);
+    const next = autoLink ? linkifyRichText(editorRef.current.innerHTML) : sanitizeRichText(editorRef.current.innerHTML);
+    if (autoLink && editorRef.current.innerHTML !== next) editorRef.current.innerHTML = next;
     lastValue.current = next;
     onChange(next);
   };
@@ -118,9 +121,10 @@ export default function RichTextEditor({
         role="textbox"
         aria-label={label}
         aria-multiline="true"
+        data-rich-text-field={fieldName}
         data-placeholder={placeholder}
-        onInput={emitChange}
-        onBlur={emitChange}
+        onInput={() => emitChange(false)}
+        onBlur={() => emitChange(true)}
         onKeyUp={rememberSelection}
         onMouseUp={rememberSelection}
         onSelect={rememberSelection}
