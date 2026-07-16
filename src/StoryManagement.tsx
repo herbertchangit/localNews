@@ -7,6 +7,7 @@ import {
   EyeOff,
   ImagePlus,
   LayoutDashboard,
+  Link2,
   Pencil,
   Plus,
   Save,
@@ -17,7 +18,8 @@ import {
   X,
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
-import { richTextToPlainText } from "./richTextUtils";
+import "./story-url-preview.css";
+import { firstHttpUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
 import { openStoryComposer } from "./StoryComposer";
 
 type Category = { id: string; name: string };
@@ -172,6 +174,8 @@ export default function StoryManagement() {
   const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
   const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
   const activePhotos = photos.filter((photo) => !photo.removed);
+  const editingContentUrl = editing ? firstHttpUrl(editing.content) : null;
+  const editingContentPreviewUrl = editingContentUrl ? previewImageForUrl(editingContentUrl) : null;
 
   return <div className="dash">
     <aside>
@@ -192,9 +196,12 @@ export default function StoryManagement() {
         {busy && <div className="editorialEmpty">Loading stories… / 正在載入新聞…</div>}
         {!busy && !stories.length && <div className="editorialEmpty">No editable stories. / 暫無可編輯新聞。</div>}
         {!busy && stories.map((story) => {
-          const lead = story.photos?.[0]?.url || story.imageUrl;
+          const contentUrl = firstHttpUrl(story.content);
+          const contentPreviewUrl = contentUrl ? previewImageForUrl(contentUrl) : null;
+          const lead = story.photos?.[0]?.url || story.imageUrl || contentPreviewUrl;
+          const usesContentUrl = Boolean(contentPreviewUrl && !story.photos?.[0]?.url && !story.imageUrl);
           return <div className="storyManagerRow" key={story.id}>
-            <div className={`storyPhoto ${lead ? "hasPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined}>{!lead && <Camera />}<span>{story.photos?.length || 0}</span></div>
+            <div className={`storyPhoto ${lead ? "hasPhoto" : ""} ${usesContentUrl ? "contentUrlPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined} title={usesContentUrl ? "Preview from the first URL in story content" : undefined}>{!lead && <Camera />}{usesContentUrl && <Link2 />}<span>{story.photos?.length || 0}</span></div>
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}</small></div>
             <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
@@ -209,7 +216,11 @@ export default function StoryManagement() {
         <section className="storyGalleryEditor">
           <div className="storyGalleryHeading"><div><b>Story photos and captions / 新聞照片及說明</b><p>Up to 12 PNG, JPEG or WebP photos · maximum 5 MB each</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add photos / 新增照片</button></div>
           <input ref={fileRef} hidden multiple type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => selectPhotos(event.target.files)} />
-          {!activePhotos.length && <div className="emptyPhotoGallery"><ImagePlus /><span>No photos yet / 尚未有照片</span></div>}
+          {!activePhotos.length && editingContentUrl && <div className="contentUrlPreview">
+            <div className={editingContentPreviewUrl ? "hasPreviewImage" : ""} style={editingContentPreviewUrl ? { backgroundImage: `url(${editingContentPreviewUrl})` } : undefined}><Link2 /></div>
+            <span><b>Preview from story content / 內容連結預覽</b><a href={editingContentUrl} target="_blank" rel="noopener noreferrer">{editingContentUrl}</a></span>
+          </div>}
+          {!activePhotos.length && !editingContentUrl && <div className="emptyPhotoGallery"><ImagePlus /><span>No photos yet / 尚未有照片</span></div>}
           <div className="storyGalleryGrid">{activePhotos.map((photo, index) => <div className="storyGalleryItem" key={photo.id}>
             <div style={{ backgroundImage: `url(${photo.dataUrl || photo.url})` }}><span>{index + 1}</span></div>
             <label>Caption / 圖片說明<textarea maxLength={240} rows={2} placeholder="Describe this photo / 說明這張照片" value={photo.caption || ""} onChange={(event) => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, caption: event.target.value } : item))} /></label>

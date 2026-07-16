@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
+import { firstHttpUrl, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
 
 describe("rich text utilities", () => {
   it("keeps supported formatting", () => {
@@ -23,5 +23,26 @@ describe("rich text utilities", () => {
   it("counts visible text without HTML markup", () => {
     expect(richTextToPlainText("<p>Hello <strong>local</strong></p><p>news</p>"))
       .toBe("Hello local news");
+  });
+
+  it("finds the first HTTP URL in rich text", () => {
+    expect(firstHttpUrl('<p>See <a href="https://images.example/lead.jpg?size=large&amp;crop=1">the photo</a></p>'))
+      .toBe("https://images.example/lead.jpg?size=large&crop=1");
+    expect(firstHttpUrl("First https://example.com/photo.webp, then https://example.com/second.jpg"))
+      .toBe("https://example.com/photo.webp");
+  });
+
+  it("returns null when story content has no valid web URL", () => {
+    expect(firstHttpUrl("No link in this story")).toBeNull();
+  });
+
+  it("creates preview images for YouTube and direct image URLs", () => {
+    expect(previewImageForUrl("https://youtu.be/hAi1SftBbJOY?si=example"))
+      .toBe("https://i.ytimg.com/vi/hAi1SftBbJOY/hqdefault.jpg");
+    expect(previewImageForUrl("https://www.youtube.com/watch?v=hAi1SftBbJOY"))
+      .toBe("https://i.ytimg.com/vi/hAi1SftBbJOY/hqdefault.jpg");
+    expect(previewImageForUrl("https://images.example/photo.webp?width=800"))
+      .toBe("https://images.example/photo.webp?width=800");
+    expect(previewImageForUrl("https://example.com/article")).toBeNull();
   });
 });
