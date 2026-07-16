@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstHttpUrl, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
+import { firstHttpUrl, isVideoUrl, linkifyRichText, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
 
 describe("rich text utilities", () => {
   it("keeps supported formatting", () => {
@@ -44,5 +44,18 @@ describe("rich text utilities", () => {
     expect(previewImageForUrl("https://images.example/photo.webp?width=800"))
       .toBe("https://images.example/photo.webp?width=800");
     expect(previewImageForUrl("https://example.com/article")).toBeNull();
+  });
+
+  it("automatically makes plain URLs clickable without nesting existing links", () => {
+    expect(linkifyRichText("Visit https://example.com/news?day=1&view=full for details."))
+      .toBe('<p>Visit <a href="https://example.com/news?day=1&amp;view=full" target="_blank" rel="noopener noreferrer">https://example.com/news?day=1&amp;view=full</a> for details.</p>');
+    expect(linkifyRichText('<p><a href="https://example.com/already">Existing link</a></p>'))
+      .toBe('<p><a href="https://example.com/already" target="_blank" rel="noopener noreferrer">Existing link</a></p>');
+  });
+
+  it("recognizes uploaded video URLs", () => {
+    expect(isVideoUrl("/uploads/story-video.mp4")).toBe(true);
+    expect(isVideoUrl("https://media.example/story.webm?version=2")).toBe(true);
+    expect(isVideoUrl("/uploads/story-photo.webp")).toBe(false);
   });
 });

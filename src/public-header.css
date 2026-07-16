@@ -18,7 +18,9 @@
 .headerLogin{display:inline-flex;align-items:center}
 @media(max-width:900px){.headerJingSiMarquee{left:165px;right:180px}}
 @media(max-width:700px){.publicSiteHeader{padding:0 16px}.headerJingSiMarquee{left:145px;right:130px}.headerSearch,.headerMenu{display:none!important}.headerUserName{max-width:92px}.headerLogout{font-size:0;padding:9px!important}.headerLogout svg{margin:0}.publicHeaderSticky .headerLogin{display:inline-flex;padding:9px 13px}}
+@media(max-width:700px){body.newsUnreadBadgeVisible .publicSiteHeader{padding-right:74px}body.newsUnreadBadgeVisible .headerJingSiMarquee{right:184px}.newsUnreadBadge{right:max(10px,env(safe-area-inset-right))}}
 @media(max-width:480px){.headerJingSiMarquee{left:118px;right:105px}.headerJingSiTrack{font-size:11px;animation-duration:15s}}
+@media(max-width:480px){body.newsUnreadBadgeVisible .headerJingSiMarquee{right:160px}body.newsUnreadBadgeVisible .headerUserName{max-width:68px}}
 @media(prefers-reduced-motion:reduce){.tickerHidden .headerJingSiMarquee{animation:none}.headerJingSiTrack{left:50%;transform:translateX(-50%);animation:none}}
 @media(max-width:850px){.homeHeader .headerJingSiMarquee{left:18px;right:18px;top:auto;bottom:0;height:48px}.homeHeader .headerJingSiTrack{font-size:34px;line-height:1;animation-duration:20s}.homeHeader .headerJingSiTrack b{font-size:14px}.tickerHidden .homeHeader>.categoryNav{opacity:0;visibility:hidden;pointer-events:none}}
 @media(max-width:520px){.homeHeader .headerJingSiMarquee{left:16px;right:16px;height:47px}.homeHeader .headerJingSiTrack{font-size:33px;animation-duration:18s}}
