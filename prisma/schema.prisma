@@ -141,6 +141,7 @@ model Article {
   author      User            @relation(fields: [authorId], references: [id])
   categoryId  String
   category    Category        @relation(fields: [categoryId], references: [id])
+  storyDate   DateTime?
   publishedAt DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt

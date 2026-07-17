@@ -58,7 +58,7 @@ export default function StoryComposer() {
 }
 
 function StoryModal({ categories, token, onClose, onCreated }: { categories: Category[]; token: string; onClose: () => void; onCreated: (title: string) => void }) {
-  const [form, setForm] = useState({ title: "", excerpt: "", content: "", categoryId: categories[0]?.id || "" }), [photos, setPhotos] = useState<DraftPhoto[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [form, setForm] = useState({ title: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", storyDate: "" }), [photos, setPhotos] = useState<DraftPhoto[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const choosePhotos = async (files?: FileList | null) => {
     if (!files?.length) return;
     const incoming = Array.from(files);
@@ -77,7 +77,7 @@ function StoryModal({ categories, token, onClose, onCreated }: { categories: Cat
     if (richTextToPlainText(form.content).length < 40) return setError("Story content must contain at least 40 characters.");
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(form) });
+      const response = await fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...form, storyDate: form.storyDate || null }) });
       const story = await response.json();
       if (!response.ok) throw new Error(story.error || "Could not save story");
       for (const photo of photos) {
@@ -97,6 +97,7 @@ function StoryModal({ categories, token, onClose, onCreated }: { categories: Cat
     {!!photos.length && <div className="composerGallery">{photos.map((photo, index) => <div key={photo.id}><img src={photo.dataUrl} alt={`Story preview ${index + 1}`} /><label>Caption / 圖片說明<input maxLength={240} placeholder="Describe this photo / 說明這張照片" value={photo.caption} onChange={(event) => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, caption: event.target.value } : item))} /></label><button type="button" onClick={() => setPhotos((items) => items.filter((item) => item.id !== photo.id))}><Trash2 />Remove / 移除</button></div>)}</div>}
     <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
     <label>News category / 新聞類別<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}><option value="">Select category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+    <label>Story / event date / 新聞或活動日期<input type="date" value={form.storyDate} onChange={(event) => setForm({ ...form, storyDate: event.target.value })} /></label>
     <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact label="Summary / 摘要" placeholder="Write a short story summary…" minLength={20} maxLength={600} value={form.excerpt} onChange={(excerpt) => setForm((current) => ({ ...current, excerpt }))} /></div>
     <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor label="Story content / 新聞內容" placeholder="Write the full story…" minLength={40} value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} /></div>
     <div className="modalActions"><button type="button" onClick={onClose}>Cancel / 取消</button><button className="new" disabled={busy}><Save />{busy ? "Saving…" : "Save draft / 儲存草稿"}</button></div>
