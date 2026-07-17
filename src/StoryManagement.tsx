@@ -42,6 +42,7 @@ type Story = {
   author: { name: string };
   category: Category;
   categoryId: string;
+  storyDate?: string | null;
 };
 type Session = { token: string; user: { name: string; role: string } };
 
@@ -102,7 +103,7 @@ export default function StoryManagement() {
   }, []);
 
   const open = (story: Story) => {
-    editingRef.current = { ...story };
+    editingRef.current = { ...story, storyDate: story.storyDate?.slice(0, 10) || null };
     setEditing(editingRef.current);
     setPhotos((story.photos || []).map((photo) => ({ ...photo, originalCaption: photo.caption || "" })));
   };
@@ -159,7 +160,7 @@ export default function StoryManagement() {
     try {
       let updated = await api(`/api/newsroom/articles/${draft.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ title: draft.title, excerpt, content, categoryId: draft.categoryId }),
+        body: JSON.stringify({ title: draft.title, excerpt, content, categoryId: draft.categoryId, storyDate: draft.storyDate || null }),
       });
       for (const photo of photos) {
         if (photo.id.startsWith("new-") && !photo.removed) {
@@ -231,7 +232,7 @@ export default function StoryManagement() {
           const usesContentUrl = Boolean(contentPreviewUrl && !galleryImage && !story.imageUrl);
           return <div className="storyManagerRow" key={story.id}>
             <div className={`storyPhoto ${lead ? "hasPhoto" : ""} ${usesContentUrl ? "contentUrlPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined} title={usesContentUrl ? "Preview from the first URL in story content" : hasVideo && !lead ? "Story contains video" : undefined}>{!lead && (hasVideo ? <Video /> : <Camera />)}{usesContentUrl && <Link2 />}<span>{story.photos?.length || 0}</span></div>
-            <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}</small></div>
+            <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}{story.storyDate ? ` · ${new Date(story.storyDate).toLocaleDateString()}` : ""}</small></div>
             <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
             <div className="storyActions"><Link className="storyPreviewButton" to={`/newsroom/stories/${story.id}/preview`} target="_blank" rel="noopener noreferrer"><Eye />Preview / 預覽</Link><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}</div>
@@ -258,6 +259,7 @@ export default function StoryManagement() {
         </section>
         <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => updateEditing({ title: event.target.value })} /></label>
         <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => updateEditing({ categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+        <label>Story / event date / 新聞或活動日期<input type="date" value={editing.storyDate || ""} onChange={(event) => updateEditing({ storyDate: event.target.value || null })} /></label>
         <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={20} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
         <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={40} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
         <div className="modalActions"><button type="button" onClick={closeEditor}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
