@@ -63,6 +63,7 @@ export default function StoryManagement() {
   const current = session();
   const isAdmin = current?.user.role === "ADMIN";
   const isEditor = current?.user.role === "EDITOR";
+  const maxMediaItems = isAdmin || isEditor ? 50 : 12;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [canCreate, setCanCreate] = useState(false);
@@ -123,7 +124,7 @@ export default function StoryManagement() {
     if (!files?.length) return;
     const incoming = Array.from(files);
     const activeCount = photos.filter((photo) => !photo.removed).length;
-    if (activeCount + incoming.length > 12) return setNotice("A story can have up to 12 photos or videos / 每篇新聞最多可有 12 個照片或影片");
+    if (activeCount + incoming.length > maxMediaItems) return setNotice(`A story can have up to ${maxMediaItems} photos or videos / 每篇新聞最多可有 ${maxMediaItems} 個照片或影片`);
     for (const file of incoming) {
       const isImage = /^image\/(png|jpeg|webp)$/.test(file.type);
       const isVideo = /^video\/(mp4|webm|quicktime)$/.test(file.type);
@@ -153,9 +154,9 @@ export default function StoryManagement() {
       form.querySelector<HTMLElement>(`[data-rich-text-field="${fieldName}"]`)?.innerHTML || fallback;
     const excerpt = linkifyRichText(currentEditorHtml("excerpt", draft.excerpt));
     const content = linkifyRichText(currentEditorHtml("content", draft.content));
-    if (richTextToPlainText(excerpt).length < 20) return setNotice("Summary must contain at least 20 characters.");
+    if (richTextToPlainText(excerpt).length < 10) return setNotice("Summary must contain at least 10 characters.");
     if (richTextToPlainText(excerpt).length > 600) return setNotice("Summary must contain no more than 600 characters.");
-    if (richTextToPlainText(content).length < 40) return setNotice("Story content must contain at least 40 characters.");
+    if (richTextToPlainText(content).length < 20) return setNotice("Story content must contain at least 20 characters.");
     setSaving(true);
     try {
       let updated = await api(`/api/newsroom/articles/${draft.id}`, {
@@ -244,7 +245,7 @@ export default function StoryManagement() {
       <form className="userModal storyEditorModal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
         <div className="modalHead"><div><small>EDIT STORY · 編輯新聞</small><h2>{editing.title}</h2></div><button type="button" onClick={closeEditor}><X /></button></div>
         <section className="storyGalleryEditor">
-          <div className="storyGalleryHeading"><div><b>Story photos, videos and captions / 新聞照片、影片及說明</b><p>Up to 12 items · photos 5 MB · videos 25 MB</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add media / 新增媒體</button></div>
+          <div className="storyGalleryHeading"><div><b>Story photos, videos and captions / 新聞照片、影片及說明</b><p>Up to {maxMediaItems} items · photos 5 MB · videos 25 MB</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add media / 新增媒體</button></div>
           <input ref={fileRef} hidden multiple type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime,.mov" onChange={(event) => selectPhotos(event.target.files)} />
           {!activePhotos.length && editingContentUrl && <div className="contentUrlPreview">
             <div className={editingContentPreviewUrl ? "hasPreviewImage" : ""} style={editingContentPreviewUrl ? { backgroundImage: `url(${editingContentPreviewUrl})` } : undefined}><Link2 /></div>
@@ -260,8 +261,8 @@ export default function StoryManagement() {
         <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => updateEditing({ title: event.target.value })} /></label>
         <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => updateEditing({ categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
         <label>Story / event date / 新聞或活動日期<input type="date" value={editing.storyDate || ""} onChange={(event) => updateEditing({ storyDate: event.target.value || null })} /></label>
-        <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={20} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
-        <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={40} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
+        <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={10} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
+        <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={20} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
         <div className="modalActions"><button type="button" onClick={closeEditor}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
       </form>
     </div>}
