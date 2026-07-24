@@ -50,10 +50,7 @@ function facebookEmbedUrl(value: string) {
   if (!isFacebookUrl(value)) return null;
   try {
     const url = new URL(value);
-    const plugin = /\/(?:reel|videos?)\//i.test(url.pathname) || url.hostname.toLowerCase() === "fb.watch"
-      ? "video.php"
-      : "post.php";
-    return `https://www.facebook.com/plugins/${plugin}?href=${encodeURIComponent(url.href)}&show_text=false&width=1000`;
+    return `/api/link-preview/facebook-embed?url=${encodeURIComponent(url.href)}`;
   } catch {
     return null;
   }
