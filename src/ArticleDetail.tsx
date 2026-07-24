@@ -6,7 +6,7 @@ import RichText from "./RichText";
 import "./story-media.css";
 import "./story-preview.css";
 import "./story-lightbox.css";
-import { firstHttpUrl, isVideoUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
+import { firstHttpUrl, isFacebookUrl, isVideoUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
 
 type Photo = { id: string; url: string; caption: string | null; sortOrder: number };
 type Article = {
@@ -35,7 +35,7 @@ function StoryMedia({ media, title, thumbnail = false }: { media: Photo; title: 
     ? <video src={media.url} controls={!thumbnail} muted={thumbnail} playsInline preload="metadata" aria-label={media.caption || title} />
     : <img src={media.url} alt={media.caption || title} />;
 }
-type MediaViewer = { kind: "youtube"; url: string } | { kind: "gallery"; items: Photo[]; index: number };
+type MediaViewer = { kind: "youtube" | "facebook"; url: string } | { kind: "gallery"; items: Photo[]; index: number };
 
 function youtubeEmbedUrl(value: string) {
   const thumbnail = previewImageForUrl(value);
@@ -44,6 +44,19 @@ function youtubeEmbedUrl(value: string) {
   const origin = encodeURIComponent(window.location.origin);
   const pageUrl = encodeURIComponent(window.location.href);
   return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&origin=${origin}&widget_referrer=${pageUrl}`;
+}
+
+function facebookEmbedUrl(value: string) {
+  if (!isFacebookUrl(value)) return null;
+  try {
+    const url = new URL(value);
+    const plugin = /\/(?:reel|videos?)\//i.test(url.pathname) || url.hostname.toLowerCase() === "fb.watch"
+      ? "video.php"
+      : "post.php";
+    return `https://www.facebook.com/plugins/${plugin}?href=${encodeURIComponent(url.href)}&show_text=false&width=1000`;
+  } catch {
+    return null;
+  }
 }
 type Discussion = ResponseState & { photoResponses: Record<string, ResponseState>; comments: StoryComment[] };
 type Session = { token: string; user: { id: string; name: string } };
@@ -188,10 +201,18 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
   const photos = article.photos?.length ? article.photos : fallbackPhoto ? [{ id: "cover", url: fallbackPhoto, caption: null, sortOrder: 0 }] : [];
   const contentPreviewLink = !article.photos?.length && !article.imageUrl && contentPreview ? contentUrl : null;
   const youtubePreview = contentPreviewLink ? youtubeEmbedUrl(contentPreviewLink) : null;
+  const facebookPreview = contentPreviewLink ? facebookEmbedUrl(contentPreviewLink) : null;
   const readMinutes = Math.max(2, Math.ceil(richTextToPlainText(article.content).split(/\s+/).length / 220));
   const openMedia = (index: number) => {
     if (index === 0 && youtubePreview) setMediaViewer({ kind: "youtube", url: youtubePreview });
+    else if (index === 0 && facebookPreview) setMediaViewer({ kind: "facebook", url: facebookPreview });
     else setMediaViewer({ kind: "gallery", items: photos, index });
+  };
+  const openFacebookLink = (url: string) => {
+    const embedUrl = facebookEmbedUrl(url);
+    if (!embedUrl) return false;
+    setMediaViewer({ kind: "facebook", url: embedUrl });
+    return true;
   };
 
   return <div className="articlePage">{!preview && <ReaderHeader />}<main className="articleMain">
@@ -204,8 +225,8 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
         <RichText value={article.excerpt} className="articleSummaryRichText" />
         <div><b>By {article.author.name}</b><span><Clock />{readMinutes} min read</span>{!preview && <span><Eye />{article.views.toLocaleString()} views</span>}<time>{new Date(article.storyDate || article.publishedAt || article.updatedAt || Date.now()).toLocaleDateString()}</time></div>
       </header>
-      {photos[0] && <figure className="articleLeadPhoto"><button type="button" className="articleMediaCard" onClick={() => openMedia(0)} aria-label={`${youtubePreview || isVideoUrl(photos[0].url) ? "Play video" : "View photo"}: ${photos[0].caption || article.title}`}><StoryMedia media={photos[0]} title={article.title} thumbnail /><span className="articleMediaCue">{youtubePreview || isVideoUrl(photos[0].url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{!preview && photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>}
-      <RichText value={article.content} className="articleBody" />
+      {photos[0] && <figure className="articleLeadPhoto"><button type="button" className="articleMediaCard" onClick={() => openMedia(0)} aria-label={`${facebookPreview ? "View Facebook" : youtubePreview || isVideoUrl(photos[0].url) ? "Play video" : "View photo"}: ${photos[0].caption || article.title}`}><StoryMedia media={photos[0]} title={article.title} thumbnail /><span className="articleMediaCue">{facebookPreview ? <><Eye />View Facebook / 查看 Facebook</> : youtubePreview || isVideoUrl(photos[0].url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{!preview && photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>}
+      <RichText value={article.content} className="articleBody" onLinkClick={openFacebookLink} />
       {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片與影片</h2></div><div>{photos.slice(1).map((photo, index) => <figure key={photo.id}><button type="button" className="articleMediaCard" onClick={() => openMedia(index + 1)} aria-label={`${isVideoUrl(photo.url) ? "Play video" : "View photo"}: ${photo.caption || article.title}`}><StoryMedia media={photo} title={article.title} thumbnail /><span className="articleMediaCue">{isVideoUrl(photo.url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photo.caption && <figcaption>{photo.caption}</figcaption>}{!preview && <PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>)}</div></section>}
     </article>
     {!preview && <section className="storyDiscussion" aria-labelledby="story-discussion-title">
@@ -219,5 +240,5 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
       {notice && <div className="discussionNotice" role="status">{notice}</div>}
       <div className="commentList"><div><h3><MessageCircle />Comments</h3><span>{discussion.comments.length}</span></div>{discussionLoading ? <p className="commentsEmpty">Loading comments…</p> : discussion.comments.length ? discussion.comments.map((comment) => <article key={comment.id}><div className="commentAvatar">{comment.user.avatarUrl ? <img src={comment.user.avatarUrl} alt="" /> : comment.user.name.slice(0, 2).toUpperCase()}</div><div><header><b>{comment.user.name}</b><time>{new Date(comment.createdAt).toLocaleString()}</time></header><p>{comment.body}</p></div></article>) : <p className="commentsEmpty">No comments yet. Start the conversation.</p>}</div>
     </section>}
-  </main>{mediaViewer && <div className="storyLightbox" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setMediaViewer(null)}><section role="dialog" aria-modal="true" aria-label="Story media viewer"><header><div><b>{article.title}</b>{mediaViewer.kind === "gallery" && <span>{mediaViewer.index + 1} / {mediaViewer.items.length}</span>}</div><button type="button" onClick={() => setMediaViewer(null)} aria-label="Close media viewer"><X /></button></header><div className="storyLightboxStage" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const endX = event.changedTouches[0]?.clientX; if (touchStartX.current !== null && endX !== undefined && Math.abs(endX - touchStartX.current) > 50) moveViewer(endX > touchStartX.current ? -1 : 1); touchStartX.current = null; }}>{mediaViewer.kind === "youtube" ? <iframe src={mediaViewer.url} title={article.title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : isVideoUrl(mediaViewer.items[mediaViewer.index].url) ? <video key={mediaViewer.items[mediaViewer.index].url} src={mediaViewer.items[mediaViewer.index].url} controls autoPlay playsInline /> : <img src={mediaViewer.items[mediaViewer.index].url} alt={mediaViewer.items[mediaViewer.index].caption || article.title} />}{mediaViewer.kind === "gallery" && mediaViewer.items.length > 1 && <><button type="button" className="storyLightboxPrevious" onClick={() => moveViewer(-1)} aria-label="Previous photo or video"><ArrowLeft /></button><button type="button" className="storyLightboxNext" onClick={() => moveViewer(1)} aria-label="Next photo or video"><ArrowRight /></button></>}</div>{mediaViewer.kind === "gallery" && mediaViewer.items[mediaViewer.index].caption && <p>{mediaViewer.items[mediaViewer.index].caption}</p>}</section></div>}{!preview && <footer><div className="brand light"><span>LN</span><div>LOCAL NEWS<small>INDEPENDENT. ESSENTIAL.</small></div></div><p>Reporting with context, accountability and care.</p><small>© 2026 Local News. All rights reserved.</small></footer>}</div>;
+  </main>{mediaViewer && <div className="storyLightbox" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setMediaViewer(null)}><section role="dialog" aria-modal="true" aria-label="Story media viewer"><header><div><b>{article.title}</b>{mediaViewer.kind === "gallery" && <span>{mediaViewer.index + 1} / {mediaViewer.items.length}</span>}</div><button type="button" onClick={() => setMediaViewer(null)} aria-label="Close media viewer"><X /></button></header><div className="storyLightboxStage" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const endX = event.changedTouches[0]?.clientX; if (touchStartX.current !== null && endX !== undefined && Math.abs(endX - touchStartX.current) > 50) moveViewer(endX > touchStartX.current ? -1 : 1); touchStartX.current = null; }}>{mediaViewer.kind !== "gallery" ? <iframe src={mediaViewer.url} title={article.title} allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen /> : isVideoUrl(mediaViewer.items[mediaViewer.index].url) ? <video key={mediaViewer.items[mediaViewer.index].url} src={mediaViewer.items[mediaViewer.index].url} controls autoPlay playsInline /> : <img src={mediaViewer.items[mediaViewer.index].url} alt={mediaViewer.items[mediaViewer.index].caption || article.title} />}{mediaViewer.kind === "gallery" && mediaViewer.items.length > 1 && <><button type="button" className="storyLightboxPrevious" onClick={() => moveViewer(-1)} aria-label="Previous photo or video"><ArrowLeft /></button><button type="button" className="storyLightboxNext" onClick={() => moveViewer(1)} aria-label="Next photo or video"><ArrowRight /></button></>}</div>{mediaViewer.kind === "gallery" && mediaViewer.items[mediaViewer.index].caption && <p>{mediaViewer.items[mediaViewer.index].caption}</p>}</section></div>}{!preview && <footer><div className="brand light"><span>LN</span><div>LOCAL NEWS<small>INDEPENDENT. ESSENTIAL.</small></div></div><p>Reporting with context, accountability and care.</p><small>© 2026 Local News. All rights reserved.</small></footer>}</div>;
 }
