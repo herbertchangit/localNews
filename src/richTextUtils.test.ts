@@ -36,11 +36,15 @@ describe("rich text utilities", () => {
     expect(firstHttpUrl("No link in this story")).toBeNull();
   });
 
-  it("creates preview images for YouTube and direct image URLs", () => {
+  it("creates preview images for YouTube, Facebook, and direct image URLs", () => {
     expect(previewImageForUrl("https://youtu.be/hAi1SftBbJOY?si=example"))
       .toBe("https://i.ytimg.com/vi/hAi1SftBbJOY/hqdefault.jpg");
     expect(previewImageForUrl("https://www.youtube.com/watch?v=hAi1SftBbJOY"))
       .toBe("https://i.ytimg.com/vi/hAi1SftBbJOY/hqdefault.jpg");
+    expect(previewImageForUrl("https://www.facebook.com/reel/2264000444136387"))
+      .toBe("/api/link-preview/image?url=https%3A%2F%2Fwww.facebook.com%2Freel%2F2264000444136387");
+    expect(previewImageForUrl("https://fb.watch/example/"))
+      .toBe("/api/link-preview/image?url=https%3A%2F%2Ffb.watch%2Fexample%2F");
     expect(previewImageForUrl("https://images.example/photo.webp?width=800"))
       .toBe("https://images.example/photo.webp?width=800");
     expect(previewImageForUrl("https://example.com/article")).toBeNull();

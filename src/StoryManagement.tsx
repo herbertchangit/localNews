@@ -63,6 +63,7 @@ export default function StoryManagement() {
   const current = session();
   const isAdmin = current?.user.role === "ADMIN";
   const isEditor = current?.user.role === "EDITOR";
+  const maxMediaItems = isAdmin || isEditor ? 50 : 12;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [canCreate, setCanCreate] = useState(false);
@@ -72,6 +73,8 @@ export default function StoryManagement() {
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
   const [unpublishBusy, setUnpublishBusy] = useState("");
+  const [deletingId, setDeletingId] = useState("");
+  const [previewStory, setPreviewStory] = useState<Story | null>(null);
   const [notice, setNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const editingRef = useRef<Story | null>(null);
@@ -102,6 +105,18 @@ export default function StoryManagement() {
     return () => window.removeEventListener("localnews:story-created", reload);
   }, []);
 
+  useEffect(() => {
+    if (!previewStory) return;
+    const previousOverflow = document.body.style.overflow;
+    const closePreview = (event: KeyboardEvent) => event.key === "Escape" && setPreviewStory(null);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closePreview);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closePreview);
+    };
+  }, [previewStory]);
+
   const open = (story: Story) => {
     editingRef.current = { ...story, storyDate: story.storyDate?.slice(0, 10) || null };
     setEditing(editingRef.current);
@@ -123,7 +138,7 @@ export default function StoryManagement() {
     if (!files?.length) return;
     const incoming = Array.from(files);
     const activeCount = photos.filter((photo) => !photo.removed).length;
-    if (activeCount + incoming.length > 12) return setNotice("A story can have up to 12 photos or videos / 每篇新聞最多可有 12 個照片或影片");
+    if (activeCount + incoming.length > maxMediaItems) return setNotice(`A story can have up to ${maxMediaItems} photos or videos / 每篇新聞最多可有 ${maxMediaItems} 個照片或影片`);
     for (const file of incoming) {
       const isImage = /^image\/(png|jpeg|webp)$/.test(file.type);
       const isVideo = /^video\/(mp4|webm|quicktime)$/.test(file.type);
@@ -153,9 +168,9 @@ export default function StoryManagement() {
       form.querySelector<HTMLElement>(`[data-rich-text-field="${fieldName}"]`)?.innerHTML || fallback;
     const excerpt = linkifyRichText(currentEditorHtml("excerpt", draft.excerpt));
     const content = linkifyRichText(currentEditorHtml("content", draft.content));
-    if (richTextToPlainText(excerpt).length < 20) return setNotice("Summary must contain at least 20 characters.");
+    if (richTextToPlainText(excerpt).length < 10) return setNotice("Summary must contain at least 10 characters.");
     if (richTextToPlainText(excerpt).length > 600) return setNotice("Summary must contain no more than 600 characters.");
-    if (richTextToPlainText(content).length < 40) return setNotice("Story content must contain at least 40 characters.");
+    if (richTextToPlainText(content).length < 20) return setNotice("Story content must contain at least 20 characters.");
     setSaving(true);
     try {
       let updated = await api(`/api/newsroom/articles/${draft.id}`, {
@@ -199,6 +214,18 @@ export default function StoryManagement() {
     finally { setUnpublishBusy(""); }
   };
 
+  const deleteStory = async (story: Story) => {
+    if (!window.confirm(`Delete "${story.title}" permanently? This cannot be undone. / 永久刪除此新聞？此操作無法復原。`)) return;
+    setDeletingId(story.id);
+    try {
+      await api(`/api/newsroom/articles/${story.id}`, { method: "DELETE" });
+      setStories((items) => items.filter((item) => item.id !== story.id));
+      if (previewStory?.id === story.id) setPreviewStory(null);
+      setNotice("Story deleted permanently / 新聞已永久刪除");
+    } catch (error: any) { setNotice(error.message); }
+    finally { setDeletingId(""); }
+  };
+
   const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
   const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
   const activePhotos = photos.filter((photo) => !photo.removed);
@@ -235,16 +262,22 @@ export default function StoryManagement() {
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}{story.storyDate ? ` · ${new Date(story.storyDate).toLocaleDateString()}` : ""}</small></div>
             <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <div className="storyActions"><Link className="storyPreviewButton" to={`/newsroom/stories/${story.id}/preview`} target="_blank" rel="noopener noreferrer"><Eye />Preview / 預覽</Link><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}</div>
+            <div className="storyActions"><button type="button" className="storyPreviewButton" onClick={() => setPreviewStory(story)}><Eye />Preview / 預覽</button><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 />{deletingId === story.id ? "Deleting…" : "Delete / 刪除"}</button>}</div>
           </div>;
         })}
       </div>
     </section>
+    {previewStory && <div className="storyManagementPreviewBackdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setPreviewStory(null)}>
+      <section className="storyManagementPreviewDialog" role="dialog" aria-modal="true" aria-label={`Preview ${previewStory.title}`}>
+        <header><div><small>STORY PREVIEW / 新聞預覽</small><b>{previewStory.title}</b></div><button type="button" onClick={() => setPreviewStory(null)} aria-label="Close preview"><X /></button></header>
+        <iframe src={`/newsroom/stories/${previewStory.id}/preview`} title={`Preview ${previewStory.title}`} />
+      </section>
+    </div>}
     {editing && <div className="modalBackdrop" onMouseDown={closeEditor}>
       <form className="userModal storyEditorModal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
         <div className="modalHead"><div><small>EDIT STORY · 編輯新聞</small><h2>{editing.title}</h2></div><button type="button" onClick={closeEditor}><X /></button></div>
         <section className="storyGalleryEditor">
-          <div className="storyGalleryHeading"><div><b>Story photos, videos and captions / 新聞照片、影片及說明</b><p>Up to 12 items · photos 5 MB · videos 25 MB</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add media / 新增媒體</button></div>
+          <div className="storyGalleryHeading"><div><b>Story photos, videos and captions / 新聞照片、影片及說明</b><p>Up to {maxMediaItems} items · photos 5 MB · videos 25 MB</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add media / 新增媒體</button></div>
           <input ref={fileRef} hidden multiple type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime,.mov" onChange={(event) => selectPhotos(event.target.files)} />
           {!activePhotos.length && editingContentUrl && <div className="contentUrlPreview">
             <div className={editingContentPreviewUrl ? "hasPreviewImage" : ""} style={editingContentPreviewUrl ? { backgroundImage: `url(${editingContentPreviewUrl})` } : undefined}><Link2 /></div>
@@ -260,8 +293,8 @@ export default function StoryManagement() {
         <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => updateEditing({ title: event.target.value })} /></label>
         <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => updateEditing({ categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
         <label>Story / event date / 新聞或活動日期<input type="date" value={editing.storyDate || ""} onChange={(event) => updateEditing({ storyDate: event.target.value || null })} /></label>
-        <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={20} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
-        <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={40} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
+        <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={10} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
+        <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={20} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
         <div className="modalActions"><button type="button" onClick={closeEditor}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
       </form>
     </div>}

@@ -113,6 +113,10 @@ export function previewImageForUrl(value: string) {
       return `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;
     }
 
+    if (hostname === "facebook.com" || hostname.endsWith(".facebook.com") || hostname === "fb.watch") {
+      return `/api/link-preview/image?url=${encodeURIComponent(url.href)}`;
+    }
+
     return /\.(?:avif|gif|jpe?g|png|webp)$/i.test(url.pathname) ? url.href : null;
   } catch {
     return null;
