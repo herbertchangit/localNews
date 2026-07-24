@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bell,
   CheckCircle2,
+  Eye,
   FileCheck2,
   FileText,
   LayoutDashboard,
@@ -11,15 +12,18 @@ import {
   RefreshCw,
   Settings,
   Users,
+  X,
   XCircle,
 } from "lucide-react";
 import { openStoryComposer } from "./StoryComposer";
+import { firstHttpUrl, previewImageForUrl } from "./richTextUtils";
 
 type EditorialArticle = {
   id: string;
   title: string;
   status: "DRAFT" | "REVIEW" | "REVISION";
   imageUrl: string | null;
+  content: string;
   updatedAt: string;
   author: { name: string };
   category: { name: string };
@@ -45,6 +49,7 @@ export default function EditorialDashboard() {
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState("");
+  const [previewArticle, setPreviewArticle] = useState<EditorialArticle | null>(null);
   const [notice, setNotice] = useState("");
   const isAdmin = current?.user.role === "ADMIN";
 
@@ -80,6 +85,18 @@ export default function EditorialDashboard() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!previewArticle) return;
+    const previousOverflow = document.body.style.overflow;
+    const closePreview = (event: KeyboardEvent) => event.key === "Escape" && setPreviewArticle(null);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closePreview);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closePreview);
+    };
+  }, [previewArticle]);
 
   const verify = async (article: EditorialArticle, status: "PUBLISHED" | "REVISION") => {
     setWorkingId(article.id);
@@ -160,20 +177,31 @@ export default function EditorialDashboard() {
           <div className="table">
             {loading && <div className="editorialEmpty">Loading editorial queue… / 正在載入審核隊列…</div>}
             {!loading && !articles.length && <div className="editorialEmpty">No stories waiting for verification. / 暫無待審核新聞。</div>}
-            {!loading && articles.map((article) => (
+            {!loading && articles.map((article) => {
+              const contentUrl = firstHttpUrl(article.content);
+              const contentThumbnail = contentUrl ? previewImageForUrl(contentUrl) : null;
+              const thumbnail = article.imageUrl || contentThumbnail;
+              return (
               <div className="row" key={article.id}>
-                <div className="story"><div className={`mini ${article.imageUrl ? "hasImage" : ""}`} style={article.imageUrl ? { backgroundImage: `url(${article.imageUrl})` } : undefined} /><span><b>{article.title}</b><small>{article.author.name} · {article.category.name}</small></span></div>
+                <div className="story"><div className={`mini ${thumbnail ? "hasImage" : ""}`} style={thumbnail ? { backgroundImage: `url(${thumbnail})` } : undefined} /><span><b>{article.title}</b><small>{article.author.name} · {article.category.name}</small></span></div>
                 <span className={`status ${article.status.toLowerCase()}`}>{article.status.replace("_", " ")}</span>
                 <span className="time">{new Date(article.updatedAt).toLocaleDateString()}</span>
                 <div className="rowActions">
+                  <button className="editorialPreviewButton" type="button" title="Preview story / 預覽新聞" aria-label={`Preview ${article.title}`} onClick={() => setPreviewArticle(article)}><Eye /></button>
                   <button disabled={workingId === article.id} title="Verify and publish / 審核並發布" onClick={() => verify(article, "PUBLISHED")}><CheckCircle2 /></button>
                   <button disabled={workingId === article.id || article.status === "REVISION"} title="Request revision / 要求修改" onClick={() => verify(article, "REVISION")}><XCircle /></button>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </section>
+      {previewArticle && <div className="editorialPreviewBackdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setPreviewArticle(null)}>
+        <section className="editorialPreviewDialog" role="dialog" aria-modal="true" aria-label={`Preview ${previewArticle.title}`}>
+          <header><div><small>STORY PREVIEW / 新聞預覽</small><b>{previewArticle.title}</b></div><button type="button" onClick={() => setPreviewArticle(null)} aria-label="Close preview"><X /></button></header>
+          <iframe src={`/newsroom/stories/${previewArticle.id}/preview`} title={`Preview ${previewArticle.title}`} />
+        </section>
+      </div>}
     </div>
   );
 }

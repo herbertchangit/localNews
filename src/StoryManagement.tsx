@@ -73,6 +73,8 @@ export default function StoryManagement() {
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
   const [unpublishBusy, setUnpublishBusy] = useState("");
+  const [deletingId, setDeletingId] = useState("");
+  const [previewStory, setPreviewStory] = useState<Story | null>(null);
   const [notice, setNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const editingRef = useRef<Story | null>(null);
@@ -102,6 +104,18 @@ export default function StoryManagement() {
     window.addEventListener("localnews:story-created", reload);
     return () => window.removeEventListener("localnews:story-created", reload);
   }, []);
+
+  useEffect(() => {
+    if (!previewStory) return;
+    const previousOverflow = document.body.style.overflow;
+    const closePreview = (event: KeyboardEvent) => event.key === "Escape" && setPreviewStory(null);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closePreview);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closePreview);
+    };
+  }, [previewStory]);
 
   const open = (story: Story) => {
     editingRef.current = { ...story, storyDate: story.storyDate?.slice(0, 10) || null };
@@ -200,6 +214,18 @@ export default function StoryManagement() {
     finally { setUnpublishBusy(""); }
   };
 
+  const deleteStory = async (story: Story) => {
+    if (!window.confirm(`Delete "${story.title}" permanently? This cannot be undone. / 永久刪除此新聞？此操作無法復原。`)) return;
+    setDeletingId(story.id);
+    try {
+      await api(`/api/newsroom/articles/${story.id}`, { method: "DELETE" });
+      setStories((items) => items.filter((item) => item.id !== story.id));
+      if (previewStory?.id === story.id) setPreviewStory(null);
+      setNotice("Story deleted permanently / 新聞已永久刪除");
+    } catch (error: any) { setNotice(error.message); }
+    finally { setDeletingId(""); }
+  };
+
   const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
   const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
   const activePhotos = photos.filter((photo) => !photo.removed);
@@ -236,11 +262,17 @@ export default function StoryManagement() {
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}{story.storyDate ? ` · ${new Date(story.storyDate).toLocaleDateString()}` : ""}</small></div>
             <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <div className="storyActions"><Link className="storyPreviewButton" to={`/newsroom/stories/${story.id}/preview`} target="_blank" rel="noopener noreferrer"><Eye />Preview / 預覽</Link><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}</div>
+            <div className="storyActions"><button type="button" className="storyPreviewButton" onClick={() => setPreviewStory(story)}><Eye />Preview / 預覽</button><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 />{deletingId === story.id ? "Deleting…" : "Delete / 刪除"}</button>}</div>
           </div>;
         })}
       </div>
     </section>
+    {previewStory && <div className="storyManagementPreviewBackdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setPreviewStory(null)}>
+      <section className="storyManagementPreviewDialog" role="dialog" aria-modal="true" aria-label={`Preview ${previewStory.title}`}>
+        <header><div><small>STORY PREVIEW / 新聞預覽</small><b>{previewStory.title}</b></div><button type="button" onClick={() => setPreviewStory(null)} aria-label="Close preview"><X /></button></header>
+        <iframe src={`/newsroom/stories/${previewStory.id}/preview`} title={`Preview ${previewStory.title}`} />
+      </section>
+    </div>}
     {editing && <div className="modalBackdrop" onMouseDown={closeEditor}>
       <form className="userModal storyEditorModal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
         <div className="modalHead"><div><small>EDIT STORY · 編輯新聞</small><h2>{editing.title}</h2></div><button type="button" onClick={closeEditor}><X /></button></div>

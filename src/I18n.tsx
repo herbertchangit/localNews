@@ -421,32 +421,64 @@ const missionEn: Record<string, string> = Object.fromEntries(
 );
 Object.assign(zh, missionZh);
 const originals = new WeakMap<Node, string>();
-const sidebarLabels = new WeakMap<Node, { en: string; zh: string }>();
+const bilingualLabels = new WeakMap<Node, { en: string; zh: string }>();
 const attrOriginals = new WeakMap<Element, Map<string, string>>();
+const attrBilingualLabels = new WeakMap<Element, Map<string, { en: string; zh: string }>>();
+const userContentSelector = [
+  "[data-rich-text-field]",
+  ".articleBody",
+  ".articleHeading h1",
+  ".articleSummaryRichText",
+  ".cardRichSummary",
+  ".storyManagerTitle b",
+  ".commentList",
+  ".contentUrlPreview a",
+  ".editorialPreviewDialog header b",
+  ".storyManagementPreviewDialog header b",
+].join(",");
+
+export function splitBilingualLabel(value: string) {
+  const firstChinese = value.search(/[\u3400-\u9fff]/);
+  if (firstChinese < 1) return null;
+  let divider = -1;
+  let dividerLength = 0;
+  for (const separator of [" / ", " · "]) {
+    let position = value.indexOf(separator);
+    while (position >= 0 && position < firstChinese) {
+      if (position > divider) {
+        divider = position;
+        dividerLength = separator.length;
+      }
+      position = value.indexOf(separator, position + separator.length);
+    }
+  }
+  if (divider < 1) return null;
+  const en = value.slice(0, divider).trim();
+  const zhLabel = value.slice(divider + dividerLength).trim();
+  return /[A-Za-z]/.test(en) && /[\u3400-\u9fff]/.test(zhLabel) ? { en, zh: zhLabel } : null;
+}
+
 function translate(root: ParentNode, lang: "en" | "zh") {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let n: Node | null;
   while ((n = walker.nextNode())) {
     const raw = n.nodeValue || "",
       key = raw.trim(),
-      sidebarParts = n.parentElement?.closest("aside") ? key.split(" / ") : [],
-      parsedSidebarLabel =
-        sidebarParts.length === 2 && /[\u3400-\u9fff]/.test(sidebarParts[1])
-          ? { en: sidebarParts[0], zh: sidebarParts[1] }
-          : undefined,
-      sidebarLabel = sidebarLabels.get(n) || parsedSidebarLabel,
+      isUserContent = Boolean(n.parentElement?.closest(userContentSelector)),
+      parsedBilingualLabel = isUserContent ? null : splitBilingualLabel(key),
+      bilingualLabel = bilingualLabels.get(n) || parsedBilingualLabel,
       mission = lang === "zh" ? missionZh[key] : missionEn[key],
       dynamic = key.startsWith("Organization: ")
         ? `志業/角色：${key.slice(14)}`
         : key.startsWith("No published stories in ")
           ? `「${key.slice(24, -1)}」沒有已發布新聞。`
           : "";
-    if (sidebarLabel) {
-      if (parsedSidebarLabel && !sidebarLabels.has(n)) {
-        sidebarLabels.set(n, parsedSidebarLabel);
-        originals.set(n, raw.replace(key, parsedSidebarLabel.en));
+    if (bilingualLabel) {
+      if (parsedBilingualLabel && !bilingualLabels.has(n)) {
+        bilingualLabels.set(n, parsedBilingualLabel);
+        originals.set(n, raw.replace(key, parsedBilingualLabel.en));
       }
-      n.nodeValue = raw.replace(key, sidebarLabel[lang]);
+      n.nodeValue = raw.replace(key, bilingualLabel[lang]);
     } else if (mission) {
       n.nodeValue = raw.replace(key, mission);
     } else if (lang === "zh" && (zh[key] || dynamic)) {
@@ -465,7 +497,19 @@ function translate(root: ParentNode, lang: "en" | "zh") {
     for (const attr of ["placeholder", "aria-label", "title"]) {
       const value = el.getAttribute(attr);
       if (!value) continue;
-      if (lang === "zh" && zh[value]) {
+      const parsedBilingualLabel = splitBilingualLabel(value);
+      let bilingualMap = attrBilingualLabels.get(el);
+      if (parsedBilingualLabel) {
+        if (!bilingualMap) {
+          bilingualMap = new Map();
+          attrBilingualLabels.set(el, bilingualMap);
+        }
+        bilingualMap.set(attr, parsedBilingualLabel);
+      }
+      const bilingualLabel = bilingualMap?.get(attr);
+      if (bilingualLabel) {
+        el.setAttribute(attr, bilingualLabel[lang]);
+      } else if (lang === "zh" && zh[value]) {
         let map = attrOriginals.get(el);
         if (!map) {
           map = new Map();
