@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstHttpUrl, isVideoUrl, linkifyRichText, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
+import { firstHttpUrl, isFacebookUrl, isVideoUrl, linkifyRichText, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
 
 describe("rich text utilities", () => {
   it("keeps supported formatting", () => {
@@ -61,5 +61,12 @@ describe("rich text utilities", () => {
     expect(isVideoUrl("/uploads/story-video.mp4")).toBe(true);
     expect(isVideoUrl("https://media.example/story.webm?version=2")).toBe(true);
     expect(isVideoUrl("/uploads/story-photo.webp")).toBe(false);
+  });
+
+  it("recognizes Facebook story links", () => {
+    expect(isFacebookUrl("https://www.facebook.com/reel/2264000444136387")).toBe(true);
+    expect(isFacebookUrl("https://m.facebook.com/example/posts/123")).toBe(true);
+    expect(isFacebookUrl("https://fb.watch/example/")).toBe(true);
+    expect(isFacebookUrl("https://notfacebook.com/reel/123")).toBe(false);
   });
 });
