@@ -410,6 +410,16 @@ Object.assign(zh, {
   "Loading comments…": "正在載入留言……",
   "No comments yet. Start the conversation.": "尚無留言，歡迎開始交流。",
 });
+export const HEALTH_TERM_TRANSLATIONS = {
+  Events: { "zh-cn": "活动", "zh-tw": "活動" },
+  Appointments: { "zh-cn": "预约", "zh-tw": "預約" },
+  Doctors: { "zh-cn": "医生", "zh-tw": "醫生" },
+  "Health events": { "zh-cn": "健康活动", "zh-tw": "健康活動" },
+  "Health Events": { "zh-cn": "健康活动", "zh-tw": "健康活動" },
+} as const;
+Object.assign(zh, Object.fromEntries(
+  Object.entries(HEALTH_TERM_TRANSLATIONS).map(([key, value]) => [key, value["zh-cn"]]),
+));
 const missionZh: Record<string, string> = {
   "Charity Mission": "慈善志業",
   "Medical Mission": "醫療志業",
@@ -420,6 +430,13 @@ const missionEn: Record<string, string> = Object.fromEntries(
   Object.entries(missionZh).map(([english, chinese]) => [chinese, english]),
 );
 Object.assign(zh, missionZh);
+const zhTw: Record<string, string> = {
+  ...zh,
+  ...Object.fromEntries(
+    Object.entries(HEALTH_TERM_TRANSLATIONS).map(([key, value]) => [key, value["zh-tw"]]),
+  ),
+};
+type Language = "en" | "zh-cn" | "zh-tw";
 const originals = new WeakMap<Node, string>();
 const bilingualLabels = new WeakMap<Node, { en: string; zh: string }>();
 const attrOriginals = new WeakMap<Element, Map<string, string>>();
@@ -458,16 +475,18 @@ export function splitBilingualLabel(value: string) {
   return /[A-Za-z]/.test(en) && /[\u3400-\u9fff]/.test(zhLabel) ? { en, zh: zhLabel } : null;
 }
 
-function translate(root: ParentNode, lang: "en" | "zh") {
+function translate(root: ParentNode, lang: Language) {
+  const dictionary = lang === "zh-tw" ? zhTw : zh;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let n: Node | null;
   while ((n = walker.nextNode())) {
     const raw = n.nodeValue || "",
-      key = raw.trim(),
+      sourceRaw = originals.get(n) || raw,
+      key = sourceRaw.trim(),
       isUserContent = Boolean(n.parentElement?.closest(userContentSelector)),
       parsedBilingualLabel = isUserContent ? null : splitBilingualLabel(key),
       bilingualLabel = bilingualLabels.get(n) || parsedBilingualLabel,
-      mission = lang === "zh" ? missionZh[key] : missionEn[key],
+      mission = lang !== "en" ? missionZh[key] : missionEn[key],
       dynamic = key.startsWith("Organization: ")
         ? `志業/角色：${key.slice(14)}`
         : key.startsWith("No published stories in ")
@@ -478,12 +497,12 @@ function translate(root: ParentNode, lang: "en" | "zh") {
         bilingualLabels.set(n, parsedBilingualLabel);
         originals.set(n, raw.replace(key, parsedBilingualLabel.en));
       }
-      n.nodeValue = raw.replace(key, bilingualLabel[lang]);
+      n.nodeValue = sourceRaw.replace(key, lang === "en" ? bilingualLabel.en : bilingualLabel.zh);
     } else if (mission) {
-      n.nodeValue = raw.replace(key, mission);
-    } else if (lang === "zh" && (zh[key] || dynamic)) {
-      if (!originals.has(n)) originals.set(n, raw);
-      n.nodeValue = raw.replace(key, zh[key] || dynamic);
+      n.nodeValue = sourceRaw.replace(key, mission);
+    } else if (lang !== "en" && (dictionary[key] || dynamic)) {
+      if (!originals.has(n)) originals.set(n, sourceRaw);
+      n.nodeValue = sourceRaw.replace(key, dictionary[key] || dynamic);
     } else if (lang === "en" && originals.has(n)) {
       n.nodeValue = originals.get(n)!;
       originals.delete(n);
@@ -497,7 +516,8 @@ function translate(root: ParentNode, lang: "en" | "zh") {
     for (const attr of ["placeholder", "aria-label", "title"]) {
       const value = el.getAttribute(attr);
       if (!value) continue;
-      const parsedBilingualLabel = splitBilingualLabel(value);
+      const originalValue = attrOriginals.get(el)?.get(attr) || value;
+      const parsedBilingualLabel = splitBilingualLabel(originalValue);
       let bilingualMap = attrBilingualLabels.get(el);
       if (parsedBilingualLabel) {
         if (!bilingualMap) {
@@ -508,15 +528,15 @@ function translate(root: ParentNode, lang: "en" | "zh") {
       }
       const bilingualLabel = bilingualMap?.get(attr);
       if (bilingualLabel) {
-        el.setAttribute(attr, bilingualLabel[lang]);
-      } else if (lang === "zh" && zh[value]) {
+        el.setAttribute(attr, lang === "en" ? bilingualLabel.en : bilingualLabel.zh);
+      } else if (lang !== "en" && dictionary[originalValue]) {
         let map = attrOriginals.get(el);
         if (!map) {
           map = new Map();
           attrOriginals.set(el, map);
         }
-        if (!map.has(attr)) map.set(attr, value);
-        el.setAttribute(attr, zh[value]);
+        if (!map.has(attr)) map.set(attr, originalValue);
+        el.setAttribute(attr, dictionary[originalValue]);
       } else if (lang === "en") {
         const map = attrOriginals.get(el);
         if (map?.has(attr)) {
@@ -528,11 +548,12 @@ function translate(root: ParentNode, lang: "en" | "zh") {
   }
 }
 export default function I18n() {
-  const [lang, setLang] = useState<"en" | "zh">(
-    () => (localStorage.getItem("ln_lang") as any) || "en",
-  );
+  const [lang, setLang] = useState<Language>(() => {
+    const stored = localStorage.getItem("ln_lang");
+    return stored === "zh" ? "zh-cn" : stored === "zh-cn" || stored === "zh-tw" ? stored : "en";
+  });
   useEffect(() => {
-    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = lang === "zh-cn" ? "zh-CN" : lang === "zh-tw" ? "zh-TW" : "en";
     translate(document.body, lang);
     const observer = new MutationObserver((records) =>
       records.forEach((r) =>
@@ -546,7 +567,7 @@ export default function I18n() {
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [lang]);
-  const change = (next: "en" | "zh") => {
+  const change = (next: Language) => {
     localStorage.setItem("ln_lang", next);
     setLang(next);
   };
@@ -561,10 +582,17 @@ export default function I18n() {
       </button>
       <span>/</span>
       <button
-        className={lang === "zh" ? "active" : ""}
-        onClick={() => change("zh")}
+        className={lang === "zh-cn" ? "active" : ""}
+        onClick={() => change("zh-cn")}
       >
-        中文
+        简
+      </button>
+      <span>/</span>
+      <button
+        className={lang === "zh-tw" ? "active" : ""}
+        onClick={() => change("zh-tw")}
+      >
+        繁
       </button>
     </div>
   );

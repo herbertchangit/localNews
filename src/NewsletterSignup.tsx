@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import HealthEventBoard from "./HealthEventBoard";
 
 type SignupForm = {
   name: string;
@@ -48,9 +49,7 @@ export default function NewsletterSignup() {
     }
   };
 
-  if (signedIn) return null;
-
-  return <section className="newsletter signupNewsletter">
+  return <><HealthEventBoard/>{!signedIn&&<section className="newsletter signupNewsletter">
     <span>STAY INFORMED</span>
     <h2>Join us with your HearT</h2>
     <p>Create your DaDe reader account and follow every published story.</p>
@@ -63,5 +62,5 @@ export default function NewsletterSignup() {
       <button type="submit" disabled={busy}>{busy ? "Signing up…" : "Sign Up"}{busy ? <CheckCircle2 /> : <ArrowUpRight />}</button>
     </form>
     <small>Every new account is registered as DaDe.</small>
-  </section>;
+  </section>}</>;
 }
