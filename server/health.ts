@@ -1,0 +1,482 @@
+import express from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { HealthAppointmentStatus, PrismaClient, Role } from "@prisma/client";
+import { z } from "zod";
+
+const eventSelect = {
+  doctors: { include: { doctor: { include: { user: { select: { id: true, name: true, email: true } } } } } },
+  _count: { select: { appointments: true, timeSlots: true } },
+};
+const doctorSelect = {
+  user: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true, suspended: true } },
+  _count: { select: { appointments: true, eventAssignments: true } },
+};
+const appointmentSelect = {
+  patient: { select: { id: true, name: true, email: true, phone: true } },
+  doctor: { include: { user: { select: { id: true, name: true, email: true } } } },
+  event: { select: { id: true, name: true, eventDate: true, location: true } },
+};
+
+const eventInput = z.object({
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().min(2).max(4000),
+  location: z.string().trim().min(2).max(200),
+  address: z.string().trim().min(2).max(400),
+  mapsUrl: z.string().url().nullable().optional(),
+  wazeUrl: z.string().url().nullable().optional(),
+  eventDate: z.coerce.date(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  bannerImage: z.string().max(8_000_000).refine((value) => /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/i.test(value) || /^https?:\/\//i.test(value) || value.startsWith("/uploads/"), "Use a PNG, JPEG, or WebP event photo").nullable().optional(),
+  maxCapacity: z.coerce.number().int().min(1).max(100000),
+  active: z.boolean().default(true),
+  publishedToStoryBoard: z.boolean().default(false),
+  doctorIds: z.array(z.string()).default([]),
+});
+const dutySlot = z.object({
+  day_of_week: z.string().min(2),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/),
+  slot_duration_minutes: z.coerce.number().int().min(5).max(240),
+});
+const doctorCreateInput = z.object({
+  name: z.string().trim().min(2).max(100),
+  email: z.string().trim().toLowerCase().email(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  password: z.string().min(8).max(72),
+  specialization: z.string().trim().min(2).max(160),
+  qualification: z.string().trim().min(2).max(240),
+  experienceYears: z.coerce.number().int().min(0).max(80),
+  bio: z.string().trim().max(4000).nullable().optional(),
+  profileImage: z.string().nullable().optional(),
+  consultationFee: z.coerce.number().min(0).max(1000000),
+  dutySlots: z.array(dutySlot).default([]),
+});
+const doctorUpdateInput = doctorCreateInput.partial().omit({ password: true });
+const appointmentInput = z.object({
+  patientId: z.string().min(1),
+  doctorId: z.string().min(1),
+  eventId: z.string().min(1),
+  patientName: z.string().trim().min(2).max(120).optional(),
+  patientPhone: z.string().trim().max(40).nullable().optional(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  reason: z.string().trim().max(1000).nullable().optional(),
+  status: z.nativeEnum(HealthAppointmentStatus).default(HealthAppointmentStatus.CONFIRMED),
+});
+const timeValue = z.string().regex(/^\d{2}:\d{2}$/);
+const doctorSlotBulkInput = z.object({
+  eventId: z.string().min(1),
+  startTime: timeValue,
+  endTime: timeValue,
+  slotDurationMinutes: z.coerce.number().int().min(5).max(240),
+});
+const doctorSlotUpdateInput = z.object({
+  startTime: timeValue,
+  endTime: timeValue,
+});
+const minutesFromTime = (value: string) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+const timeFromMinutes = (value: number) =>
+  `${Math.floor(value / 60).toString().padStart(2, "0")}:${(value % 60).toString().padStart(2, "0")}`;
+const overlaps = (start: number, end: number, otherStart: string, otherEnd: string) =>
+  start < minutesFromTime(otherEnd) && end > minutesFromTime(otherStart);
+
+export function createHealthAdminRouter(db: PrismaClient, secret: string) {
+  const router = express.Router();
+  router.use((req: any, res, next) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (!token) return res.status(401).json({ error: "Authentication required" });
+      req.user = jwt.verify(token, secret);
+      if (req.user.role !== Role.ADMIN) return res.status(403).json({ error: "Administrator access required" });
+      next();
+    } catch {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  router.get("/events", async (_req, res) => {
+    res.json(await db.healthEvent.findMany({ include: eventSelect, orderBy: [{ eventDate: "desc" }, { startTime: "asc" }] }));
+  });
+  router.post("/events", async (req: any, res) => {
+    const { doctorIds, ...data } = eventInput.parse(req.body);
+    const event = await db.healthEvent.create({
+      data: { ...data, creatorId: req.user.id, doctors: { create: doctorIds.map((doctorId) => ({ doctorId })) } },
+      include: eventSelect,
+    });
+    await db.auditLog.create({ data: { action: "HEALTH_EVENT_CREATED", actorId: req.user.id, metadata: { eventId: event.id } } });
+    res.status(201).json(event);
+  });
+  router.patch("/events/:id", async (req: any, res) => {
+    const parsed = eventInput.partial().parse(req.body);
+    const { doctorIds, ...data } = parsed;
+    if (!await db.healthEvent.findUnique({ where: { id: req.params.id } })) return res.status(404).json({ error: "Event not found" });
+    const event = await db.$transaction(async (tx) => {
+      if (doctorIds) {
+        await tx.healthEventDoctor.deleteMany({ where: { eventId: req.params.id } });
+        if (doctorIds.length) await tx.healthEventDoctor.createMany({ data: doctorIds.map((doctorId) => ({ eventId: req.params.id, doctorId })) });
+      }
+      return tx.healthEvent.update({ where: { id: req.params.id }, data, include: eventSelect });
+    });
+    await db.auditLog.create({ data: { action: "HEALTH_EVENT_UPDATED", actorId: req.user.id, metadata: { eventId: event.id } } });
+    res.json(event);
+  });
+  router.delete("/events/:id", async (req: any, res) => {
+    const current = await db.healthEvent.findUnique({ where: { id: req.params.id }, select: { id: true, name: true } });
+    if (!current) return res.status(404).json({ error: "Event not found" });
+    await db.healthEvent.delete({ where: { id: current.id } });
+    await db.auditLog.create({ data: { action: "HEALTH_EVENT_DELETED", actorId: req.user.id, metadata: { eventId: current.id, name: current.name } } });
+    res.status(204).end();
+  });
+
+  router.get("/doctors", async (_req, res) => {
+    res.json(await db.doctorProfile.findMany({ include: doctorSelect, orderBy: { user: { name: "asc" } } }));
+  });
+  router.post("/doctors", async (req: any, res) => {
+    const data = doctorCreateInput.parse(req.body);
+    if (await db.user.findUnique({ where: { email: data.email } })) return res.status(409).json({ error: "That email is already registered" });
+    const doctor = await db.doctorProfile.create({
+      data: {
+        specialization: data.specialization,
+        qualification: data.qualification,
+        experienceYears: data.experienceYears,
+        bio: data.bio,
+        profileImage: data.profileImage,
+        consultationFee: data.consultationFee,
+        dutySlots: data.dutySlots,
+        user: { create: { name: data.name, email: data.email, phone: data.phone, password: await bcrypt.hash(data.password, 12), role: Role.DOCTOR } },
+      },
+      include: doctorSelect,
+    });
+    await db.auditLog.create({ data: { action: "DOCTOR_CREATED", actorId: req.user.id, metadata: { doctorId: doctor.id, userId: doctor.userId } } });
+    res.status(201).json(doctor);
+  });
+  router.patch("/doctors/:id", async (req: any, res) => {
+    const data = doctorUpdateInput.parse(req.body);
+    const current = await db.doctorProfile.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true } });
+    if (!current) return res.status(404).json({ error: "Doctor not found" });
+    if (data.email) {
+      const duplicate = await db.user.findFirst({ where: { email: data.email, id: { not: current.userId } } });
+      if (duplicate) return res.status(409).json({ error: "That email is already registered" });
+    }
+    const doctor = await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: current.userId }, data: { name: data.name, email: data.email, phone: data.phone } });
+      return tx.doctorProfile.update({
+        where: { id: current.id },
+        data: {
+          specialization: data.specialization,
+          qualification: data.qualification,
+          experienceYears: data.experienceYears,
+          bio: data.bio,
+          profileImage: data.profileImage,
+          consultationFee: data.consultationFee,
+          dutySlots: data.dutySlots,
+        },
+        include: doctorSelect,
+      });
+    });
+    await db.auditLog.create({ data: { action: "DOCTOR_UPDATED", actorId: req.user.id, metadata: { doctorId: doctor.id } } });
+    res.json(doctor);
+  });
+  router.delete("/doctors/:id", async (req: any, res) => {
+    const current = await db.doctorProfile.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true } });
+    if (!current) return res.status(404).json({ error: "Doctor not found" });
+    await db.$transaction([db.user.update({ where: { id: current.userId }, data: { role: Role.DADE } }), db.doctorProfile.delete({ where: { id: current.id } })]);
+    await db.auditLog.create({ data: { action: "DOCTOR_DELETED", actorId: req.user.id, metadata: { doctorId: current.id, userId: current.userId } } });
+    res.status(204).end();
+  });
+
+  router.get("/appointments", async (_req, res) => {
+    res.json(await db.healthAppointment.findMany({ include: appointmentSelect, orderBy: { createdAt: "desc" } }));
+  });
+  router.post("/appointments", async (req: any, res) => {
+    const data = appointmentInput.parse(req.body);
+    const [patient, doctor, event] = await Promise.all([
+      db.user.findUnique({ where: { id: data.patientId } }),
+      db.doctorProfile.findUnique({ where: { id: data.doctorId } }),
+      db.healthEvent.findUnique({ where: { id: data.eventId } }),
+    ]);
+    if (!patient || !doctor || !event) return res.status(400).json({ error: "Select a valid patient, doctor, and event" });
+    const appointment = await db.healthAppointment.create({
+      data: { ...data, patientName: data.patientName || patient.name, patientPhone: data.patientPhone ?? patient.phone },
+      include: appointmentSelect,
+    });
+    await db.auditLog.create({ data: { action: "HEALTH_APPOINTMENT_CREATED", actorId: req.user.id, metadata: { appointmentId: appointment.id } } });
+    res.status(201).json(appointment);
+  });
+  router.patch("/appointments/:id", async (req: any, res) => {
+    const data = appointmentInput.partial().parse(req.body);
+    if (!await db.healthAppointment.findUnique({ where: { id: req.params.id } })) return res.status(404).json({ error: "Appointment not found" });
+    const appointment = await db.healthAppointment.update({ where: { id: req.params.id }, data, include: appointmentSelect });
+    await db.auditLog.create({ data: { action: "HEALTH_APPOINTMENT_UPDATED", actorId: req.user.id, metadata: { appointmentId: appointment.id } } });
+    res.json(appointment);
+  });
+  router.delete("/appointments/:id", async (req: any, res) => {
+    const current = await db.healthAppointment.findUnique({ where: { id: req.params.id }, select: { id: true, slotId: true } });
+    if (!current) return res.status(404).json({ error: "Appointment not found" });
+    await db.$transaction(async (tx) => {
+      await tx.healthAppointment.delete({ where: { id: current.id } });
+      if (current.slotId) await tx.healthTimeSlot.update({ where: { id: current.slotId }, data: { booked: false } });
+    });
+    await db.auditLog.create({ data: { action: "HEALTH_APPOINTMENT_DELETED", actorId: req.user.id, metadata: { appointmentId: current.id } } });
+    res.status(204).end();
+  });
+
+  router.get("/options", async (_req, res) => {
+    const [patients, doctors, events] = await Promise.all([
+      db.user.findMany({ where: { role: { in: [Role.DADE, Role.AUDIENCE] }, suspended: false }, select: { id: true, name: true, email: true, phone: true }, orderBy: { name: "asc" } }),
+      db.doctorProfile.findMany({ include: { user: { select: { name: true, email: true } } }, orderBy: { user: { name: "asc" } } }),
+      db.healthEvent.findMany({ select: { id: true, name: true, eventDate: true, startTime: true, endTime: true, active: true }, orderBy: { eventDate: "desc" } }),
+    ]);
+    res.json({ patients, doctors, events, statuses: Object.values(HealthAppointmentStatus) });
+  });
+
+  return router;
+}
+
+export function createHealthDoctorRouter(db: PrismaClient, secret: string) {
+  const router = express.Router();
+  router.use((req: any, res, next) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (!token) return res.status(401).json({ error: "Authentication required" });
+      req.user = jwt.verify(token, secret);
+      if (req.user.role !== Role.DOCTOR) return res.status(403).json({ error: "Doctor access required" });
+      next();
+    } catch {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  const profileFor = async (userId: string) => {
+    const user = await db.user.findFirst({
+      where: { id: userId, role: Role.DOCTOR, suspended: false },
+      select: { id: true },
+    });
+    if (!user) return null;
+    return db.doctorProfile.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        specialization: "General Practice",
+        qualification: "Profile pending",
+      },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    });
+  };
+
+  router.get("/settings", async (req: any, res) => {
+    const profile = await profileFor(req.user.id);
+    if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+    const assignments = await db.healthEventDoctor.findMany({
+      where: { doctorId: profile.id },
+      include: {
+        event: {
+          include: {
+            timeSlots: {
+              where: { doctorId: profile.id },
+              orderBy: { startTime: "asc" },
+            },
+          },
+        },
+      },
+      orderBy: { event: { eventDate: "desc" } },
+    });
+    res.json({ profile, events: assignments.map(({ event }) => event) });
+  });
+
+  router.post("/slots/bulk", async (req: any, res) => {
+    const data = doctorSlotBulkInput.parse(req.body);
+    const profile = await profileFor(req.user.id);
+    if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+    const assignment = await db.healthEventDoctor.findUnique({
+      where: { eventId_doctorId: { eventId: data.eventId, doctorId: profile.id } },
+      include: { event: true },
+    });
+    if (!assignment) return res.status(403).json({ error: "You are not assigned to this event" });
+    const start = minutesFromTime(data.startTime);
+    const end = minutesFromTime(data.endTime);
+    const eventStart = minutesFromTime(assignment.event.startTime);
+    const eventEnd = minutesFromTime(assignment.event.endTime);
+    if (start >= end) return res.status(400).json({ error: "End time must be later than start time" });
+    if (start < eventStart || end > eventEnd) return res.status(400).json({ error: `Slots must be within event hours (${assignment.event.startTime}–${assignment.event.endTime})` });
+    const existing = await db.healthTimeSlot.findMany({ where: { eventId: data.eventId, doctorId: profile.id } });
+    const candidates: { eventId: string; doctorId: string; startTime: string; endTime: string; slotDurationMinutes: number }[] = [];
+    let skipped = 0;
+    for (let cursor = start; cursor + data.slotDurationMinutes <= end; cursor += data.slotDurationMinutes) {
+      const slotEnd = cursor + data.slotDurationMinutes;
+      const conflicts = [...existing, ...candidates].some((slot) => overlaps(cursor, slotEnd, slot.startTime, slot.endTime));
+      if (conflicts) {
+        skipped += 1;
+        continue;
+      }
+      candidates.push({
+        eventId: data.eventId,
+        doctorId: profile.id,
+        startTime: timeFromMinutes(cursor),
+        endTime: timeFromMinutes(slotEnd),
+        slotDurationMinutes: data.slotDurationMinutes,
+      });
+    }
+    if (!candidates.length) return res.status(409).json({ error: skipped ? "All generated slots overlap existing slots" : "The selected range is shorter than the slot duration" });
+    await db.healthTimeSlot.createMany({ data: candidates });
+    const slots = await db.healthTimeSlot.findMany({
+      where: { eventId: data.eventId, doctorId: profile.id },
+      orderBy: { startTime: "asc" },
+    });
+    await db.auditLog.create({ data: { action: "DOCTOR_SLOTS_CREATED", actorId: req.user.id, metadata: { eventId: data.eventId, created: candidates.length, skipped } } });
+    res.status(201).json({ slots, created: candidates.length, skipped });
+  });
+
+  router.patch("/slots/:id", async (req: any, res) => {
+    const data = doctorSlotUpdateInput.parse(req.body);
+    const profile = await profileFor(req.user.id);
+    if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+    const slot = await db.healthTimeSlot.findFirst({
+      where: { id: req.params.id, doctorId: profile.id },
+      include: { event: true, appointment: { select: { id: true } } },
+    });
+    if (!slot) return res.status(404).json({ error: "Slot not found" });
+    if (slot.booked || slot.appointment) return res.status(409).json({ error: "Booked slots cannot be edited" });
+    const start = minutesFromTime(data.startTime);
+    const end = minutesFromTime(data.endTime);
+    if (start >= end) return res.status(400).json({ error: "End time must be later than start time" });
+    if (start < minutesFromTime(slot.event.startTime) || end > minutesFromTime(slot.event.endTime)) return res.status(400).json({ error: `Slots must be within event hours (${slot.event.startTime}–${slot.event.endTime})` });
+    const conflict = await db.healthTimeSlot.findFirst({
+      where: {
+        eventId: slot.eventId,
+        doctorId: profile.id,
+        id: { not: slot.id },
+        startTime: { lt: data.endTime },
+        endTime: { gt: data.startTime },
+      },
+      select: { id: true },
+    });
+    if (conflict) return res.status(409).json({ error: "This time overlaps another appointment slot" });
+    const updated = await db.healthTimeSlot.update({
+      where: { id: slot.id },
+      data: { ...data, slotDurationMinutes: end - start },
+    });
+    await db.auditLog.create({ data: { action: "DOCTOR_SLOT_UPDATED", actorId: req.user.id, metadata: { slotId: slot.id, eventId: slot.eventId } } });
+    res.json(updated);
+  });
+
+  router.delete("/slots/:id", async (req: any, res) => {
+    const profile = await profileFor(req.user.id);
+    if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+    const slot = await db.healthTimeSlot.findFirst({
+      where: { id: req.params.id, doctorId: profile.id },
+      include: { appointment: { select: { id: true } } },
+    });
+    if (!slot) return res.status(404).json({ error: "Slot not found" });
+    if (slot.booked || slot.appointment) return res.status(409).json({ error: "Booked slots cannot be deleted" });
+    await db.healthTimeSlot.delete({ where: { id: slot.id } });
+    await db.auditLog.create({ data: { action: "DOCTOR_SLOT_DELETED", actorId: req.user.id, metadata: { slotId: slot.id, eventId: slot.eventId } } });
+    res.status(204).end();
+  });
+
+  return router;
+}
+
+export function createHealthPublicRouter(db: PrismaClient, secret: string) {
+  const router = express.Router();
+  const publicInclude = {
+    doctors: { include: { doctor: { include: { user: { select: { name: true } } } } } },
+    timeSlots: {
+      where: { booked: false },
+      include: { doctor: { include: { user: { select: { name: true } } } } },
+      orderBy: { startTime: "asc" as const },
+    },
+    _count: { select: { appointments: true } },
+  };
+  router.get("/", async (_req, res) => {
+    const [events, bookingDoctors] = await Promise.all([
+      db.healthEvent.findMany({
+        where: { active: true, publishedToStoryBoard: true },
+        include: publicInclude,
+        orderBy: [{ eventDate: "desc" }, { startTime: "asc" }],
+      }),
+      db.doctorProfile.findMany({
+        where: { user: { suspended: false } },
+        include: { user: { select: { name: true } } },
+        orderBy: { user: { name: "asc" } },
+      }),
+    ]);
+    res.json(events.map((event) => ({ ...event, bookingDoctors })));
+  });
+  router.get("/appointments/mine", async (req: any, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (!token) return res.status(401).json({ error: "Authentication required" });
+      const user = jwt.verify(token, secret) as { id: string; role: Role };
+      if (user.role !== Role.DADE && user.role !== Role.AUDIENCE) return res.status(403).json({ error: "Reader access required" });
+      res.json(await db.healthAppointment.findMany({
+        where: { patientId: user.id },
+        include: {
+          doctor: { include: { user: { select: { name: true } } } },
+          event: { select: { id: true, name: true, eventDate: true, location: true, address: true } },
+          slot: { select: { id: true, startTime: true, endTime: true } },
+        },
+        orderBy: [{ event: { eventDate: "desc" } }, { startTime: "asc" }],
+      }));
+    } catch {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+  router.post("/:id/appointments", async (req: any, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (!token) return res.status(401).json({ error: "Sign in as a DaDe patient to make an appointment" });
+      const user = jwt.verify(token, secret) as { id: string; role: Role };
+      if (user.role !== Role.DADE && user.role !== Role.AUDIENCE) return res.status(403).json({ error: "Appointments are available to DaDe patients" });
+      const body = z.object({
+        slotId: z.string().min(1).optional(),
+        doctorId: z.string().min(1).optional(),
+        startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        reason: z.string().trim().max(1000).nullable().optional(),
+      }).refine((value) => value.slotId || (value.doctorId && value.startTime && value.endTime), "Choose an available slot or a doctor and preferred time").parse(req.body);
+      const patient = await db.user.findUnique({ where: { id: user.id }, select: { id: true, name: true, phone: true, suspended: true } });
+      const event = await db.healthEvent.findUnique({ where: { id: req.params.id } });
+      const slot = body.slotId ? await db.healthTimeSlot.findFirst({ where: { id: body.slotId, eventId: req.params.id }, include: { event: true } }) : null;
+      if (!patient || patient.suspended) return res.status(403).json({ error: "Patient account is unavailable" });
+      if (!event?.active || !event.publishedToStoryBoard) return res.status(404).json({ error: "Event is not available for booking" });
+      if (body.slotId && !slot) return res.status(404).json({ error: "Appointment slot was not found" });
+      if (slot?.booked) return res.status(409).json({ error: "That appointment time was just booked. Choose another time." });
+      if (await db.healthAppointment.count({ where: { eventId: event.id } }) >= event.maxCapacity) return res.status(409).json({ error: "This event is fully booked" });
+      const directDoctor = !slot && body.doctorId ? await db.doctorProfile.findFirst({ where: { id: body.doctorId, user: { suspended: false } } }) : null;
+      if (!slot && !directDoctor) return res.status(400).json({ error: "Choose an available doctor" });
+      const appointment = await db.$transaction(async (tx) => {
+        if (slot) {
+          const reserved = await tx.healthTimeSlot.updateMany({ where: { id: slot.id, booked: false }, data: { booked: true } });
+          if (!reserved.count) throw new Error("That appointment time was just booked. Choose another time.");
+        }
+        return tx.healthAppointment.create({
+          data: {
+            patientId: patient.id,
+            doctorId: slot?.doctorId || directDoctor!.id,
+            eventId: event.id,
+            slotId: slot?.id || null,
+            patientName: patient.name,
+            patientPhone: patient.phone,
+            startTime: slot?.startTime || body.startTime!,
+            endTime: slot?.endTime || body.endTime!,
+            reason: body.reason || null,
+            status: slot ? HealthAppointmentStatus.CONFIRMED : HealthAppointmentStatus.PENDING,
+          },
+          include: appointmentSelect,
+        });
+      });
+      await db.auditLog.create({ data: { action: "PATIENT_APPOINTMENT_CREATED", actorId: patient.id, metadata: { appointmentId: appointment.id, eventId: event.id } } });
+      res.status(201).json(appointment);
+    } catch (error: any) {
+      res.status(error?.message?.includes("just booked") ? 409 : 400).json({ error: error?.message || "Could not make appointment" });
+    }
+  });
+  return router;
+}

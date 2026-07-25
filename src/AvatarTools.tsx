@@ -161,6 +161,7 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
+  role: string;
   avatarUrl?: string | null;
   department?: { name: string } | null;
 };
@@ -201,16 +202,19 @@ export function AdminAvatarTools() {
               if (hierarchy) {
                 let organization =
                   hierarchy.querySelector<HTMLElement>(".organizationLine");
-                if (!organization) {
+                const organizationName = user.department?.name?.trim();
+                const roleOrganization = organizationName
+                  ? `${user.role} : ${organizationName}`
+                  : user.role;
+                if (!roleOrganization) {
+                  organization?.remove();
+                } else if (!organization) {
                   organization = document.createElement("small");
                   organization.className = "organizationLine";
-                  const label = document.createElement("i");
-                  label.className = "organizationLabel";
-                  label.textContent = "Organization";
-                  const name = document.createElement("em");
-                  name.textContent = user.department?.name || "Unassigned";
-                  organization.append(label, document.createTextNode(": "), name);
+                  organization.textContent = roleOrganization;
                   hierarchy.prepend(organization);
+                } else if (organization.textContent !== roleOrganization) {
+                  organization.textContent = roleOrganization;
                 }
               }
             });

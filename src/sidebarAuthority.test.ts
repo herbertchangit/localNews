@@ -8,7 +8,7 @@ describe('sidebar authorization matrix',()=>{
   it('allows Editor to verify stories without administration access',()=>{
     expect(authorityForRole('EDITOR')).toEqual({overview:'allow',stories:'allow',people:false,analytics:false,settings:'own-profile'});
   });
-  it.each(['VOLUNTEER','DADE']as const)('%s sees Stories and own-profile Settings only',role=>{
+  it.each(['VOLUNTEER','DADE','DOCTOR']as const)('%s sees Stories and own-profile Settings only',role=>{
     expect(authorityForRole(role)).toEqual({overview:false,stories:'allow',people:false,analytics:false,settings:'own-profile'});
   });
 });

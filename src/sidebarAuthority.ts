@@ -1,6 +1,6 @@
 export type SidebarItem="overview"|"stories"|"people"|"analytics"|"settings";
 export type SidebarAccess=false|"allow"|"own-profile";
-export type SidebarRole="ADMIN"|"VOLUNTEER"|"DADE"|"AUDIENCE"|"EDITOR"|"REPORTER";
+export type SidebarRole="ADMIN"|"VOLUNTEER"|"DADE"|"AUDIENCE"|"EDITOR"|"DOCTOR"|"REPORTER";
 
 export const sidebarAuthority:Record<"ADMIN"|"EDITOR"|"VOLUNTEER"|"DADE",Record<SidebarItem,SidebarAccess>>={
   ADMIN:{overview:"allow",stories:"allow",people:"allow",analytics:"allow",settings:"allow"},
@@ -12,7 +12,7 @@ export const sidebarAuthority:Record<"ADMIN"|"EDITOR"|"VOLUNTEER"|"DADE",Record<
 export function authorityForRole(role:SidebarRole){
   if(role==="ADMIN")return sidebarAuthority.ADMIN;
   if(role==="EDITOR")return sidebarAuthority.EDITOR;
-  if(role==="DADE"||role==="AUDIENCE")return sidebarAuthority.DADE;
+  if(role==="DADE"||role==="AUDIENCE"||role==="DOCTOR")return sidebarAuthority.DADE;
   return sidebarAuthority.VOLUNTEER;
 }
 

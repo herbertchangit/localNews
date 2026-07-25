@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitBilingualLabel } from "./I18n";
+import { HEALTH_TERM_TRANSLATIONS, splitBilingualLabel } from "./I18n";
 
 describe("bilingual UI labels", () => {
   it("splits slash-separated labels", () => {
@@ -17,5 +17,12 @@ describe("bilingual UI labels", () => {
     expect(splitBilingualLabel("Story preview")).toBeNull();
     expect(splitBilingualLabel("新聞預覽")).toBeNull();
     expect(splitBilingualLabel("12 photos · videos")).toBeNull();
+  });
+
+  it("provides the requested healthcare terms in both Chinese scripts", () => {
+    expect(HEALTH_TERM_TRANSLATIONS.Events).toEqual({ "zh-cn": "活动", "zh-tw": "活動" });
+    expect(HEALTH_TERM_TRANSLATIONS.Appointments).toEqual({ "zh-cn": "预约", "zh-tw": "預約" });
+    expect(HEALTH_TERM_TRANSLATIONS.Doctors).toEqual({ "zh-cn": "医生", "zh-tw": "醫生" });
+    expect(HEALTH_TERM_TRANSLATIONS["Health Events"]).toEqual({ "zh-cn": "健康活动", "zh-tw": "健康活動" });
   });
 });

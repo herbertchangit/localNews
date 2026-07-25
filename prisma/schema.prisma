@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   ADMIN
   EDITOR
+  DOCTOR
   REPORTER
   AUDIENCE
   VOLUNTEER
@@ -32,32 +33,44 @@ enum ResponseCategory {
   CONTENTMENT
 }
 
+enum HealthAppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
 model User {
-  id                 String           @id @default(cuid())
-  email              String           @unique
-  password           String
-  name               String
-  stayArea           String?
-  avatarUrl          String?
-  role               Role             @default(AUDIENCE)
-  locked             Boolean          @default(false)
-  suspended          Boolean          @default(false)
-  permissions        String[]         @default([])
-  departmentId       String?
-  department         Department?      @relation(fields: [departmentId], references: [id])
-  harmonyGroupId     String?
-  harmonyGroup       HarmonyGroup?    @relation(fields: [harmonyGroupId], references: [id])
-  mutualLoveGroupId  String?
-  mutualLoveGroup    MutualLoveGroup? @relation(fields: [mutualLoveGroupId], references: [id])
-  cooperationUnitId  String?
-  cooperationUnit    CooperationUnit? @relation(fields: [cooperationUnitId], references: [id])
-  assignedCategories Category[]       @relation("UserCategories")
-  articles           Article[]
-  comments           Comment[]
-  responses          StoryResponse[]
-  photoResponses     PhotoResponse[]
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                  String              @id @default(cuid())
+  email               String              @unique
+  password            String
+  name                String
+  phone               String?
+  stayArea            String?
+  avatarUrl           String?
+  role                Role                @default(AUDIENCE)
+  locked              Boolean             @default(false)
+  suspended           Boolean             @default(false)
+  permissions         String[]            @default([])
+  departmentId        String?
+  department          Department?         @relation(fields: [departmentId], references: [id])
+  harmonyGroupId      String?
+  harmonyGroup        HarmonyGroup?       @relation(fields: [harmonyGroupId], references: [id])
+  mutualLoveGroupId   String?
+  mutualLoveGroup     MutualLoveGroup?    @relation(fields: [mutualLoveGroupId], references: [id])
+  cooperationUnitId   String?
+  cooperationUnit     CooperationUnit?    @relation(fields: [cooperationUnitId], references: [id])
+  assignedCategories  Category[]          @relation("UserCategories")
+  articles            Article[]
+  comments            Comment[]
+  responses           StoryResponse[]
+  photoResponses      PhotoResponse[]
+  doctorProfile       DoctorProfile?
+  createdHealthEvents HealthEvent[]       @relation("HealthEventCreator")
+  patientAppointments HealthAppointment[] @relation("PatientAppointments")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 }
 
 model Category {
@@ -218,4 +231,98 @@ model JingSiMessage {
   updatedAt DateTime @updatedAt
 
   @@index([createdAt])
+}
+
+model DoctorProfile {
+  id               String              @id @default(cuid())
+  userId           String              @unique
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization   String
+  qualification    String
+  experienceYears  Int                 @default(0)
+  bio              String?
+  profileImage     String?
+  consultationFee  Float               @default(0)
+  dutySlots        Json                @default("[]")
+  eventAssignments HealthEventDoctor[]
+  timeSlots        HealthTimeSlot[]
+  appointments     HealthAppointment[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model HealthEvent {
+  id                    String              @id @default(cuid())
+  name                  String
+  description           String
+  location              String
+  address               String
+  mapsUrl               String?
+  wazeUrl               String?
+  eventDate             DateTime
+  startTime             String
+  endTime               String
+  bannerImage           String?
+  maxCapacity           Int                 @default(100)
+  active                Boolean             @default(true)
+  publishedToStoryBoard Boolean             @default(false)
+  creatorId             String
+  creator               User                @relation("HealthEventCreator", fields: [creatorId], references: [id])
+  doctors               HealthEventDoctor[]
+  timeSlots             HealthTimeSlot[]
+  appointments          HealthAppointment[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+}
+
+model HealthEventDoctor {
+  id         String        @id @default(cuid())
+  eventId    String
+  event      HealthEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  doctorId   String
+  doctor     DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  assignedAt DateTime      @default(now())
+
+  @@unique([eventId, doctorId])
+}
+
+model HealthTimeSlot {
+  id                  String             @id @default(cuid())
+  eventId             String
+  event               HealthEvent        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  doctorId            String
+  doctor              DoctorProfile      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  startTime           String
+  endTime             String
+  slotDurationMinutes Int                @default(15)
+  booked              Boolean            @default(false)
+  appointment         HealthAppointment?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([eventId, doctorId])
+}
+
+model HealthAppointment {
+  id           String                  @id @default(cuid())
+  patientId    String
+  patient      User                    @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId     String
+  doctor       DoctorProfile           @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  eventId      String
+  event        HealthEvent             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  slotId       String?                 @unique
+  slot         HealthTimeSlot?         @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  patientName  String
+  patientPhone String?
+  startTime    String
+  endTime      String
+  reason       String?
+  status       HealthAppointmentStatus @default(CONFIRMED)
+  qrCode       String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@index([eventId, doctorId])
+  @@index([patientId, status])
 }

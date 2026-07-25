@@ -3,7 +3,7 @@ import { normalizeLegacyRole, ROLE_CHOICES } from "./RoleOptions";
 
 describe("user-management role choices", () => {
   it("offers Editor as a distinct persisted role", () => {
-    expect(ROLE_CHOICES.map(([value]) => value)).toEqual(["ADMIN", "EDITOR", "VOLUNTEER", "DADE"]);
+    expect(ROLE_CHOICES.map(([value]) => value)).toEqual(["ADMIN", "EDITOR", "DOCTOR", "VOLUNTEER", "DADE"]);
     expect(normalizeLegacyRole("EDITOR")).toBe("EDITOR");
   });
 
