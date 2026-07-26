@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Download, RefreshCw, WifiOff } from "lucide-react";
 import { registerSW } from "virtual:pwa-register";
+import {
+  APP_UPDATE_RESULT_EVENT,
+  CHECK_APP_UPDATE_EVENT,
+  type AppUpdateResult,
+} from "./pwaEvents";
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -40,6 +45,45 @@ export default function PwaControls() {
       window.removeEventListener("offline", disconnected);
     };
   }, []);
+
+  useEffect(() => {
+    const publish = (detail: AppUpdateResult) => {
+      window.dispatchEvent(new CustomEvent(APP_UPDATE_RESULT_EVENT, { detail }));
+    };
+    const checkForUpdate = async () => {
+      publish({ status: "checking", message: "Checking for the latest version…" });
+      if (!("serviceWorker" in navigator)) {
+        publish({ status: "error", message: "App updates are not supported by this browser." });
+        return;
+      }
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.update();
+        const installing = registration.installing;
+        if (installing && installing.state !== "installed") {
+          await new Promise<void>((resolve) => {
+            const timeout = window.setTimeout(resolve, 5000);
+            installing.addEventListener("statechange", () => {
+              if (installing.state === "installed" || installing.state === "redundant") {
+                window.clearTimeout(timeout);
+                resolve();
+              }
+            });
+          });
+        }
+        if (registration.waiting && updateSW) {
+          publish({ status: "updating", message: "Installing the latest version…" });
+          await updateSW(true);
+          return;
+        }
+        publish({ status: "latest", message: "You already have the latest version." });
+      } catch {
+        publish({ status: "error", message: "Could not check for updates. Try again." });
+      }
+    };
+    window.addEventListener(CHECK_APP_UPDATE_EVENT, checkForUpdate);
+    return () => window.removeEventListener(CHECK_APP_UPDATE_EVENT, checkForUpdate);
+  }, [updateSW]);
 
   const install = async () => {
     if (!installPrompt) return;

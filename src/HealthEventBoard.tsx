@@ -18,7 +18,7 @@ export default function HealthEventBoard({vertical=false}:{vertical?:boolean}={}
   const[notice,setNotice]=useState("");
   const[busy,setBusy]=useState(false);
   const session=currentSession();
-  const load=()=>fetch("/api/health-events",{cache:"no-store"}).then(r=>r.ok?r.json():[]).then(setEvents).catch(()=>setEvents([]));
+  const load=()=>fetch("/api/health-events",{cache:"no-store"}).then(r=>r.ok?r.json():[]).then((items:BoardEvent[])=>{setEvents(items);setSelected(current=>current?items.find(item=>item.id===current.id)||null:current);return items}).catch(()=>{setEvents([]);return [] as BoardEvent[]});
   useEffect(()=>{load()},[]);
   const book=async(event:FormEvent)=>{
     event.preventDefault();
@@ -27,7 +27,11 @@ export default function HealthEventBoard({vertical=false}:{vertical?:boolean}={}
     try{
       const response=await fetch(`/api/health-events/${selected.id}/appointments`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session?.token||""}`},body:JSON.stringify(selected.timeSlots.length?{slotId,reason:reason||null}:{doctorId,startTime:preferredStart,endTime:preferredEnd,reason:reason||null})});
       const result=await response.json();
-      if(!response.ok)throw new Error(result.error||"Could not make appointment");
+      if(!response.ok){
+        const message=result.error||"Could not make appointment";
+        if(response.status===409)window.alert(message);
+        throw new Error(message);
+      }
       setNotice(result.status==="PENDING"?`Appointment request submitted for ${result.startTime}–${result.endTime}.`:`Appointment confirmed for ${result.startTime}–${result.endTime}.`);
       setSlotId("");setDoctorId("");setReason("");load();
     }catch(error:any){setNotice(error.message)}
