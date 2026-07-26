@@ -233,6 +233,14 @@ model JingSiMessage {
   @@index([createdAt])
 }
 
+model TranslationMapping {
+  source    String   @id
+  zhCn      String
+  zhTw      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model DoctorProfile {
   id               String              @id @default(cuid())
   userId           String              @unique

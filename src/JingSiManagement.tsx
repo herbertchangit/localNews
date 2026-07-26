@@ -6,6 +6,7 @@ import {
   Clock,
   FileText,
   LayoutDashboard,
+  Languages,
   Network,
   Pencil,
   Plus,
@@ -88,6 +89,7 @@ export default function JingSiManagement() {
     <button className="settingsSubnavButton" onClick={() => nav("/newsroom/org-chart")}><Network />Organization Chart / 組織圖</button>
     <button className="settingsSubnavButton" onClick={() => nav("/newsroom/categories")}><Tag />News Categories / 新聞類別</button>
     <button className="settingsSubnavButton active"><Quote />JingSi / 靜思</button>
+    <button className="settingsSubnavButton" onClick={() => nav("/newsroom/languages")}><Languages />Language Mapping</button>
     <div className="profile sidebarProfileLast"><div>{initials}</div><span><b>{session()?.user?.name || "Administrator"}</b><small>Administrator / 管理員</small></span></div>
   </aside><section className="content jingSiPage">
     <div className="top"><div><small>SETTINGS / JINGSI · 設定 / 靜思</small><h1>JingSi Message Management / 靜思語管理</h1><p>Add and maintain the wisdom message shown across the public site. / 新增及維護公開網站顯示的靜思語。</p></div><button className="new" onClick={() => setEditing({ content: "" })}><Plus />Add Message / 新增靜思語</button></div>

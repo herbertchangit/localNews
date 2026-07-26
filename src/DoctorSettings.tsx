@@ -203,7 +203,7 @@ export default function DoctorSettings() {
           </div>
         </Link>
         <div className="workspace">
-          <small>HEALTH SERVICES</small>
+          <small>Talk With Doc</small>
           <b>Doctor Portal</b>
         </div>
         <button onClick={() => nav("/newsroom")}>
@@ -212,7 +212,7 @@ export default function DoctorSettings() {
         </button>
         <button onClick={() => nav("/newsroom/health-services")}>
           <CalendarHeart />
-          Health Services
+          Talk With Doc
         </button>
         <button className="active">
           <Settings />

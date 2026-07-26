@@ -146,7 +146,7 @@ export default function EditorialDashboard() {
         <button className="active"><LayoutDashboard />Overview</button>
         <button onClick={() => nav("/newsroom/stories")}><FileText />Stories<em>{articles.length}</em></button>
         {isAdmin && <button><Users />People</button>}
-        {isAdmin && <div className="healthNavLabel">HEALTH SERVICES</div>}
+        {isAdmin && <div className="healthNavLabel">Talk With Doc</div>}
         {isAdmin && <button onClick={() => nav("/newsroom/health/events")}><CalendarDays />Events</button>}
         {isAdmin && <button onClick={() => nav("/newsroom/health/appointments")}><ClipboardList />Appointments</button>}
         {isAdmin && <button onClick={() => nav("/newsroom/health/doctors")}><Stethoscope />Doctors</button>}
