@@ -388,11 +388,15 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
   const publicInclude = {
     doctors: { include: { doctor: { include: { user: { select: { name: true } } } } } },
     timeSlots: {
-      where: { booked: false },
+      where: { booked: false, appointment: null },
       include: { doctor: { include: { user: { select: { name: true } } } } },
       orderBy: { startTime: "asc" as const },
     },
-    _count: { select: { appointments: true } },
+    _count: {
+      select: {
+        appointments: { where: { status: { not: HealthAppointmentStatus.CANCELLED } } },
+      },
+    },
   };
   router.get("/", async (_req, res) => {
     const [events, bookingDoctors] = await Promise.all([
@@ -428,6 +432,47 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       res.status(401).json({ error: "Invalid token" });
     }
   });
+  router.patch("/appointments/:id/cancel", async (req: any, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (!token) return res.status(401).json({ error: "Authentication required" });
+      const user = jwt.verify(token, secret) as { id: string; role: Role };
+      if (user.role !== Role.DADE && user.role !== Role.AUDIENCE) return res.status(403).json({ error: "Reader access required" });
+      const current = await db.healthAppointment.findFirst({
+        where: { id: req.params.id, patientId: user.id },
+        select: { id: true, slotId: true, status: true, eventId: true },
+      });
+      if (!current) return res.status(404).json({ error: "Appointment not found" });
+      if (current.status === HealthAppointmentStatus.CANCELLED) return res.status(409).json({ error: "This appointment is already cancelled" });
+      if (current.status === HealthAppointmentStatus.COMPLETED || current.status === HealthAppointmentStatus.NO_SHOW) {
+        return res.status(409).json({ error: "Past appointments cannot be cancelled" });
+      }
+      const appointment = await db.$transaction(async (tx) => {
+        const updated = await tx.healthAppointment.update({
+          where: { id: current.id },
+          data: { status: HealthAppointmentStatus.CANCELLED, slotId: null },
+          include: appointmentSelect,
+        });
+        if (current.slotId) {
+          await tx.healthTimeSlot.update({ where: { id: current.slotId }, data: { booked: false } });
+        }
+        return updated;
+      });
+      await db.auditLog.create({
+        data: {
+          action: "PATIENT_APPOINTMENT_CANCELLED",
+          actorId: user.id,
+          metadata: { appointmentId: current.id, eventId: current.eventId },
+        },
+      });
+      res.json(appointment);
+    } catch (error: any) {
+      if (error?.name === "JsonWebTokenError" || error?.name === "TokenExpiredError") {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+      res.status(400).json({ error: error?.message || "Could not cancel appointment" });
+    }
+  });
   router.post("/:id/appointments", async (req: any, res) => {
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");
@@ -443,15 +488,42 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       }).refine((value) => value.slotId || (value.doctorId && value.startTime && value.endTime), "Choose an available slot or a doctor and preferred time").parse(req.body);
       const patient = await db.user.findUnique({ where: { id: user.id }, select: { id: true, name: true, phone: true, suspended: true } });
       const event = await db.healthEvent.findUnique({ where: { id: req.params.id } });
-      const slot = body.slotId ? await db.healthTimeSlot.findFirst({ where: { id: body.slotId, eventId: req.params.id }, include: { event: true } }) : null;
+      const slot = body.slotId ? await db.healthTimeSlot.findFirst({
+        where: { id: body.slotId, eventId: req.params.id },
+        include: { event: true, appointment: { select: { id: true } } },
+      }) : null;
       if (!patient || patient.suspended) return res.status(403).json({ error: "Patient account is unavailable" });
       if (!event?.active || !event.publishedToStoryBoard) return res.status(404).json({ error: "Event is not available for booking" });
       if (body.slotId && !slot) return res.status(404).json({ error: "Appointment slot was not found" });
-      if (slot?.booked) return res.status(409).json({ error: "That appointment time was just booked. Choose another time." });
-      if (await db.healthAppointment.count({ where: { eventId: event.id } }) >= event.maxCapacity) return res.status(409).json({ error: "This event is fully booked" });
+      if (slot?.booked || slot?.appointment) return res.status(409).json({ error: "That appointment time was just booked. Choose another time." });
+      if (await db.healthAppointment.count({
+        where: { eventId: event.id, status: { not: HealthAppointmentStatus.CANCELLED } },
+      }) >= event.maxCapacity) return res.status(409).json({ error: "This event is fully booked" });
       const directDoctor = !slot && body.doctorId ? await db.doctorProfile.findFirst({ where: { id: body.doctorId, user: { suspended: false } } }) : null;
       if (!slot && !directDoctor) return res.status(400).json({ error: "Choose an available doctor" });
+      const requestedDoctorId = slot?.doctorId || directDoctor!.id;
+      const requestedStart = slot?.startTime || body.startTime!;
+      const requestedEnd = slot?.endTime || body.endTime!;
+      const dayStart = new Date(Date.UTC(event.eventDate.getUTCFullYear(), event.eventDate.getUTCMonth(), event.eventDate.getUTCDate()));
+      const nextDay = new Date(dayStart);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
       const appointment = await db.$transaction(async (tx) => {
+        const sameDayAppointments = await tx.healthAppointment.findMany({
+          where: {
+            patientId: patient.id,
+            status: { not: HealthAppointmentStatus.CANCELLED },
+            event: { eventDate: { gte: dayStart, lt: nextDay } },
+          },
+          select: { doctorId: true, startTime: true, endTime: true },
+        });
+        if (sameDayAppointments.some((existing) => existing.doctorId === requestedDoctorId)) {
+          throw new Error("Only one appointment with the same doctor is allowed per day. Choose another doctor or date.");
+        }
+        if (sameDayAppointments.some((existing) =>
+          overlaps(minutesFromTime(requestedStart), minutesFromTime(requestedEnd), existing.startTime, existing.endTime)
+        )) {
+          throw new Error("Appointment conflict: You already have another appointment during this time on the same day. Choose a different slot.");
+        }
         if (slot) {
           const reserved = await tx.healthTimeSlot.updateMany({ where: { id: slot.id, booked: false }, data: { booked: true } });
           if (!reserved.count) throw new Error("That appointment time was just booked. Choose another time.");
@@ -459,23 +531,26 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
         return tx.healthAppointment.create({
           data: {
             patientId: patient.id,
-            doctorId: slot?.doctorId || directDoctor!.id,
+            doctorId: requestedDoctorId,
             eventId: event.id,
             slotId: slot?.id || null,
             patientName: patient.name,
             patientPhone: patient.phone,
-            startTime: slot?.startTime || body.startTime!,
-            endTime: slot?.endTime || body.endTime!,
+            startTime: requestedStart,
+            endTime: requestedEnd,
             reason: body.reason || null,
             status: slot ? HealthAppointmentStatus.CONFIRMED : HealthAppointmentStatus.PENDING,
           },
           include: appointmentSelect,
         });
-      });
+      }, { isolationLevel: "Serializable" });
       await db.auditLog.create({ data: { action: "PATIENT_APPOINTMENT_CREATED", actorId: patient.id, metadata: { appointmentId: appointment.id, eventId: event.id } } });
       res.status(201).json(appointment);
     } catch (error: any) {
-      res.status(error?.message?.includes("just booked") ? 409 : 400).json({ error: error?.message || "Could not make appointment" });
+      const conflict = error?.message?.includes("just booked")
+        || error?.message?.includes("same doctor")
+        || error?.message?.includes("Appointment conflict");
+      res.status(conflict ? 409 : 400).json({ error: error?.message || "Could not make appointment" });
     }
   });
   return router;

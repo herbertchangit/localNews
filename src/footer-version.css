@@ -1,0 +1,71 @@
+.footerVersionControls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-left: auto;
+}
+
+.footerVersionControls > span {
+  color: #d6e0da;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.footerVersionControls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d2b474;
+  border-radius: 3px;
+  background: transparent;
+  padding: 8px 10px;
+  color: #e4cc98;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.footerVersionControls button:hover {
+  background: #d2b474;
+  color: #123a2d;
+}
+
+.footerVersionControls button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+.footerVersionControls svg {
+  width: 14px;
+  height: 14px;
+}
+
+.footerVersionControls .spinning {
+  animation: footerUpdateSpin .8s linear infinite;
+}
+
+.footerVersionControls > small {
+  max-width: 160px;
+  color: #aebfb6;
+  font-size: 9px;
+}
+
+.footerVersionControls > small.error {
+  color: #f0aaa2;
+}
+
+@keyframes footerUpdateSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 720px) {
+  .footerVersionControls {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .footerVersionControls > small {
+    flex-basis: 100%;
+  }
+}
