@@ -411,6 +411,9 @@ Object.assign(zh, {
   "No comments yet. Start the conversation.": "尚無留言，歡迎開始交流。",
 });
 export const HEALTH_TERM_TRANSLATIONS = {
+  "Talk With Doc": { "zh-cn": "医你有约", "zh-tw": "醫你有約" },
+  "AUDIENCE / TALK WITH DOC": { "zh-cn": "读者 / 医你有约", "zh-tw": "讀者 / 醫你有約" },
+  "ADMIN / TALK WITH DOC": { "zh-cn": "管理 / 医你有约", "zh-tw": "管理 / 醫你有約" },
   Events: { "zh-cn": "活动", "zh-tw": "活動" },
   Appointments: { "zh-cn": "预约", "zh-tw": "預約" },
   Doctors: { "zh-cn": "医生", "zh-tw": "醫生" },
@@ -437,6 +440,23 @@ const zhTw: Record<string, string> = {
   ),
 };
 type Language = "en" | "zh-cn" | "zh-tw";
+export type TranslationMapping = { source: string; zhCn: string; zhTw: string };
+export const DEFAULT_TRANSLATION_MAPPINGS: TranslationMapping[] = Array.from(
+  new Set([...Object.keys(zh), ...Object.keys(zhTw)]),
+).sort((a, b) => a.localeCompare(b)).map((source) => ({
+  source,
+  zhCn: zh[source] || "",
+  zhTw: zhTw[source] || zh[source] || "",
+}));
+let remoteZhCn: Record<string, string> = {};
+let remoteZhTw: Record<string, string> = {};
+async function loadRemoteTranslations() {
+  const response = await fetch("/api/translations", { cache: "no-store" });
+  if (!response.ok) throw new Error("Could not load language mappings");
+  const mappings = await response.json() as TranslationMapping[];
+  remoteZhCn = Object.fromEntries(mappings.map((item) => [item.source, item.zhCn]));
+  remoteZhTw = Object.fromEntries(mappings.map((item) => [item.source, item.zhTw]));
+}
 const originals = new WeakMap<Node, string>();
 const bilingualLabels = new WeakMap<Node, { en: string; zh: string }>();
 const attrOriginals = new WeakMap<Element, Map<string, string>>();
@@ -476,7 +496,7 @@ export function splitBilingualLabel(value: string) {
 }
 
 function translate(root: ParentNode, lang: Language) {
-  const dictionary = lang === "zh-tw" ? zhTw : zh;
+  const dictionary = lang === "zh-tw" ? { ...zhTw, ...remoteZhTw } : { ...zh, ...remoteZhCn };
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let n: Node | null;
   while ((n = walker.nextNode())) {
@@ -552,6 +572,19 @@ export default function I18n() {
     const stored = localStorage.getItem("ln_lang");
     return stored === "zh" ? "zh-cn" : stored === "zh-cn" || stored === "zh-tw" ? stored : "en";
   });
+  const [mappingRevision, setMappingRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => loadRemoteTranslations()
+      .then(() => { if (active) setMappingRevision((value) => value + 1); })
+      .catch(() => {});
+    refresh();
+    window.addEventListener("localnews:translations-updated", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("localnews:translations-updated", refresh);
+    };
+  }, []);
   useEffect(() => {
     document.documentElement.lang = lang === "zh-cn" ? "zh-CN" : lang === "zh-tw" ? "zh-TW" : "en";
     translate(document.body, lang);
@@ -566,7 +599,7 @@ export default function I18n() {
     );
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [lang]);
+  }, [lang, mappingRevision]);
   const change = (next: Language) => {
     localStorage.setItem("ln_lang", next);
     setLang(next);

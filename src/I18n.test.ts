@@ -20,6 +20,7 @@ describe("bilingual UI labels", () => {
   });
 
   it("provides the requested healthcare terms in both Chinese scripts", () => {
+    expect(HEALTH_TERM_TRANSLATIONS["Talk With Doc"]).toEqual({ "zh-cn": "医你有约", "zh-tw": "醫你有約" });
     expect(HEALTH_TERM_TRANSLATIONS.Events).toEqual({ "zh-cn": "活动", "zh-tw": "活動" });
     expect(HEALTH_TERM_TRANSLATIONS.Appointments).toEqual({ "zh-cn": "预约", "zh-tw": "預約" });
     expect(HEALTH_TERM_TRANSLATIONS.Doctors).toEqual({ "zh-cn": "医生", "zh-tw": "醫生" });

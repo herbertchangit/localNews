@@ -41,7 +41,7 @@ export default function HealthEventBoard({vertical=false}:{vertical?:boolean}={}
   };
   if(!events.length)return null;
   return <section className={`healthStoryBoard latest${vertical?" vertical":""}`}>
-    <div className="sectionTitle"><div><span>HEALTH SERVICES</span><h2>Health events and appointments</h2></div><small>Published by the Local News health desk</small></div>
+    <div className="sectionTitle"><div><span>Talk With Doc</span><h2>Health events and appointments</h2></div><small>Published by the Local News health desk</small></div>
     <div className="healthBoardGrid">{events.map(item=><article key={item.id}>
       <div className={`healthBoardPhoto${item.bannerImage?" hasPhoto":""}`} style={item.bannerImage?{backgroundImage:`url(${item.bannerImage})`}:undefined}><span>HEALTH EVENT</span></div>
       <div className="healthBoardBody"><div className="healthBoardDate"><CalendarDays/>{new Date(item.eventDate).toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"})} · {item.startTime}–{item.endTime}</div><h3>{item.name}</h3><p>{item.description}</p><div className="healthBoardFacts"><span><MapPin/>{item.location}</span><span><Stethoscope/>{item.doctors.length} doctors</span><span><Users/>{item._count.appointments}/{item.maxCapacity}</span></div>
