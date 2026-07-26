@@ -46,6 +46,7 @@ const zh: Record<string, string> = {
   Analytics: "数据分析",
   Settings: "设置",
   Administrator: "管理员",
+  "Admin Medical": "医疗管理员",
   "Good evening, Harper.": "晚上好，Harper。",
   "Here’s what’s happening across your newsroom.": "这是新闻中心的最新动态。",
   "New story": "新建新闻",

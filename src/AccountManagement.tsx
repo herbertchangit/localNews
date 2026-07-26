@@ -298,7 +298,7 @@ export default function AccountManagement() {
                 <span>{u.cooperationUnit?.name || "—"}</span>
               </div>
               <span className={"rolePill " + u.role.toLowerCase()}>
-                {u.role}
+                {u.role === "ADMIN_MEDICAL" ? "Admin Medical" : u.role}
               </span>
               <span
                 className={
@@ -391,8 +391,8 @@ export default function AccountManagement() {
                   value={edit.role}
                   onChange={(e) => setEdit({ ...edit, role: e.target.value })}
                 >
-                  {["ADMIN", "EDITOR", "VOLUNTEER", "DADE"].map((x) => (
-                    <option key={x}>{x}</option>
+                  {["ADMIN", "ADMIN_MEDICAL", "EDITOR", "VOLUNTEER", "DADE"].map((x) => (
+                    <option key={x} value={x}>{x === "ADMIN_MEDICAL" ? "Admin Medical" : x}</option>
                   ))}
                 </select>
               </label>
