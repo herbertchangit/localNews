@@ -2,12 +2,13 @@ import { useEffect } from "react";
 
 export const ROLE_CHOICES = [
   ["ADMIN", "Admin"],
+  ["ADMIN_MEDICAL", "Admin Medical"],
   ["EDITOR", "Editor"],
   ["DOCTOR", "Doctor"],
   ["VOLUNTEER", "Volunteer"],
   ["DADE", "DaDe"],
 ];
-const knownRoles = new Set(["ADMIN", "EDITOR", "DOCTOR", "REPORTER", "AUDIENCE", "VOLUNTEER", "DADE"]);
+const knownRoles = new Set(["ADMIN", "ADMIN_MEDICAL", "EDITOR", "DOCTOR", "REPORTER", "AUDIENCE", "VOLUNTEER", "DADE"]);
 export const normalizeLegacyRole = (role: string) =>
   role === "REPORTER" ? "VOLUNTEER" : role === "AUDIENCE" ? "DADE" : role;
 
