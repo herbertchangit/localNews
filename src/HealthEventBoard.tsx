@@ -1,6 +1,6 @@
 import{FormEvent,useEffect,useState}from"react";
 import{CalendarDays,CheckCircle2,Clock,MapPin,Stethoscope,Users,X}from"lucide-react";
-import{Link}from"react-router-dom";
+import{Link,useNavigate}from"react-router-dom";
 
 type Slot={id:string;startTime:string;endTime:string;doctor:{id:string;user:{name:string};specialization:string}};
 type BookingDoctor={id:string;user:{name:string};specialization:string};
@@ -8,6 +8,7 @@ type BoardEvent={id:string;name:string;description:string;location:string;addres
 const currentSession=()=>{try{return JSON.parse(localStorage.getItem("ln_session")||"null")}catch{return null}};
 
 export default function HealthEventBoard({vertical=false}:{vertical?:boolean}={}){
+  const navigate=useNavigate();
   const[events,setEvents]=useState<BoardEvent[]>([]);
   const[selected,setSelected]=useState<BoardEvent|null>(null);
   const[slotId,setSlotId]=useState("");
@@ -34,6 +35,7 @@ export default function HealthEventBoard({vertical=false}:{vertical?:boolean}={}
       }
       setNotice(result.status==="PENDING"?`Appointment request submitted for ${result.startTime}–${result.endTime}.`:`Appointment confirmed for ${result.startTime}–${result.endTime}.`);
       setSlotId("");setDoctorId("");setReason("");load();
+      if(result.status==="CONFIRMED")navigate("/newsroom/appointments");
     }catch(error:any){setNotice(error.message)}
     finally{setBusy(false)}
   };
