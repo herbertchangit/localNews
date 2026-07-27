@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { RefreshCw } from "lucide-react";
-import packageInfo from "../package.json";
 import {
   APP_UPDATE_RESULT_EVENT,
   CHECK_APP_UPDATE_EVENT,
@@ -42,7 +41,7 @@ export default function FooterVersionControls() {
   const checking = result?.status === "checking" || result?.status === "updating";
   return createPortal(
     <div className="footerVersionControls" aria-live="polite">
-      <span>Version {packageInfo.version}</span>
+      <span title="Version generated from the production build time">Version {__APP_VERSION__}</span>
       <button
         type="button"
         disabled={checking}
