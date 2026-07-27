@@ -1,8 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import packageInfo from "./package.json";
+
+const buildStamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+const [major, minor] = packageInfo.version.split(".");
+const appVersion = process.env.APP_BUILD_VERSION || `${major}.${minor}.${buildStamp}`;
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     react(),
     VitePWA({
