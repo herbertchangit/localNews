@@ -13,7 +13,7 @@ const doctorSelect = {
   _count: { select: { appointments: true, eventAssignments: true } },
 };
 const appointmentSelect = {
-  patient: { select: { id: true, name: true, email: true, phone: true } },
+  patient: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true } },
   doctor: { include: { user: { select: { id: true, name: true, email: true } } } },
   event: { select: { id: true, name: true, eventDate: true, location: true } },
 };
@@ -317,6 +317,46 @@ export function createHealthDoctorRouter(db: PrismaClient, secret: string) {
       orderBy: { event: { eventDate: "desc" } },
     });
     res.json({ profile, events: assignments.map(({ event }) => event) });
+  });
+
+  router.get("/appointments", async (req: any, res) => {
+    const profile = await profileFor(req.user.id);
+    if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+    const appointments = await db.healthAppointment.findMany({
+      where: { doctorId: profile.id },
+      include: appointmentSelect,
+      orderBy: [{ event: { eventDate: "desc" } }, { startTime: "asc" }],
+    });
+    res.json(appointments);
+  });
+
+  router.patch("/appointments/:id/complete", async (req: any, res) => {
+    const profile = await profileFor(req.user.id);
+    if (!profile) return res.status(404).json({ error: "Doctor profile not found" });
+    const appointment = await db.healthAppointment.findFirst({
+      where: { id: req.params.id, doctorId: profile.id },
+      select: { id: true, status: true },
+    });
+    if (!appointment) return res.status(404).json({ error: "Appointment not found" });
+    if (appointment.status === HealthAppointmentStatus.COMPLETED) {
+      return res.status(409).json({ error: "Appointment is already completed" });
+    }
+    if (appointment.status !== HealthAppointmentStatus.PENDING && appointment.status !== HealthAppointmentStatus.CONFIRMED) {
+      return res.status(409).json({ error: "Only pending or confirmed appointments can be completed" });
+    }
+    const updated = await db.healthAppointment.update({
+      where: { id: appointment.id },
+      data: { status: HealthAppointmentStatus.COMPLETED },
+      include: appointmentSelect,
+    });
+    await db.auditLog.create({
+      data: {
+        action: "DOCTOR_APPOINTMENT_COMPLETED",
+        actorId: req.user.id,
+        metadata: { appointmentId: appointment.id, doctorId: profile.id },
+      },
+    });
+    res.json(updated);
   });
 
   router.post("/slots/bulk", async (req: any, res) => {

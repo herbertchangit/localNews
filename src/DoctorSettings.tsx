@@ -1,19 +1,17 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
-  CalendarHeart,
   CheckCircle2,
   Clock3,
-  LayoutDashboard,
   Pencil,
   Plus,
   RefreshCw,
-  Settings,
   Stethoscope,
   Trash2,
   X,
 } from "lucide-react";
+import { AudienceSidebar } from "./Audience";
+import DoctorPageShell from "./DoctorPageShell";
 
 type Slot = {
   id: string;
@@ -49,8 +47,6 @@ const dateLabel = (value: string) =>
   });
 
 export default function DoctorSettings() {
-  const nav = useNavigate();
-  const user = session()?.user;
   const [data, setData] = useState<SettingsData | null>(null);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [form, setForm] = useState({
@@ -114,13 +110,6 @@ export default function DoctorSettings() {
     [data, selectedEventId],
   );
   const allSlots = data?.events.flatMap((item) => item.timeSlots) || [];
-  const initials =
-    user?.name
-      ?.split(" ")
-      .map((part: string) => part[0])
-      .slice(0, 2)
-      .join("") || "DR";
-
   const chooseEvent = (event: HealthEvent) => {
     setSelectedEventId(event.id);
     setForm((current) => ({
@@ -194,38 +183,9 @@ export default function DoctorSettings() {
   };
 
   return (
-    <div className="dash audienceDash doctorSettings">
-      <aside>
-        <Link to="/newsroom" className="brand light">
-          <span>LN</span>
-          <div>
-            LOCAL NEWS<small>DOCTOR DESK</small>
-          </div>
-        </Link>
-        <div className="workspace">
-          <small>Talk With Doc</small>
-          <b>Doctor Portal</b>
-        </div>
-        <button onClick={() => nav("/newsroom")}>
-          <LayoutDashboard />
-          Overview
-        </button>
-        <button onClick={() => nav("/newsroom/health-services")}>
-          <CalendarHeart />
-          Talk With Doc
-        </button>
-        <button className="active">
-          <Settings />
-          Settings
-        </button>
-        <div className="profile">
-          <div>{initials}</div>
-          <span>
-            <b>{user?.name}</b>
-            <small>Doctor</small>
-          </span>
-        </div>
-      </aside>
+    <DoctorPageShell>
+      <div className="dash audienceDash doctorSettings">
+      <AudienceSidebar active="settings" />
 
       <section className="content">
         <div className="top">
@@ -504,6 +464,7 @@ export default function DoctorSettings() {
           </form>
         </div>
       )}
-    </div>
+      </div>
+    </DoctorPageShell>
   );
 }
