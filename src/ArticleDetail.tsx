@@ -127,7 +127,7 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
   useEffect(() => {
     setLoading(true);
     setError("");
-    fetch(preview ? `/api/newsroom/articles/${encodeURIComponent(id || "")}` : `/api/articles/${encodeURIComponent(slug || "")}`, { headers: preview ? authHeaders : {} })
+    fetch(preview ? `/api/newsroom/articles/${encodeURIComponent(id || "")}` : `/api/articles/${encodeURIComponent(slug || "")}`, { headers: authHeaders })
       .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error || "Story not found"); return data; })
       .then(setArticle)
       .catch((caught) => setError(caught.message))
