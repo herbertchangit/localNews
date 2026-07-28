@@ -150,6 +150,7 @@ model Article {
   isBreaking  Boolean         @default(false)
   isTrending  Boolean         @default(false)
   isHeadline  Boolean         @default(false)
+  isPublic    Boolean         @default(true)
   views       Int             @default(0)
   authorId    String
   author      User            @relation(fields: [authorId], references: [id])

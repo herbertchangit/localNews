@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
-import { FileText, ImagePlus, Plus, Save, Trash2, X } from "lucide-react";
+import { FileText, Globe2, ImagePlus, Plus, Save, Trash2, X } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import { richTextToPlainText } from "./richTextUtils";
 
@@ -58,7 +58,8 @@ export default function StoryComposer() {
 }
 
 function StoryModal({ categories, token, onClose, onCreated }: { categories: Category[]; token: string; onClose: () => void; onCreated: (title: string) => void }) {
-  const [form, setForm] = useState({ title: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", storyDate: "" }), [photos, setPhotos] = useState<DraftPhoto[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const canManageVisibility = ["ADMIN", "EDITOR"].includes(session()?.user?.role || "");
+  const [form, setForm] = useState({ title: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", storyDate: "", isPublic: true }), [photos, setPhotos] = useState<DraftPhoto[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const choosePhotos = async (files?: FileList | null) => {
     if (!files?.length) return;
     const incoming = Array.from(files);
@@ -98,6 +99,7 @@ function StoryModal({ categories, token, onClose, onCreated }: { categories: Cat
     <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
     <label>News category / 新聞類別<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}><option value="">Select category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
     <label>Story / event date / 新聞或活動日期<input type="date" value={form.storyDate} onChange={(event) => setForm({ ...form, storyDate: event.target.value })} /></label>
+    {canManageVisibility && <div className="storyVisibilityControl"><div><Globe2 /><span><b>Public</b><small>Visible to DADE readers and on the public story board</small></span></div><label><input type="checkbox" role="switch" aria-label="Public story" checked={form.isPublic} onChange={(event) => setForm({ ...form, isPublic: event.target.checked })} /><i /></label></div>}
     <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact label="Summary / 摘要" placeholder="Write a short story summary…" minLength={20} maxLength={600} value={form.excerpt} onChange={(excerpt) => setForm((current) => ({ ...current, excerpt }))} /></div>
     <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor label="Story content / 新聞內容" placeholder="Write the full story…" minLength={40} value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} /></div>
     <div className="modalActions"><button type="button" onClick={onClose}>Cancel / 取消</button><button className="new" disabled={busy}><Save />{busy ? "Saving…" : "Save draft / 儲存草稿"}</button></div>

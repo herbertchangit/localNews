@@ -4,11 +4,13 @@ import {
   BarChart3,
   Camera,
   FileText,
+  Globe2,
   Eye,
   EyeOff,
   ImagePlus,
   LayoutDashboard,
   Link2,
+  LockKeyhole,
   Pencil,
   Plus,
   Save,
@@ -36,6 +38,7 @@ type Story = {
   content: string;
   status: string;
   isHeadline: boolean;
+  isPublic: boolean;
   imageUrl: string | null;
   photos: StoryPhoto[];
   updatedAt: string;
@@ -63,6 +66,7 @@ export default function StoryManagement() {
   const current = session();
   const isAdmin = current?.user.role === "ADMIN";
   const isEditor = current?.user.role === "EDITOR";
+  const canManageVisibility = isAdmin || isEditor;
   const maxMediaItems = isAdmin || isEditor ? 50 : 12;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -175,7 +179,7 @@ export default function StoryManagement() {
     try {
       let updated = await api(`/api/newsroom/articles/${draft.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ title: draft.title, excerpt, content, categoryId: draft.categoryId, storyDate: draft.storyDate || null }),
+        body: JSON.stringify({ title: draft.title, excerpt, content, categoryId: draft.categoryId, storyDate: draft.storyDate || null, ...(canManageVisibility ? { isPublic: draft.isPublic } : {}) }),
       });
       for (const photo of photos) {
         if (photo.id.startsWith("new-") && !photo.removed) {
@@ -260,9 +264,9 @@ export default function StoryManagement() {
           return <div className="storyManagerRow" key={story.id}>
             <div className={`storyPhoto ${lead ? "hasPhoto" : ""} ${usesContentUrl ? "contentUrlPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined} title={usesContentUrl ? "Preview from the first URL in story content" : hasVideo && !lead ? "Story contains video" : undefined}>{!lead && (hasVideo ? <Video /> : <Camera />)}{usesContentUrl && <Link2 />}<span>{story.photos?.length || 0}</span></div>
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}{story.storyDate ? ` · ${new Date(story.storyDate).toLocaleDateString()}` : ""}</small></div>
-            <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
+            <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span><span className={`storyVisibilityBadge ${story.isPublic ? "public" : "private"}`}>{story.isPublic ? <Globe2 /> : <LockKeyhole />}{story.isPublic ? "Public" : "Private"}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <div className="storyActions"><button type="button" className="storyPreviewButton" onClick={() => setPreviewStory(story)}><Eye />Preview / 預覽</button><button className="storyEditButton" onClick={() => open(story)}><Pencil />Edit / 編輯</button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star />{story.isHeadline ? "Remove headline / 移除頭條" : "Set as headline / 設為頭條"}</button>}{story.status === "PUBLISHED" && <button className="unpublishButton" disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff />Unpublish / 取消發布</button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 />{deletingId === story.id ? "Deleting…" : "Delete / 刪除"}</button>}</div>
+            <div className="storyActions"><button type="button" className="storyPreviewButton" title="Preview" aria-label={`Preview ${story.title}`} onClick={() => setPreviewStory(story)}><Eye /><span>Preview</span></button><button className="storyEditButton" title="Edit" aria-label={`Edit ${story.title}`} onClick={() => open(story)}><Pencil /><span>Edit</span></button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && (story.isPublic || story.isHeadline) && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} title={story.isHeadline ? "Remove headline" : "Set as headline"} aria-label={`${story.isHeadline ? "Remove headline from" : "Set as headline"} ${story.title}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star /><span>{story.isHeadline ? "Remove headline" : "Set as headline"}</span></button>}{story.status === "PUBLISHED" && <button className="unpublishButton" title="Unpublish" aria-label={`Unpublish ${story.title}`} disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff /><span>Unpublish</span></button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" title="Delete" aria-label={`Delete ${story.title}`} disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 /><span>{deletingId === story.id ? "Deleting…" : "Delete"}</span></button>}</div>
           </div>;
         })}
       </div>
@@ -293,6 +297,7 @@ export default function StoryManagement() {
         <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => updateEditing({ title: event.target.value })} /></label>
         <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => updateEditing({ categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
         <label>Story / event date / 新聞或活動日期<input type="date" value={editing.storyDate || ""} onChange={(event) => updateEditing({ storyDate: event.target.value || null })} /></label>
+        {canManageVisibility && <div className="storyVisibilityControl"><div><Globe2 /><span><b>Public</b><small>Visible to DADE readers and on the public story board</small></span></div><label><input type="checkbox" role="switch" aria-label="Public story" checked={editing.isPublic} onChange={(event) => updateEditing({ isPublic: event.target.checked })} /><i /></label></div>}
         <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={10} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
         <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={20} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
         <div className="modalActions"><button type="button" onClick={closeEditor}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
