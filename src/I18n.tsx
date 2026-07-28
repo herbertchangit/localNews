@@ -331,12 +331,15 @@ Object.assign(zh, {
 Object.assign(zh, {
   "Profile photo": "個人照片",
   "Upload a photo for your account.": "為你的帳號上傳照片。",
+  "Take a new photo or upload one from your device.": "使用裝置拍攝新照片或上傳照片。",
+  "Take photo": "拍照",
   "Upload photo": "上傳照片",
   "Change photo": "更換照片",
   "Remove photo": "移除照片",
   Remove: "移除",
   "Uploading…": "上傳中…",
   "PNG, JPEG or WebP · maximum 2 MB": "PNG、JPEG 或 WebP · 最大 2 MB",
+  "Camera, PNG, JPEG or WebP · large photos are resized automatically": "相機、PNG、JPEG 或 WebP · 大型照片會自動調整大小",
   "Profile photo updated": "個人照片已更新",
   "Profile photo removed": "個人照片已移除",
 });
