@@ -487,7 +487,6 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       const user = jwt.verify(token, secret) as { id: string; role: Role };
-      if (user.role !== Role.DADE && user.role !== Role.AUDIENCE) return res.status(403).json({ error: "Reader access required" });
       res.json(await db.healthAppointment.findMany({
         where: { patientId: user.id },
         include: {

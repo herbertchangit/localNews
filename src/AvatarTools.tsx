@@ -13,20 +13,45 @@ const api = async (url: string, opt: any = {}) => {
   if (!r.ok) throw new Error(x?.error || "Request failed");
   return x;
 };
-const imageData = (file: File) =>
+const readImageData = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
-      return reject(new Error("Choose a PNG, JPEG, or WebP photo"));
-    if (file.size > 2 * 1024 * 1024)
-      return reject(new Error("Photo must be 2 MB or smaller"));
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(new Error("Could not read photo"));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
+const imageData = async (file: File) => {
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
+    throw new Error("Choose a PNG, JPEG, or WebP photo");
+  if (file.size <= 2 * 1024 * 1024) return readImageData(file);
+  const source = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not prepare camera photo");
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const compressed = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.82),
+    );
+    if (!compressed || compressed.size > 2 * 1024 * 1024)
+      throw new Error("Could not resize photo below 2 MB");
+    return readImageData(compressed);
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+};
 
 function SelfPhotoCard() {
   const [input, setInput] = useState<HTMLInputElement | null>(null),
+    [cameraInput, setCameraInput] = useState<HTMLInputElement | null>(null),
     [avatar, setAvatar] = useState<string | null>(null),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
@@ -56,6 +81,7 @@ function SelfPhotoCard() {
     } finally {
       setBusy(false);
       if (input) input.value = "";
+      if (cameraInput) cameraInput.value = "";
     }
   };
   const remove = async () => {
@@ -88,7 +114,7 @@ function SelfPhotoCard() {
         </span>
         <div>
           <h2>Profile photo</h2>
-          <p>Upload a photo for your account.</p>
+          <p>Take a new photo or upload one from your device.</p>
         </div>
       </div>
       <div className="selfAvatarEditor">
@@ -103,14 +129,30 @@ function SelfPhotoCard() {
             accept="image/png,image/jpeg,image/webp"
             onChange={(e) => upload(e.target.files?.[0])}
           />
+          <input
+            ref={setCameraInput}
+            hidden
+            type="file"
+            accept="image/*"
+            capture="user"
+            onChange={(e) => upload(e.target.files?.[0])}
+          />
           <button
             className="photoPrimary"
+            type="button"
+            disabled={busy}
+            onClick={() => cameraInput?.click()}
+          >
+            <Camera />
+            {busy ? "Uploading…" : "Take photo"}
+          </button>
+          <button
             type="button"
             disabled={busy}
             onClick={() => input?.click()}
           >
             <Upload />
-            {busy ? "Uploading…" : avatar ? "Change photo" : "Upload photo"}
+            {avatar ? "Change photo" : "Upload photo"}
           </button>
           {avatar && (
             <button
@@ -123,7 +165,7 @@ function SelfPhotoCard() {
               Remove
             </button>
           )}
-          <small>PNG, JPEG or WebP · maximum 2 MB</small>
+          <small>Camera, PNG, JPEG or WebP · large photos are resized automatically</small>
         </div>
       </div>
       {notice && <p className="photoNotice">{notice}</p>}
