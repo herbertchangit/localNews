@@ -12,7 +12,8 @@ export default function FooterVersionControls() {
   const [result, setResult] = useState<AppUpdateResult | null>(null);
 
   useEffect(() => {
-    const findFooter = () => setFooter(document.querySelector("footer"));
+    const findFooter = () =>
+      setFooter(document.querySelector("footer:not(.audienceAppointmentActions)"));
     findFooter();
     const observer = new MutationObserver(findFooter);
     observer.observe(document.body, { childList: true, subtree: true });
