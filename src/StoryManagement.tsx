@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Camera,
+  CheckCircle2,
   FileText,
   Globe2,
   Eye,
@@ -20,6 +21,7 @@ import {
   Users,
   Video,
   X,
+  XCircle,
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import "./story-url-preview.css";
@@ -76,6 +78,7 @@ export default function StoryManagement() {
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
+  const [verificationBusy, setVerificationBusy] = useState("");
   const [unpublishBusy, setUnpublishBusy] = useState("");
   const [deletingId, setDeletingId] = useState("");
   const [previewStory, setPreviewStory] = useState<Story | null>(null);
@@ -218,6 +221,24 @@ export default function StoryManagement() {
     finally { setUnpublishBusy(""); }
   };
 
+  const verify = async (story: Story, status: "PUBLISHED" | "REVISION") => {
+    setVerificationBusy(story.id);
+    try {
+      const updated = await api(`/api/articles/${story.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setStories((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+      setNotice(status === "PUBLISHED"
+        ? "Story verified and published / 新聞已審核並發布"
+        : "Revision requested / 已要求修改");
+    } catch (error: any) {
+      setNotice(error.message || "Could not update story");
+    } finally {
+      setVerificationBusy("");
+    }
+  };
+
   const deleteStory = async (story: Story) => {
     if (!window.confirm(`Delete "${story.title}" permanently? This cannot be undone. / 永久刪除此新聞？此操作無法復原。`)) return;
     setDeletingId(story.id);
@@ -248,7 +269,7 @@ export default function StoryManagement() {
       <div className="profile"><div>{initials}</div><span><b>{current?.user.name}</b><small>{roleLabel}</small></span></div>
     </aside>
     <section className="content storyManagement">
-      <div className="top"><div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Story management / 新聞管理</h1><p>Edit story content and manage its photo gallery. / 編輯新聞內容及管理相簿。</p></div>{canCreate && <button className="new" onClick={openStoryComposer}><Plus />New story</button>}</div>
+      <div className="top"><div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Stories and verification / 新聞管理及審核</h1><p>Manage, preview, verify and publish newsroom stories in one place. / 在同一頁面管理、預覽、審核及發布新聞。</p></div>{canCreate && <button className="new" onClick={openStoryComposer}><Plus />New story</button>}</div>
       {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
       <div className="panel storyManagerPanel">
         <div className="storyManagerHeader"><span>Photos / 照片</span><span>Story / 新聞</span><span>Status / 狀態</span><span>Updated / 更新</span><span>Action / 操作</span></div>
@@ -266,7 +287,7 @@ export default function StoryManagement() {
             <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}{story.storyDate ? ` · ${new Date(story.storyDate).toLocaleDateString()}` : ""}</small></div>
             <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status}</span><span className={`storyVisibilityBadge ${story.isPublic ? "public" : "private"}`}>{story.isPublic ? <Globe2 /> : <LockKeyhole />}{story.isPublic ? "Public" : "Private"}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
             <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <div className="storyActions"><button type="button" className="storyPreviewButton" title="Preview" aria-label={`Preview ${story.title}`} onClick={() => setPreviewStory(story)}><Eye /><span>Preview</span></button><button className="storyEditButton" title="Edit" aria-label={`Edit ${story.title}`} onClick={() => open(story)}><Pencil /><span>Edit</span></button>{(isAdmin || isEditor) && story.status === "PUBLISHED" && (story.isPublic || story.isHeadline) && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} title={story.isHeadline ? "Remove headline" : "Set as headline"} aria-label={`${story.isHeadline ? "Remove headline from" : "Set as headline"} ${story.title}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star /><span>{story.isHeadline ? "Remove headline" : "Set as headline"}</span></button>}{story.status === "PUBLISHED" && <button className="unpublishButton" title="Unpublish" aria-label={`Unpublish ${story.title}`} disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff /><span>Unpublish</span></button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" title="Delete" aria-label={`Delete ${story.title}`} disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 /><span>{deletingId === story.id ? "Deleting…" : "Delete"}</span></button>}</div>
+            <div className="storyActions"><button type="button" className="storyPreviewButton" title="Preview" aria-label={`Preview ${story.title}`} onClick={() => setPreviewStory(story)}><Eye /><span>Preview</span></button><button className="storyEditButton" title="Edit" aria-label={`Edit ${story.title}`} onClick={() => open(story)}><Pencil /><span>Edit</span></button>{(isAdmin || isEditor) && story.status !== "PUBLISHED" && <><button className="storyVerifyButton" title="Verify and publish" aria-label={`Verify and publish ${story.title}`} disabled={verificationBusy === story.id} onClick={() => verify(story, "PUBLISHED")}><CheckCircle2 /><span>Verify & publish</span></button><button className="storyRevisionButton" title="Request revision" aria-label={`Request revision for ${story.title}`} disabled={verificationBusy === story.id || story.status === "REVISION"} onClick={() => verify(story, "REVISION")}><XCircle /><span>Request revision</span></button></>}{(isAdmin || isEditor) && story.status === "PUBLISHED" && (story.isPublic || story.isHeadline) && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} title={story.isHeadline ? "Remove headline" : "Set as headline"} aria-label={`${story.isHeadline ? "Remove headline from" : "Set as headline"} ${story.title}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star /><span>{story.isHeadline ? "Remove headline" : "Set as headline"}</span></button>}{story.status === "PUBLISHED" && <button className="unpublishButton" title="Unpublish" aria-label={`Unpublish ${story.title}`} disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff /><span>Unpublish</span></button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" title="Delete" aria-label={`Delete ${story.title}`} disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 /><span>{deletingId === story.id ? "Deleting…" : "Delete"}</span></button>}</div>
           </div>;
         })}
       </div>
