@@ -14,8 +14,8 @@ const doctorSelect = {
 };
 const appointmentSelect = {
   patient: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true } },
-  doctor: { include: { user: { select: { id: true, name: true, email: true } } } },
-  event: { select: { id: true, name: true, eventDate: true, location: true } },
+  doctor: { include: { user: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true } } } },
+  event: { select: { id: true, name: true, eventDate: true, location: true, address: true } },
 };
 
 const eventInput = z.object({
@@ -490,7 +490,7 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       res.json(await db.healthAppointment.findMany({
         where: { patientId: user.id },
         include: {
-          doctor: { include: { user: { select: { name: true } } } },
+          doctor: { include: { user: { select: { name: true, email: true, phone: true, avatarUrl: true } } } },
           event: { select: { id: true, name: true, eventDate: true, location: true, address: true } },
           slot: { select: { id: true, startTime: true, endTime: true } },
         },
@@ -505,7 +505,6 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       const user = jwt.verify(token, secret) as { id: string; role: Role };
-      if (user.role !== Role.DADE && user.role !== Role.AUDIENCE) return res.status(403).json({ error: "Reader access required" });
       const current = await db.healthAppointment.findFirst({
         where: { id: req.params.id, patientId: user.id },
         select: { id: true, slotId: true, status: true, eventId: true },
@@ -544,9 +543,8 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
   router.post("/:id/appointments", async (req: any, res) => {
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");
-      if (!token) return res.status(401).json({ error: "Sign in as a DaDe patient to make an appointment" });
+      if (!token) return res.status(401).json({ error: "Sign in to make an appointment" });
       const user = jwt.verify(token, secret) as { id: string; role: Role };
-      if (user.role !== Role.DADE && user.role !== Role.AUDIENCE) return res.status(403).json({ error: "Appointments are available to DaDe patients" });
       const body = z.object({
         slotId: z.string().min(1).optional(),
         doctorId: z.string().min(1).optional(),
