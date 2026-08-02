@@ -93,7 +93,7 @@ export default function NewsNotifications() {
     setDismissedStoryId("");
   };
   const notificationVisible = publicPage && latest && dismissedStoryId !== latest.id;
-  const unreadBadgeVisible = Boolean(publicPage && latest && !notificationVisible);
+  const unreadBadgeVisible = Boolean(latest && location.pathname !== "/login" && (!publicPage || !notificationVisible));
 
   useEffect(() => {
     document.body.classList.toggle("newsUnreadBadgeVisible", unreadBadgeVisible);
@@ -108,6 +108,6 @@ export default function NewsNotifications() {
       <button className="newsNotificationClear" type="button" onClick={markAllRead}><CheckCheck />Mark all read</button>
       <button className="newsNotificationClose" type="button" aria-label="Dismiss news notification" onClick={() => setDismissedStoryId(latest.id)}><X /></button>
     </aside>}
-    {unreadBadgeVisible && <button className="newsUnreadBadge" type="button" aria-label={`${unread.length} unread news stories`} onClick={() => setDismissedStoryId("")}><Bell /><span>{unread.length}</span></button>}
+    {unreadBadgeVisible && <button className="newsUnreadBadge" type="button" aria-label={`${unread.length} unread news stories`} title={`${unread.length} unread news stories`} onClick={() => publicPage ? setDismissedStoryId("") : openLatest()}><Bell /><span aria-hidden="true">{unread.length > 99 ? "99+" : unread.length}</span></button>}
   </>;
 }
