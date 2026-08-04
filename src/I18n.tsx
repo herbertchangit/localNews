@@ -144,6 +144,18 @@ const zh: Record<string, string> = {
   "Suspend user": "停用用户",
   Cancel: "取消",
   "Save changes": "保存更改",
+  Contact: "联系方式",
+  Area: "地区",
+  Labels: "标签",
+  Level: "层级",
+  "Harmony Leader": "和气组长",
+  "MutualLove Leader": "互爱组长",
+  "Cooperation Leader": "协力组长",
+  "Phone or contact number": "电话或联系电话",
+  "City or residential area": "城市或居住地区",
+  "Separate labels with commas": "使用逗号分隔标签",
+  "Import CSV": "导入 CSV",
+  "Export CSV": "导出 CSV",
   SECURITY: "安全",
   "Set a new temporary password for": "设置新的临时密码：",
   "New password": "新密码",
@@ -437,12 +449,28 @@ const missionEn: Record<string, string> = Object.fromEntries(
   Object.entries(missionZh).map(([english, chinese]) => [chinese, english]),
 );
 Object.assign(zh, missionZh);
+Object.assign(zh,{"Invite via WhatsApp":"通过 WhatsApp 邀请"});
 const zhTw: Record<string, string> = {
   ...zh,
   ...Object.fromEntries(
     Object.entries(HEALTH_TERM_TRANSLATIONS).map(([key, value]) => [key, value["zh-tw"]]),
   ),
 };
+Object.assign(zhTw, {
+  "Invite via WhatsApp": "透過 WhatsApp 邀請",
+  Contact: "聯絡方式",
+  Area: "地區",
+  Labels: "標籤",
+  Level: "層級",
+  "Harmony Leader": "和氣組長",
+  "MutualLove Leader": "互愛組長",
+  "Cooperation Leader": "協力組長",
+  "Phone or contact number": "電話或聯絡電話",
+  "City or residential area": "城市或居住地區",
+  "Separate labels with commas": "使用逗號分隔標籤",
+  "Import CSV": "匯入 CSV",
+  "Export CSV": "匯出 CSV",
+});
 type Language = "en" | "zh-cn" | "zh-tw";
 export type TranslationMapping = { source: string; zhCn: string; zhTw: string };
 export const DEFAULT_TRANSLATION_MAPPINGS: TranslationMapping[] = Array.from(
