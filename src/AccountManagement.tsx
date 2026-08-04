@@ -391,6 +391,10 @@ export default function AccountManagement() {
                 </span>
               </div>
               <div className="accountHierarchy">
+                <small className="organizationLine">
+                  <i>{u.role === "ADMIN_MEDICAL" ? "Admin Medical" : u.role}</i>
+                  {u.department?.name && <> : <em>{u.department.name}</em></>}
+                </small>
                 <span>{u.harmonyGroup?.name || "—"}</span>
                 <b>›</b>
                 <span>{u.mutualLoveGroup?.name || "—"}</span>
