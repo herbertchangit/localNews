@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,7 +15,10 @@ import {
   Trash2,
   X,
   Network,
+  Download,
+  Upload,
 } from "lucide-react";
+import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 type Cat = { id: string; name: string };
 type Group = { id: string; name: string };
 type Mutual = Group & { harmonyId: string; cooperations: Group[] };
@@ -24,6 +27,10 @@ type User = {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
+  stayArea: string | null;
+  labels: string[];
+  organizationLevel: string | null;
   role: string;
   locked: boolean;
   suspended: boolean;
@@ -38,6 +45,11 @@ type User = {
 const blank = {
   name: "",
   email: "",
+  phone: "",
+  stayArea: "",
+  labels: [] as string[],
+  labelsText: "",
+  organizationLevel: "",
   password: "Demo123!",
   role: "VOLUNTEER",
   locked: false,
@@ -53,6 +65,7 @@ const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 export default function AccountManagement() {
   const nav = useNavigate(),
     token = session()?.token;
+  const importInput = useRef<HTMLInputElement>(null);
   const [users, setUsers] = useState<User[]>([]),
     [departments, setDepartments] = useState<Group[]>([]),
     [categories, setCategories] = useState<Cat[]>([]),
@@ -96,23 +109,32 @@ export default function AccountManagement() {
   const visible = useMemo(
     () =>
       users.filter((u) =>
-        `${u.name} ${u.email} ${u.harmonyGroup?.name || ""} ${u.mutualLoveGroup?.name || ""} ${u.cooperationUnit?.name || ""}`
+        `${u.name} ${u.email} ${u.phone || ""} ${u.stayArea || ""} ${(u.labels || []).join(" ")} ${u.harmonyGroup?.name || ""} ${u.mutualLoveGroup?.name || ""} ${u.cooperationUnit?.name || ""}`
           .toLowerCase()
           .includes(query.toLowerCase()),
       ),
     [users, query],
   );
+  const exportCsv = useMemo(() => toCsv(
+    ["name", "email", "role", "contact", "area", "labels", "organization", "harmony", "mutualLove", "cooperation", "level", "locked", "suspended", "password"],
+    users.map((user) => [user.name, user.email, user.role, user.phone, user.stayArea, (user.labels || []).join("|"), user.department?.name, user.harmonyGroup?.name, user.mutualLoveGroup?.name, user.cooperationUnit?.name, user.organizationLevel, user.locked, user.suspended, ""]),
+  ), [users]);
   const open = (u?: User) =>
     setEdit(
       u
         ? {
             ...u,
+            phone: u.phone || "",
+            stayArea: u.stayArea || "",
+            organizationLevel: u.organizationLevel || "",
             password: "",
             departmentId: u.department?.id || "",
             harmonyGroupId: u.harmonyGroup?.id || "",
             mutualLoveGroupId: u.mutualLoveGroup?.id || "",
             cooperationUnitId: u.cooperationUnit?.id || "",
             categoryIds: u.assignedCategories.map((c) => c.id),
+            labels: u.labels || [],
+            labelsText: (u.labels || []).join(", "),
           }
         : { ...blank },
     );
@@ -128,10 +150,14 @@ export default function AccountManagement() {
       const editing = !!edit.id,
         body = {
           ...edit,
+          phone: edit.phone?.trim() || null,
+          stayArea: edit.stayArea?.trim() || null,
+          labels: [...new Set(edit.labelsText.split(",").map((value: string) => value.trim()).filter(Boolean))],
           departmentId: edit.departmentId || null,
           harmonyGroupId: edit.harmonyGroupId || null,
           mutualLoveGroupId: edit.mutualLoveGroupId || null,
           cooperationUnitId: edit.cooperationUnitId || null,
+          organizationLevel: edit.organizationLevel || null,
         };
       for (const k of [
         "id",
@@ -140,6 +166,7 @@ export default function AccountManagement() {
         "mutualLoveGroup",
         "cooperationUnit",
         "assignedCategories",
+        "labelsText",
         "_count",
       ])
         delete body[k];
@@ -161,6 +188,38 @@ export default function AccountManagement() {
       await load();
     } catch (e: any) {
       flash(e.message);
+    }
+  };
+  const importUsers = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      if (file.size > 2_000_000) throw new Error("CSV files must be 2 MB or smaller");
+      const rows = parseCsv(await file.text());
+      if (!rows.length) throw new Error("The CSV file does not contain any users");
+      if (!("name" in rows[0]) || !("email" in rows[0])) throw new Error("CSV requires name and email columns");
+      const usersToImport = rows.map((row) => ({
+        name: row.name,
+        email: row.email,
+        role: (row.role || "DADE").toUpperCase(),
+        contact: row.contact || row.phone || "",
+        area: row.area || row.stayarea || "",
+        labels: row.labels || "",
+        organization: row.organization || "",
+        harmony: row.harmony || "",
+        mutualLove: row.mutuallove || row.mutual_love || "",
+        cooperation: row.cooperation || "",
+        organizationLevel: row.level ? row.level.trim().toUpperCase().replaceAll(" ", "_") : null,
+        locked: csvBoolean(row.locked || ""),
+        suspended: csvBoolean(row.suspended || ""),
+        ...(row.password ? { password: row.password } : {}),
+      }));
+      const result = await api("/api/admin/accounts/import", { method: "POST", body: JSON.stringify({ users: usersToImport }) });
+      await load();
+      flash(`Import complete: ${result.created} created, ${result.updated} updated${result.errors.length ? `, ${result.errors.length} skipped` : ""}`);
+    } catch (error: any) {
+      flash(error.message || "Could not import users");
     }
   };
   const status = async (u: User, data: any) => {
@@ -245,10 +304,12 @@ export default function AccountManagement() {
             <h1>User management</h1>
             <p>Manage accounts and normalized organization assignments.</p>
           </div>
-          <button className="new" onClick={() => open()}>
-            <Plus />
-            Create user
-          </button>
+          <div className="accountTopActions">
+            <input ref={importInput} type="file" accept=".csv,text/csv" hidden onChange={importUsers} />
+            <button type="button" onClick={() => importInput.current?.click()}><Upload />Import CSV</button>
+            <a href={`data:text/csv;charset=utf-8,%EF%BB%BF${encodeURIComponent(exportCsv)}`} download={`local-news-users-${new Date().toISOString().slice(0, 10)}.csv`}><Download />Export CSV</a>
+            <button className="new" onClick={() => open()}><Plus />Create user</button>
+          </div>
         </div>
         {notice && (
           <div className="toast">
@@ -288,6 +349,8 @@ export default function AccountManagement() {
                 <span>
                   <b>{u.name}</b>
                   <small>{u.email}</small>
+                  {(u.phone || u.stayArea) && <small>{[u.phone, u.stayArea].filter(Boolean).join(" · ")}</small>}
+                  {!!u.labels?.length && <span className="accountLabels">{u.labels.map((label) => <i key={label}>{label}</i>)}</span>}
                 </span>
               </div>
               <div className="accountHierarchy">
@@ -386,12 +449,43 @@ export default function AccountManagement() {
             )}
             <div className="formPair">
               <label>
+                Contact
+                <input
+                  type="tel"
+                  maxLength={40}
+                  value={edit.phone || ""}
+                  onChange={(e) => setEdit({ ...edit, phone: e.target.value })}
+                  placeholder="Phone or contact number"
+                />
+              </label>
+              <label>
+                Area
+                <input
+                  maxLength={120}
+                  value={edit.stayArea || ""}
+                  onChange={(e) => setEdit({ ...edit, stayArea: e.target.value })}
+                  placeholder="City or residential area"
+                />
+              </label>
+            </div>
+            <label>
+              Labels
+              <input
+                maxLength={400}
+                value={edit.labelsText}
+                onChange={(e) => setEdit({ ...edit, labelsText: e.target.value })}
+                placeholder="Separate labels with commas"
+              />
+              <small className="fieldHint">Example: volunteer, translator, event team</small>
+            </label>
+            <div className="formPair">
+              <label>
                 Role
                 <select
                   value={edit.role}
                   onChange={(e) => setEdit({ ...edit, role: e.target.value })}
                 >
-                  {["ADMIN", "ADMIN_MEDICAL", "EDITOR", "VOLUNTEER", "DADE"].map((x) => (
+                  {["ADMIN", "ADMIN_MEDICAL", "EDITOR", "DOCTOR", "VOLUNTEER", "DADE"].map((x) => (
                     <option key={x} value={x}>{x === "ADMIN_MEDICAL" ? "Admin Medical" : x}</option>
                   ))}
                 </select>
@@ -476,6 +570,18 @@ export default function AccountManagement() {
                         {u.name}
                       </option>
                     ))}
+                  </select>
+                </label>
+                <label>
+                  Level
+                  <select
+                    value={edit.organizationLevel || ""}
+                    onChange={(e) => setEdit({ ...edit, organizationLevel: e.target.value })}
+                  >
+                    <option value="">Unassigned</option>
+                    <option value="HARMONY_LEADER">Harmony Leader</option>
+                    <option value="MUTUAL_LOVE_LEADER">MutualLove Leader</option>
+                    <option value="COOPERATION_LEADER">Cooperation Leader</option>
                   </select>
                 </label>
               </div>

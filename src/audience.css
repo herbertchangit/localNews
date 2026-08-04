@@ -7,6 +7,7 @@
 .audienceDash aside>.audienceLogoutButton{color:#efb1aa}.audienceDash aside>.audienceLogoutButton:hover{background:#ffffff0d;color:#ffd0cb}
 .audienceAppVersion{display:block;padding:0 12px;color:#91aaa0;font-size:9px;font-weight:700;letter-spacing:.04em}
 .audienceAccountWorkspace span{margin-top:3px;color:#9eb5aa;font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.accountHierarchyRows{display:grid;gap:4px;margin-top:9px;padding-top:8px;border-top:1px solid #ffffff1a}.accountHierarchyRows span{display:grid!important;grid-template-columns:minmax(72px,auto) 1fr;gap:8px;margin:0!important;font-size:9px!important;line-height:1.25;letter-spacing:.04em!important;text-transform:none!important}.accountHierarchyRows i{color:#89a399;font-style:normal}.accountHierarchyRows strong{min-width:0;color:#e7eee9;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.audienceAccountWorkspace{height:auto!important;min-height:0}
 .audienceSidebarToggle,.audienceSidebarBackdrop{display:none}
 @media(max-width:850px){
   .audienceDash{display:block}

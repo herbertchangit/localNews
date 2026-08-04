@@ -49,6 +49,8 @@ model User {
   name                String
   phone               String?
   stayArea            String?
+  labels              String[]            @default([])
+  organizationLevel   String?
   avatarUrl           String?
   role                Role                @default(AUDIENCE)
   locked              Boolean             @default(false)
