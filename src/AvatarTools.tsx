@@ -239,26 +239,6 @@ export function AdminAvatarTools() {
                 avatar.style.backgroundImage = url ? `url(${url})` : "";
                 avatar.classList.toggle("hasPhoto", !!url);
               }
-              const hierarchy =
-                row.querySelector<HTMLElement>(".accountHierarchy");
-              if (hierarchy) {
-                let organization =
-                  hierarchy.querySelector<HTMLElement>(".organizationLine");
-                const organizationName = user.department?.name?.trim();
-                const roleOrganization = organizationName
-                  ? `${user.role} : ${organizationName}`
-                  : user.role;
-                if (!roleOrganization) {
-                  organization?.remove();
-                } else if (!organization) {
-                  organization = document.createElement("small");
-                  organization.className = "organizationLine";
-                  organization.textContent = roleOrganization;
-                  hierarchy.prepend(organization);
-                } else if (organization.textContent !== roleOrganization) {
-                  organization.textContent = roleOrganization;
-                }
-              }
             });
           const modal = document.querySelector<HTMLElement>(".accountEditor");
           const email = modal?.querySelector<HTMLInputElement>(
