@@ -449,7 +449,7 @@ const missionEn: Record<string, string> = Object.fromEntries(
   Object.entries(missionZh).map(([english, chinese]) => [chinese, english]),
 );
 Object.assign(zh, missionZh);
-Object.assign(zh,{"Invite via WhatsApp":"通过 WhatsApp 邀请","Email or contact":"电子邮箱或联系电话","SECURITY REQUIRED":"安全验证","Create a new password":"创建新密码","Confirm password":"确认密码","Save password and continue":"保存密码并继续","Updating password…":"正在更新密码…","First-time users can enter only their email or contact, then select Sign in.":"首次登录只需输入电子邮箱或联系电话，然后点击登录。","(not required for first login)":"（首次登录无需填写）"});
+Object.assign(zh,{"Invite via WhatsApp":"通过 WhatsApp 邀请","Email or contact":"电子邮箱或联系电话","SECURITY REQUIRED":"安全验证","Create a new password":"创建新密码","Confirm password":"确认密码","Save password and continue":"保存密码并继续","Updating password…":"正在更新密码…","First-time users can enter only their email or contact, then select Sign in.":"首次登录只需输入电子邮箱或联系电话，然后点击登录。","(not required for first login)":"（首次登录无需填写）","Delete selected":"删除所选用户","Previous":"上一页","Next":"下一页","Select all users on this page":"选择本页所有用户"});
 const zhTw: Record<string, string> = {
   ...zh,
   ...Object.fromEntries(
@@ -466,6 +466,10 @@ Object.assign(zhTw, {
   "Updating password…": "正在更新密碼…",
   "First-time users can enter only their email or contact, then select Sign in.": "首次登入只需輸入電子郵箱或聯絡電話，然後點擊登入。",
   "(not required for first login)": "（首次登入無需填寫）",
+  "Delete selected": "刪除所選用戶",
+  Previous: "上一頁",
+  Next: "下一頁",
+  "Select all users on this page": "選擇本頁所有用戶",
   Contact: "聯絡方式",
   Area: "地區",
   Labels: "標籤",
