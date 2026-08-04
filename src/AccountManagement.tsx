@@ -217,7 +217,7 @@ export default function AccountManagement() {
       }));
       const result = await api("/api/admin/accounts/import", { method: "POST", body: JSON.stringify({ users: usersToImport }) });
       await load();
-      flash(`Import complete: ${result.created} created, ${result.updated} updated${result.errors.length ? `, ${result.errors.length} skipped` : ""}`);
+      flash(`Import complete: ${result.created} created, ${result.updated} updated${result.errors.length ? `, ${result.errors.length} skipped — ${result.errors.slice(0, 2).join("; ")}` : ""}`);
     } catch (error: any) {
       flash(error.message || "Could not import users");
     }
