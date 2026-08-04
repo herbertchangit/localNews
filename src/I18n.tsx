@@ -449,7 +449,7 @@ const missionEn: Record<string, string> = Object.fromEntries(
   Object.entries(missionZh).map(([english, chinese]) => [chinese, english]),
 );
 Object.assign(zh, missionZh);
-Object.assign(zh,{"Invite via WhatsApp":"通过 WhatsApp 邀请"});
+Object.assign(zh,{"Invite via WhatsApp":"通过 WhatsApp 邀请","Email or contact":"电子邮箱或联系电话","SECURITY REQUIRED":"安全验证","Create a new password":"创建新密码","Confirm password":"确认密码","Save password and continue":"保存密码并继续","Updating password…":"正在更新密码…","First-time users can enter only their email or contact, then select Sign in.":"首次登录只需输入电子邮箱或联系电话，然后点击登录。","(not required for first login)":"（首次登录无需填写）"});
 const zhTw: Record<string, string> = {
   ...zh,
   ...Object.fromEntries(
@@ -458,6 +458,14 @@ const zhTw: Record<string, string> = {
 };
 Object.assign(zhTw, {
   "Invite via WhatsApp": "透過 WhatsApp 邀請",
+  "Email or contact": "電子郵箱或聯絡電話",
+  "SECURITY REQUIRED": "安全驗證",
+  "Create a new password": "建立新密碼",
+  "Confirm password": "確認密碼",
+  "Save password and continue": "儲存密碼並繼續",
+  "Updating password…": "正在更新密碼…",
+  "First-time users can enter only their email or contact, then select Sign in.": "首次登入只需輸入電子郵箱或聯絡電話，然後點擊登入。",
+  "(not required for first login)": "（首次登入無需填寫）",
   Contact: "聯絡方式",
   Area: "地區",
   Labels: "標籤",
