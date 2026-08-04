@@ -19,6 +19,7 @@ import {
   Upload,
 } from "lucide-react";
 import { csvBoolean, parseCsv, toCsv } from "./userCsv";
+import { pageCount, paginate } from "./pagination";
 type Cat = { id: string; name: string };
 type Group = { id: string; name: string };
 type Mutual = Group & { harmonyId: string; cooperations: Group[] };
@@ -64,7 +65,9 @@ const blank = {
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 export default function AccountManagement() {
   const nav = useNavigate(),
-    token = session()?.token;
+    activeSession = session(),
+    token = activeSession?.token,
+    currentUserId = activeSession?.user?.id;
   const importInput = useRef<HTMLInputElement>(null);
   const [users, setUsers] = useState<User[]>([]),
     [departments, setDepartments] = useState<Group[]>([]),
@@ -73,7 +76,9 @@ export default function AccountManagement() {
     [edit, setEdit] = useState<any | null>(null),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
-    [reset, setReset] = useState<User | null>(null);
+    [reset, setReset] = useState<User | null>(null),
+    [selected, setSelected] = useState<Set<string>>(new Set()),
+    [page, setPage] = useState(1);
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -115,6 +120,14 @@ export default function AccountManagement() {
       ),
     [users, query],
   );
+  const totalPages = pageCount(visible.length),
+    pageUsers = useMemo(() => paginate(visible, page), [visible, page]),
+    selectablePageUsers = pageUsers.filter((user) => user.id !== currentUserId),
+    pageSelected = selectablePageUsers.length > 0 && selectablePageUsers.every((user) => selected.has(user.id));
+  useEffect(() => setPage(1), [query]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
   const exportCsv = useMemo(() => toCsv(
     ["name", "email", "role", "contact", "area", "labels", "organization", "harmony", "mutualLove", "cooperation", "level", "locked", "suspended", "password"],
     users.map((user) => [user.name, user.email, user.role, user.phone, user.stayArea, (user.labels || []).join("|"), user.department?.name, user.harmonyGroup?.name, user.mutualLoveGroup?.name, user.cooperationUnit?.name, user.organizationLevel, user.locked, user.suspended, ""]),
@@ -242,6 +255,28 @@ export default function AccountManagement() {
       flash(e.message);
     }
   };
+  const bulkRemove = async () => {
+    const targets = users.filter((user) => selected.has(user.id) && user.id !== currentUserId);
+    if (!targets.length || !confirm(`Delete ${targets.length} selected users?`)) return;
+    let deleted = 0;
+    const failures: string[] = [];
+    for (const user of targets) {
+      try {
+        await api(`/api/admin/users/${user.id}`, { method: "DELETE" });
+        deleted++;
+      } catch (error: any) {
+        failures.push(`${user.name}: ${error.message}`);
+      }
+    }
+    setSelected(new Set());
+    await load();
+    flash(`${deleted} users deleted${failures.length ? `, ${failures.length} not deleted — ${failures.slice(0, 2).join("; ")}` : ""}`);
+  };
+  const togglePage = () => setSelected((current) => {
+    const next = new Set(current);
+    selectablePageUsers.forEach((user) => pageSelected ? next.delete(user.id) : next.add(user.id));
+    return next;
+  });
   const resetPassword = async (e: any) => {
     e.preventDefault();
     const password = new FormData(e.currentTarget).get("password");
@@ -327,18 +362,20 @@ export default function AccountManagement() {
                 placeholder="Search people or organization assignment"
               />
             </div>
+            {!!selected.size && <button className="bulkDelete" type="button" onClick={bulkRemove}><Trash2 />Delete selected ({selected.size})</button>}
             <span>{visible.length} people</span>
           </div>
           <div className="accountRow accountHeader">
-            <span>Person</span>
+            <span className="accountSelectHeader"><input type="checkbox" aria-label="Select all users on this page" checked={pageSelected} onChange={togglePage} disabled={!selectablePageUsers.length} />Person</span>
             <span>Organization assignment</span>
             <span>Role</span>
             <span>Status</span>
             <span>Actions</span>
           </div>
-          {visible.map((u) => (
+          {pageUsers.map((u) => (
             <div className="accountRow" key={u.id}>
-              <div className="person">
+              <div className="person accountSelectable">
+                <input type="checkbox" aria-label={`Select ${u.name}`} checked={selected.has(u.id)} disabled={u.id === currentUserId} onChange={(event) => setSelected((current) => { const next = new Set(current); event.target.checked ? next.add(u.id) : next.delete(u.id); return next; })} />
                 <span className="avatar">
                   {u.name
                     .split(" ")
@@ -392,7 +429,7 @@ export default function AccountManagement() {
                 </button>
                 <button
                   className="danger"
-                  disabled={u.email === "admin@local.news"}
+                  disabled={u.id === currentUserId}
                   onClick={() => remove(u)}
                 >
                   <Trash2 />
@@ -400,6 +437,11 @@ export default function AccountManagement() {
               </div>
             </div>
           ))}
+          <div className="accountPagination">
+            <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button>
+            <span>{page} / {totalPages}</span>
+            <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Next</button>
+          </div>
         </div>
       </section>
       {edit && (
