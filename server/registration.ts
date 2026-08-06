@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DEFAULT_PASSWORD } from "./passwordPolicy.js";
 import { isContactMatch, loginEmailForContact } from "./loginIdentifier.js";
+import { findRegistrationConflicts } from "./registrationDuplicate.js";
 
 const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
@@ -36,6 +37,10 @@ const submissionUpdateInput = z.object({
     totalPersons: z.coerce.number().int().min(1).max(999),
     meal: z.boolean(),
   })).min(1).max(60).refine((items) => new Set(items.map((item) => item.id)).size === items.length, "Duplicate attendance records are not allowed"),
+});
+const attendanceUpdateInput = z.object({
+  totalPersons: z.coerce.number().int().min(1).max(999),
+  meal: z.boolean(),
 });
 
 const dateAtUtcMidnight = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -114,6 +119,37 @@ export function createRegistrationRouter(db: any, secret: string) {
         status: "REGISTERED",
         createdAt: submission.createdAt,
       }))));
+  });
+  router.patch("/mine/:attendanceId", authenticate, async (req: any, res) => {
+    const data = attendanceUpdateInput.parse(req.body);
+    const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
+    if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
+    const attendance = await db.registrationAttendance.findUnique({
+      where: { id: req.params.attendanceId },
+      include: { submission: { select: { id: true, formId: true, contact: true, unregisteredAt: true } } },
+    });
+    if (!attendance || !isContactMatch(account.phone, attendance.submission.contact)) return res.status(404).json({ error: "Registration appointment not found" });
+    if (attendance.submission.unregisteredAt) return res.status(409).json({ error: "This registration is already un-registered" });
+    const updated = await db.registrationAttendance.update({ where: { id: attendance.id }, data, include: { eventDate: true } });
+    await db.auditLog.create({ data: { action: "REGISTRATION_ATTENDANCE_UPDATED", actorId: req.user.id, metadata: { formId: attendance.submission.formId, submissionId: attendance.submission.id, attendanceId: attendance.id } } });
+    res.json(updated);
+  });
+  router.delete("/mine/:attendanceId", authenticate, async (req: any, res) => {
+    const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
+    if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
+    const attendance = await db.registrationAttendance.findUnique({
+      where: { id: req.params.attendanceId },
+      include: { submission: { include: { attendances: { select: { id: true } } } } },
+    });
+    if (!attendance || !isContactMatch(account.phone, attendance.submission.contact)) return res.status(404).json({ error: "Registration appointment not found" });
+    if (attendance.submission.unregisteredAt) return res.status(409).json({ error: "This registration is already un-registered" });
+    if (attendance.submission.attendances.length === 1) {
+      await db.registrationSubmission.update({ where: { id: attendance.submission.id }, data: { unregisteredAt: new Date() } });
+    } else {
+      await db.registrationAttendance.delete({ where: { id: attendance.id } });
+    }
+    await db.auditLog.create({ data: { action: "REGISTRATION_ATTENDANCE_UNREGISTERED", actorId: req.user.id, metadata: { formId: attendance.submission.formId, submissionId: attendance.submission.id, attendanceId: attendance.id } } });
+    res.status(204).end();
   });
   router.get("/admin/forms", authenticate, manage, async (_req, res) => {
     res.json(await db.registrationForm.findMany({ include, orderBy: { updatedAt: "desc" } }));
@@ -217,12 +253,31 @@ export function createRegistrationRouter(db: any, secret: string) {
   });
   router.post("/public/:slug/submissions", async (req, res) => {
     const data = submissionInput.parse(req.body);
-    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, include: { eventDates: { select: { id: true } } } });
+    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, include: { eventDates: { select: { id: true, eventDate: true } } } });
     if (!form) return res.status(404).json({ error: "This registration form is unavailable" });
     const allowed = new Set(form.eventDates.map((item: any) => item.id));
     if (data.attendances.some((item) => !allowed.has(item.eventDateId))) return res.status(400).json({ error: "One or more selected dates are invalid" });
     const generatedEmail = loginEmailForContact(data.contact);
     if (!generatedEmail) return res.status(400).json({ error: "Enter a valid contact number with at least 7 digits" });
+    const existingRegistrations = await db.registrationSubmission.findMany({
+      where: { formId: form.id, unregisteredAt: null },
+      select: {
+        registrantName: true,
+        contact: true,
+        attendances: { select: { eventDateId: true, eventDate: { select: { eventDate: true } } } },
+      },
+    });
+    const conflicts = findRegistrationConflicts(existingRegistrations, data.contact, data.attendances.map((item) => item.eventDateId));
+    if (conflicts.length) {
+      const existingName = conflicts[0].registrantName;
+      const dates = [...new Set(conflicts.flatMap((conflict) => conflict.dates.map(isoDate)))].sort();
+      return res.status(409).json({
+        code: "ALREADY_REGISTERED",
+        existingRegistrantName: existingName,
+        eventDates: dates,
+        error: `This contact is already registered under ${existingName} for ${dates.join(", ")}. Each contact can register only once for each event date. / 此联络号码已由 ${existingName} 登记：${dates.join("、")}。每个活动日期只能登记一次。`,
+      });
+    }
     const contactUsers = await db.user.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true, name: true } });
     const matches = contactUsers.filter((user: any) => isContactMatch(data.contact, user.phone));
     if (matches.length > 1) return res.status(409).json({ error: "This contact number belongs to multiple accounts. Please contact an administrator." });

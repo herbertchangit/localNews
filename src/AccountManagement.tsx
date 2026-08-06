@@ -25,6 +25,7 @@ type Cat = { id: string; name: string };
 type Group = { id: string; name: string };
 type Mutual = Group & { harmonyId: string; cooperations: Group[] };
 type Harmony = Group & { mutualLoves: Mutual[] };
+type AreaOption = { id: string; name: string; mutualLove: Group & { harmony: Group } };
 type User = {
   id: string;
   name: string;
@@ -74,6 +75,7 @@ export default function AccountManagement() {
     [departments, setDepartments] = useState<Group[]>([]),
     [categories, setCategories] = useState<Cat[]>([]),
     [structure, setStructure] = useState<Harmony[]>([]),
+    [areas, setAreas] = useState<AreaOption[]>([]),
     [edit, setEdit] = useState<any | null>(null),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
@@ -92,15 +94,17 @@ export default function AccountManagement() {
   };
   const load = async () => {
     try {
-      const [u, o, s] = await Promise.all([
+      const [u, o, s, a] = await Promise.all([
         api("/api/admin/accounts"),
         api("/api/admin/user-options"),
         api("/api/admin/org-structure"),
+        api("/api/areas"),
       ]);
       setUsers(u);
       setDepartments(o.departments);
       setCategories(o.categories);
       setStructure(s);
+      setAreas(a);
     } catch (e: any) {
       setNotice(e.message);
     }
@@ -507,12 +511,14 @@ export default function AccountManagement() {
               </label>
               <label>
                 Area
-                <input
-                  maxLength={120}
+                <select
                   value={edit.stayArea || ""}
                   onChange={(e) => setEdit({ ...edit, stayArea: e.target.value })}
-                  placeholder="City or residential area"
-                />
+                >
+                  <option value="">Select area</option>
+                  {edit.stayArea && !areas.some((area) => area.name === edit.stayArea) && <option value={edit.stayArea}>{edit.stayArea} (current)</option>}
+                  {areas.map((area) => <option value={area.name} key={area.id}>{area.name} : {area.mutualLove.name}</option>)}
+                </select>
               </label>
             </div>
             <label>

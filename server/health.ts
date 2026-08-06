@@ -514,6 +514,7 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
           status: "REGISTERED",
           reason: `Total persons: ${attendance.totalPersons} · Meal: ${attendance.meal ? "Yes" : "No"}`,
           createdAt: submission.createdAt,
+          registration: { attendanceId: attendance.id, submissionId: submission.id, totalPersons: attendance.totalPersons, meal: attendance.meal },
           event: { id: submission.form.id, name: submission.form.eventName, eventDate: attendance.eventDate.eventDate, location: submission.origin, address: "Event pre-registration" },
           doctor: { specialization: "Registered event date", qualification: "Local News Registration", experienceYears: 0, bio: submission.form.description, profileImage: submission.form.photoUrl, consultationFee: 0, user: { name: "Event Registration", email: "", phone: null, avatarUrl: null } },
         }))) : [];

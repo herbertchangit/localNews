@@ -23,6 +23,7 @@ const options: sanitizeHtml.IOptions = {
   allowedSchemes: ["http", "https", "mailto"],
   allowProtocolRelative: false,
   transformTags: {
+    div: "p",
     a: (_tagName, attributes) => ({
       tagName: "a",
       attribs: {
@@ -151,11 +152,12 @@ function escapeHtml(value: string) {
 
 export function toRichTextHtml(value: string) {
   if (!value.trim()) return "";
-  if (/<\/?(?:p|br|strong|b|em|i|u|h2|h3|ul|ol|li|blockquote|a)\b/i.test(value)) {
+  if (/<\/?(?:p|div|br|strong|b|em|i|u|h2|h3|ul|ol|li|blockquote|a)\b/i.test(value)) {
     return sanitizeRichText(value);
   }
 
   return value
+    .replace(/\r\n?/g, "\n")
     .trim()
     .split(/\n\s*\n/)
     .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)

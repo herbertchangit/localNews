@@ -80,6 +80,17 @@ export default function RichTextEditor({
     if (href && href !== "https://") runCommand("createLink", href);
   };
 
+  const pastePlainText = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+
+    event.preventDefault();
+    editorRef.current?.focus();
+    document.execCommand("insertHTML", false, toRichTextHtml(text));
+    emitChange(false);
+    rememberSelection();
+  };
+
   const toolbarButton = (
     title: string,
     icon: React.ReactNode,
@@ -124,6 +135,7 @@ export default function RichTextEditor({
         data-rich-text-field={fieldName}
         data-placeholder={placeholder}
         onInput={() => emitChange(false)}
+        onPaste={pastePlainText}
         onBlur={() => emitChange(true)}
         onKeyUp={rememberSelection}
         onMouseUp={rememberSelection}

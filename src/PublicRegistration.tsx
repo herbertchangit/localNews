@@ -2,27 +2,18 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, CheckCircle2 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
+import { registrationPrefill } from "./registrationPrefill";
 
 type EventDate = { id: string; eventDate: string };
 type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; eventDates: EventDate[] };
 type Attendance = { selected: boolean; totalPersons: number; meal: boolean };
+type AreaOption = { id: string; name: string; mutualLove: { id: string; name: string; harmony: { id: string; name: string } } };
+type Session = { token: string; user: { name?: string; role?: string } };
 
-const AREAS = [
-  "Bandar Bukit Puchong 1",
-  "Bandar Bukit Puchong 2",
-  "Bandar Puteri",
-  "Bandar Kinrara",
-  "Puchong Indah",
-  "Puchong Intan",
-  "Puchong Jaya",
-  "Puchong Perdana",
-  "Puchong Prima",
-  "Puchong Utama",
-  "Puchong Wawasan",
-  "Pusat Bandar Puchong",
-  "Saujana Puchong",
-  "Taman Kinrara",
-];
+const readSession = (): Session | null => {
+  try { return JSON.parse(localStorage.getItem("ln_session") || "null"); }
+  catch { return null; }
+};
 
 export default function PublicRegistration() {
   const { slug } = useParams();
@@ -32,7 +23,34 @@ export default function PublicRegistration() {
   const [passwordChangeToken, setPasswordChangeToken] = useState(""), [showPassword, setShowPassword] = useState(false);
   const [passwords, setPasswords] = useState({ newPassword: "", confirmPassword: "" });
   const [values, setValues] = useState({ registrantName: "", identity: "NON_VOLUNTEER", contact: "", area: "", otherArea: "" });
+  const [areas, setAreas] = useState<AreaOption[]>([]);
   const [attendance, setAttendance] = useState<Record<string, Attendance>>({});
+
+  useEffect(() => {
+    const session = readSession();
+    if (!session?.token || !session.user) return;
+
+    const initial = registrationPrefill(session.user);
+    setValues((current) => ({ ...current, ...initial }));
+    fetch("/api/me/reader-account", { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(async (response) => {
+        const profile = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(profile?.error || "Could not load account details");
+        const accountDefaults = registrationPrefill(session.user, profile.phone, profile.stayArea);
+        setValues((current) => ({ ...current, contact: current.contact || accountDefaults.contact, area: current.area || accountDefaults.area }));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/public/areas")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || "Could not load areas");
+        setAreas(data);
+      })
+      .catch(() => setAreas([]));
+  }, []);
 
   useEffect(() => {
     fetch(`/api/registrations/public/${encodeURIComponent(slug || "")}`)
@@ -104,7 +122,7 @@ export default function PublicRegistration() {
         <label>Registrant name / 登记人姓名<input required minLength={2} maxLength={120} value={values.registrantName} onChange={(event) => setValues({ ...values, registrantName: event.target.value })} /></label>
         <fieldset className="identityOptions"><legend>Identity / 身份</legend><label><input type="radio" name="identity" value="NON_VOLUNTEER" checked={values.identity === "NON_VOLUNTEER"} onChange={() => setValues({ ...values, identity: "NON_VOLUNTEER" })} />Non-Volunteer / 非志工</label><label><input type="radio" name="identity" value="VOLUNTEER" checked={values.identity === "VOLUNTEER"} onChange={() => setValues({ ...values, identity: "VOLUNTEER" })} />Volunteer / 志工</label></fieldset>
         <label>Contact / 联络号码<input required minLength={5} maxLength={80} type="tel" value={values.contact} onChange={(event) => setValues({ ...values, contact: event.target.value })} /></label>
-        <label>From / 来自地区<select required value={values.area} onChange={(event) => setValues({ ...values, area: event.target.value, otherArea: event.target.value === "OTHERS" ? values.otherArea : "" })}><option value="">Select area / 选择地区</option>{AREAS.map((area) => <option key={area} value={area}>{area}</option>)}<option value="OTHERS">Others / 其他地区</option></select></label>
+        <label>From / 来自地区<select required value={values.area} onChange={(event) => setValues({ ...values, area: event.target.value, otherArea: event.target.value === "OTHERS" ? values.otherArea : "" })}><option value="">Select area / 选择地区</option>{values.area&&values.area!=="OTHERS"&&!areas.some(area=>area.name===values.area)&&<option value={values.area}>{values.area} (current)</option>}{areas.map((area) => <option key={area.id} value={area.name}>{area.name} : {area.mutualLove.name}</option>)}<option value="OTHERS">Others / 其他地区</option></select></label>
         {values.area === "OTHERS" && <label>Other area / 其他地区<input autoFocus required minLength={2} maxLength={160} value={values.otherArea} onChange={(event) => setValues({ ...values, otherArea: event.target.value })} /></label>}
         <fieldset><legend>Select event date(s) / 选择活动日期</legend>{form.eventDates.map((item) => {
           const value = attendance[item.id];

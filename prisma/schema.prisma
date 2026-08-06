@@ -213,10 +213,22 @@ model MutualLoveGroup {
   harmony      HarmonyGroup      @relation(fields: [harmonyId], references: [id])
   cooperations CooperationUnit[]
   users        User[]
+  areas        Area[]
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
   @@unique([harmonyId, name])
+}
+
+model Area {
+  id           String          @id @default(cuid())
+  name         String          @unique
+  mutualLoveId String
+  mutualLove   MutualLoveGroup @relation(fields: [mutualLoveId], references: [id], onDelete: Restrict)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([mutualLoveId, name])
 }
 
 model CooperationUnit {
