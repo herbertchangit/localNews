@@ -43,53 +43,110 @@ enum HealthAppointmentStatus {
 }
 
 model User {
-  id                  String              @id @default(cuid())
-  email               String              @unique
-  password            String
-  name                String
-  phone               String?
-  stayArea            String?
-  labels              String[]            @default([])
-  organizationLevel   String?
-  avatarUrl           String?
-  role                Role                @default(AUDIENCE)
-  locked              Boolean             @default(false)
-  suspended           Boolean             @default(false)
-  permissions         String[]            @default([])
-  departmentId        String?
-  department          Department?         @relation(fields: [departmentId], references: [id])
-  harmonyGroupId      String?
-  harmonyGroup        HarmonyGroup?       @relation(fields: [harmonyGroupId], references: [id])
-  mutualLoveGroupId   String?
-  mutualLoveGroup     MutualLoveGroup?    @relation(fields: [mutualLoveGroupId], references: [id])
-  cooperationUnitId   String?
-  cooperationUnit     CooperationUnit?    @relation(fields: [cooperationUnitId], references: [id])
-  assignedCategories  Category[]          @relation("UserCategories")
-  articles            Article[]
-  comments            Comment[]
-  responses           StoryResponse[]
-  photoResponses      PhotoResponse[]
-  doctorProfile       DoctorProfile?
-  createdHealthEvents HealthEvent[]       @relation("HealthEventCreator")
-  patientAppointments HealthAppointment[] @relation("PatientAppointments")
-  passkeys            PasskeyCredential[]
-  passkeyChallenges   WebAuthnChallenge[]
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                       String              @id @default(cuid())
+  email                    String              @unique
+  password                 String
+  name                     String
+  phone                    String?
+  stayArea                 String?
+  labels                   String[]            @default([])
+  organizationLevel        String?
+  avatarUrl                String?
+  role                     Role                @default(AUDIENCE)
+  locked                   Boolean             @default(false)
+  suspended                Boolean             @default(false)
+  permissions              String[]            @default([])
+  departmentId             String?
+  department               Department?         @relation(fields: [departmentId], references: [id])
+  harmonyGroupId           String?
+  harmonyGroup             HarmonyGroup?       @relation(fields: [harmonyGroupId], references: [id])
+  mutualLoveGroupId        String?
+  mutualLoveGroup          MutualLoveGroup?    @relation(fields: [mutualLoveGroupId], references: [id])
+  cooperationUnitId        String?
+  cooperationUnit          CooperationUnit?    @relation(fields: [cooperationUnitId], references: [id])
+  assignedCategories       Category[]          @relation("UserCategories")
+  articles                 Article[]
+  comments                 Comment[]
+  responses                StoryResponse[]
+  photoResponses           PhotoResponse[]
+  doctorProfile            DoctorProfile?
+  createdHealthEvents      HealthEvent[]       @relation("HealthEventCreator")
+  createdRegistrationForms RegistrationForm[]  @relation("RegistrationFormCreator")
+  patientAppointments      HealthAppointment[] @relation("PatientAppointments")
+  passkeys                 PasskeyCredential[]
+  passkeyChallenges        WebAuthnChallenge[]
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+}
+
+model RegistrationForm {
+  id          String                   @id @default(cuid())
+  eventName   String
+  description String
+  slug        String                   @unique
+  active      Boolean                  @default(true)
+  creatorId   String
+  creator     User                     @relation("RegistrationFormCreator", fields: [creatorId], references: [id])
+  eventDates  RegistrationEventDate[]
+  submissions RegistrationSubmission[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@index([creatorId])
+}
+
+model RegistrationEventDate {
+  id          String                   @id @default(cuid())
+  formId      String
+  form        RegistrationForm         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  eventDate   DateTime
+  attendances RegistrationAttendance[]
+  createdAt   DateTime                 @default(now())
+
+  @@unique([formId, eventDate])
+  @@index([formId, eventDate])
+}
+
+model RegistrationSubmission {
+  id             String                   @id @default(cuid())
+  formId         String
+  form           RegistrationForm         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  registrantName String
+  identity       String
+  contact        String
+  origin         String
+  attendances    RegistrationAttendance[]
+  unregisteredAt DateTime?
+  createdAt      DateTime                 @default(now())
+
+  @@index([formId, unregisteredAt, createdAt])
+}
+
+model RegistrationAttendance {
+  id           String                 @id @default(cuid())
+  submissionId String
+  submission   RegistrationSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  eventDateId  String
+  eventDate    RegistrationEventDate  @relation(fields: [eventDateId], references: [id], onDelete: Cascade)
+  totalPersons Int
+  meal         Boolean
+
+  @@unique([submissionId, eventDateId])
+  @@index([eventDateId])
 }
 
 model PasskeyCredential {
-  id           String   @id @default(cuid())
-  credentialId String   @unique
+  id           String    @id @default(cuid())
+  credentialId String    @unique
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   publicKey    Bytes
-  counter      BigInt   @default(0)
-  transports   String[] @default([])
+  counter      BigInt    @default(0)
+  transports   String[]  @default([])
   deviceType   String?
-  backedUp     Boolean  @default(false)
+  backedUp     Boolean   @default(false)
   name         String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
 
   @@index([userId])

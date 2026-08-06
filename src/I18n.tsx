@@ -516,6 +516,10 @@ const userContentSelector = [
   ".contentUrlPreview a",
   ".editorialPreviewDialog header b",
   ".storyManagementPreviewDialog header b",
+  ".registrationContent",
+  ".registrationEditor",
+  ".registrationResponses",
+  ".publicRegistrationCard",
 ].join(",");
 
 export function splitBilingualLabel(value: string) {

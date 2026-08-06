@@ -17,6 +17,7 @@ import {
   Network,
   Download,
   Upload,
+  ClipboardList,
 } from "lucide-react";
 import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 import { pageCount, paginate } from "./pagination";
@@ -631,6 +632,22 @@ export default function AccountManagement() {
                   </select>
                 </label>
               </div>
+            </fieldset>
+            <fieldset className="hierarchyFields registrationPermissionField">
+              <legend><ClipboardList />Registration access</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={(edit.permissions || []).includes("registrations.manage")}
+                  onChange={(e) => setEdit({
+                    ...edit,
+                    permissions: e.target.checked
+                      ? [...new Set([...(edit.permissions || []), "registrations.manage"])]
+                      : (edit.permissions || []).filter((permission: string) => permission !== "registrations.manage"),
+                  })}
+                />
+                Authorized to create, edit, delete and review registration forms
+              </label>
             </fieldset>
             <div className="accountChecks">
               <label>
