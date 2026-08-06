@@ -3,8 +3,12 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import { Role } from "@prisma/client";
 import { z } from "zod";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 const MANAGE_PERMISSION = "registrations.manage";
+const uploadDirectory = path.resolve("uploads");
+const photoInput = z.object({ dataUrl: z.string().max(7_500_000) });
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid event date");
 const formInput = z.object({
   eventName: z.string().trim().min(2).max(160),
@@ -34,6 +38,22 @@ const submissionUpdateInput = z.object({
 const dateAtUtcMidnight = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 const baseSlug = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 70) || "registration";
+const removeRegistrationPhoto = async (photoUrl?: string | null) => {
+  if (!photoUrl?.startsWith("/uploads/registration-")) return;
+  const file = path.resolve(uploadDirectory, path.basename(photoUrl));
+  if (path.dirname(file) === uploadDirectory) await fs.unlink(file).catch(() => {});
+};
+const writeRegistrationPhoto = async (formId: string, dataUrl: string) => {
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) throw new Error("Only PNG, JPEG, or WebP photos are allowed");
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new Error("Photo must be 5 MB or smaller");
+  await fs.mkdir(uploadDirectory, { recursive: true });
+  const extension = match[1] === "jpeg" ? "jpg" : match[1];
+  const name = `registration-${formId}-${Date.now()}.${extension}`;
+  await fs.writeFile(path.join(uploadDirectory, name), bytes);
+  return `/uploads/${name}`;
+};
 
 export function createRegistrationRouter(db: any, secret: string) {
   const router = express.Router();
@@ -101,10 +121,34 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
     res.json(form);
   });
+  router.post("/admin/forms/:id/photo", authenticate, manage, async (req: any, res) => {
+    const { dataUrl } = photoInput.parse(req.body);
+    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, photoUrl: true } });
+    if (!current) return res.status(404).json({ error: "Registration form not found" });
+    const photoUrl = await writeRegistrationPhoto(current.id, dataUrl);
+    try {
+      const form = await db.registrationForm.update({ where: { id: current.id }, data: { photoUrl }, include });
+      await removeRegistrationPhoto(current.photoUrl);
+      await db.auditLog.create({ data: { action: "REGISTRATION_FORM_PHOTO_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
+      res.json(form);
+    } catch (error) {
+      await removeRegistrationPhoto(photoUrl);
+      throw error;
+    }
+  });
+  router.delete("/admin/forms/:id/photo", authenticate, manage, async (req: any, res) => {
+    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, photoUrl: true } });
+    if (!current) return res.status(404).json({ error: "Registration form not found" });
+    const form = await db.registrationForm.update({ where: { id: current.id }, data: { photoUrl: null }, include });
+    await removeRegistrationPhoto(current.photoUrl);
+    await db.auditLog.create({ data: { action: "REGISTRATION_FORM_PHOTO_REMOVED", actorId: req.user.id, metadata: { formId: current.id } } });
+    res.json(form);
+  });
   router.delete("/admin/forms/:id", authenticate, manage, async (req: any, res) => {
-    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, eventName: true } });
+    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, eventName: true, photoUrl: true } });
     if (!current) return res.status(404).json({ error: "Registration form not found" });
     await db.registrationForm.delete({ where: { id: current.id } });
+    await removeRegistrationPhoto(current.photoUrl);
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_DELETED", actorId: req.user.id, metadata: { formId: current.id, eventName: current.eventName } } });
     res.status(204).end();
   });
@@ -138,7 +182,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     res.json(updated);
   });
   router.get("/public/:slug", async (req, res) => {
-    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, slug: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
+    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, photoUrl: true, slug: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
     form ? res.json(form) : res.status(404).json({ error: "This registration form is unavailable" });
   });
   router.post("/public/:slug/submissions", async (req, res) => {

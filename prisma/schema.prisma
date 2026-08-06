@@ -83,6 +83,7 @@ model RegistrationForm {
   id          String                   @id @default(cuid())
   eventName   String
   description String
+  photoUrl    String?
   slug        String                   @unique
   active      Boolean                  @default(true)
   creatorId   String

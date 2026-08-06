@@ -4,7 +4,7 @@ import { CalendarDays, CheckCircle2 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
 
 type EventDate = { id: string; eventDate: string };
-type Form = { id: string; eventName: string; description: string; slug: string; eventDates: EventDate[] };
+type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; eventDates: EventDate[] };
 type Attendance = { selected: boolean; totalPersons: number; meal: boolean };
 
 const AREAS = [
@@ -67,11 +67,12 @@ export default function PublicRegistration() {
   };
 
   return <div className="publicRegistrationPage">
-    <PublicHeader />
+    <PublicHeader hideLoginWhenSignedOut />
     {loading && <main className="publicRegistrationCard">Loading registration form… / 正在载入登记表格…</main>}
     {!loading && error && !form && <main className="publicRegistrationCard"><h1>Registration unavailable / 登记表格暂不可用</h1><p>{error}</p><Link to="/">Return to Local News / 返回本地新闻</Link></main>}
     {form && done && <main className="publicRegistrationCard registrationThanks"><CheckCircle2 /><small>PRE-REGISTRATION RECEIVED / 已收到预登记</small><h1>Thank you / 谢谢您，{values.registrantName}.</h1><p>Your registration for / 您的登记已记录：<b>{form.eventName}</b></p><Link to="/">Return to Local News / 返回本地新闻</Link></main>}
     {form && !done && <main className="publicRegistrationCard">
+      {form.photoUrl && <img className="publicRegistrationPhoto" src={form.photoUrl} alt={`${form.eventName} event`} />}
       <small>EVENT PRE-REGISTRATION FORM / 活动预登记表格</small>
       <h1>{form.eventName}</h1>
       <p className="registrationDescription">{form.description}</p>
