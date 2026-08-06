@@ -20,6 +20,16 @@ describe("rich text utilities", () => {
       .toBe("<p>First paragraph</p><p>Second line</p>");
   });
 
+  it("preserves Windows clipboard line breaks", () => {
+    expect(toRichTextHtml("First line\r\nsecond line\r\n\r\nNext paragraph"))
+      .toBe("<p>First line<br>second line</p><p>Next paragraph</p>");
+  });
+
+  it("preserves browser-generated div blocks as paragraphs", () => {
+    expect(sanitizeRichText("<div>First paragraph</div><div>Second paragraph</div>"))
+      .toBe("<p>First paragraph</p><p>Second paragraph</p>");
+  });
+
   it("counts visible text without HTML markup", () => {
     expect(richTextToPlainText("<p>Hello <strong>local</strong></p><p>news</p>"))
       .toBe("Hello local news");
