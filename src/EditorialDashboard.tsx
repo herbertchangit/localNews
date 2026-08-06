@@ -24,7 +24,7 @@ import { firstHttpUrl, previewImageForUrl } from "./richTextUtils";
 type EditorialArticle = {
   id: string;
   title: string;
-  status: "DRAFT" | "REVIEW" | "REVISION";
+  status: "DRAFT" | "REVIEW" | "REVISION" | "ARCHIVED";
   imageUrl: string | null;
   content: string;
   updatedAt: string;
@@ -127,8 +127,24 @@ export default function EditorialDashboard() {
     }
   };
 
-  const reviewCount = articles.filter((article) => article.status !== "REVISION").length;
+  const republish = async (article: EditorialArticle) => {
+    setWorkingId(article.id);
+    try {
+      const response = await fetch(`/api/articles/${article.id}/republish`, { method: "PATCH", headers });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not republish story");
+      setArticles((items) => items.filter((item) => item.id !== article.id));
+      setNotice("Story republished for another 7 days / 新聞已重新發布七天");
+    } catch (error: any) {
+      setNotice(error.message || "Could not republish story");
+    } finally {
+      setWorkingId("");
+    }
+  };
+
+  const reviewCount = articles.filter((article) => article.status === "DRAFT" || article.status === "REVIEW").length;
   const revisionCount = articles.filter((article) => article.status === "REVISION").length;
+  const expiredCount = articles.filter((article) => article.status === "ARCHIVED").length;
   const initials = current?.user.name
     .split(" ")
     .map((part) => part[0])
@@ -174,7 +190,7 @@ export default function EditorialDashboard() {
           <div className="stat"><div><small>Editorial queue / 待審核</small><strong>{articles.length}</strong><span>Requires verification</span></div><FileCheck2 /></div>
           <div className="stat"><div><small>Ready for review / 可供審閱</small><strong>{reviewCount}</strong><span>Draft or in review</span></div><CheckCircle2 /></div>
           <div className="stat"><div><small>Revisions / 修改中</small><strong>{revisionCount}</strong><span>Returned to author</span></div><RefreshCw /></div>
-          <div className="stat"><div><small>Verification role / 審核角色</small><strong>{isAdmin ? "Admin" : "Editor"}</strong><span>Publishing access</span></div><Users /></div>
+          <div className="stat"><div><small>Expired / 已到期</small><strong>{expiredCount}</strong><span>Available to republish</span></div><RefreshCw /></div>
         </div>
         <div className="panel">
           <div className="panelHead">
@@ -191,12 +207,14 @@ export default function EditorialDashboard() {
               return (
               <div className="row" key={article.id}>
                 <div className="story"><div className={`mini ${thumbnail ? "hasImage" : ""}`} style={thumbnail ? { backgroundImage: `url(${thumbnail})` } : undefined} /><span><b>{article.title}</b><small>{article.author.name} · {article.category.name}</small></span></div>
-                <span className={`status ${article.status.toLowerCase()}`}>{article.status.replace("_", " ")}</span>
+                <span className={`status ${article.status.toLowerCase()}`}>{article.status === "ARCHIVED" ? "EXPIRED" : article.status.replace("_", " ")}</span>
                 <span className="time">{new Date(article.updatedAt).toLocaleDateString()}</span>
                 <div className="rowActions">
                   <button className="editorialPreviewButton" type="button" title="Preview story / 預覽新聞" aria-label={`Preview ${article.title}`} onClick={() => setPreviewArticle(article)}><Eye /></button>
-                  <button disabled={workingId === article.id} title="Verify and publish / 審核並發布" onClick={() => verify(article, "PUBLISHED")}><CheckCircle2 /></button>
-                  <button disabled={workingId === article.id || article.status === "REVISION"} title="Request revision / 要求修改" onClick={() => verify(article, "REVISION")}><XCircle /></button>
+                  {article.status === "ARCHIVED" ? <button className="editorialRepublishButton" disabled={workingId === article.id} title="Republish for 7 days / 重新發布七天" onClick={() => republish(article)}><RefreshCw /></button> : <>
+                    <button disabled={workingId === article.id} title="Verify and publish / 審核並發布" onClick={() => verify(article, "PUBLISHED")}><CheckCircle2 /></button>
+                    <button disabled={workingId === article.id || article.status === "REVISION"} title="Request revision / 要求修改" onClick={() => verify(article, "REVISION")}><XCircle /></button>
+                  </>}
                 </div>
               </div>
             )})}

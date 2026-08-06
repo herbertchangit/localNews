@@ -14,6 +14,7 @@ export const normalizeLegacyRole = (role: string) =>
 
 const normalize = () => {
   for (const select of document.querySelectorAll<HTMLSelectElement>("label select")) {
+    if (select.dataset.roleOptionsIgnore === "true") continue;
     if (![...select.options].some((option) => knownRoles.has(option.value))) continue;
     if (!select.dataset.roleListener) {
       select.addEventListener("change", () => {
