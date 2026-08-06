@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, CheckCircle2 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
 
@@ -26,7 +26,11 @@ const AREAS = [
 
 export default function PublicRegistration() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [form, setForm] = useState<Form | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [done, setDone] = useState(false), [busy, setBusy] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const [passwordChangeToken, setPasswordChangeToken] = useState(""), [showPassword, setShowPassword] = useState(false);
+  const [passwords, setPasswords] = useState({ newPassword: "", confirmPassword: "" });
   const [values, setValues] = useState({ registrantName: "", identity: "NON_VOLUNTEER", contact: "", area: "", otherArea: "" });
   const [attendance, setAttendance] = useState<Record<string, Attendance>>({});
 
@@ -59,6 +63,11 @@ export default function PublicRegistration() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not submit registration");
       setDone(true);
+      setAccountCreated(Boolean(result.accountCreated));
+      if (result.accountCreated && result.passwordChangeToken) {
+        setPasswordChangeToken(result.passwordChangeToken);
+        window.setTimeout(() => setShowPassword(true), 180000);
+      }
     } catch (reason: any) {
       setError(reason.message);
     } finally {
@@ -66,11 +75,25 @@ export default function PublicRegistration() {
     }
   };
 
+  const savePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/auth/change-default-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passwordChangeToken, ...passwords }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not create password");
+      localStorage.setItem("ln_session", JSON.stringify(result));
+      navigate("/newsroom/appointments", { replace: true });
+    } catch (reason: any) { setError(reason.message); }
+    finally { setBusy(false); }
+  };
+
   return <div className="publicRegistrationPage">
     <PublicHeader hideLoginWhenSignedOut />
     {loading && <main className="publicRegistrationCard">Loading registration form… / 正在载入登记表格…</main>}
     {!loading && error && !form && <main className="publicRegistrationCard"><h1>Registration unavailable / 登记表格暂不可用</h1><p>{error}</p><Link to="/">Return to Local News / 返回本地新闻</Link></main>}
-    {form && done && <main className="publicRegistrationCard registrationThanks"><CheckCircle2 /><small>PRE-REGISTRATION RECEIVED / 已收到预登记</small><h1>Thank you / 谢谢您，{values.registrantName}.</h1><p>Your registration for / 您的登记已记录：<b>{form.eventName}</b></p><Link to="/">Return to Local News / 返回本地新闻</Link></main>}
+    {form && done && !showPassword && <main className="publicRegistrationCard registrationThanks"><CheckCircle2 /><small>PRE-REGISTRATION RECEIVED / 已收到预登记</small><h1>Thank you / 谢谢您，{values.registrantName}.</h1><p>Your registration for / 您的登记已记录：<b>{form.eventName}</b></p>{accountCreated?<><p>A new DADE account has been created. Create your password to view the registered event date in Your Appointments.<br/>已为您建立慈济人账户。请设置新密码，然后在“您的预约”查看登记日期。</p><p className="registrationRedirectNotice">Password setup will open in 3 minutes, or continue when you are ready.<br/>密码设置将在三分钟后打开，您也可以准备好后立即继续。</p><button className="publicRegistrationSubmit registrationContinueButton" type="button" onClick={()=>setShowPassword(true)}>Create password now / 立即设置密码</button></>:<p>Sign in with your contact number to view the registered event date in Your Appointments.<br/>请使用联络号码登录，并在“您的预约”查看登记日期。</p>}{!accountCreated&&<Link to="/login" state={{from:"/newsroom/appointments"}}>Sign in / 登录</Link>}</main>}
+    {form && done && showPassword && <main className="publicRegistrationCard registrationPasswordCard"><small>CREATE YOUR PASSWORD / 设置新密码</small><h1>Activate your DADE account / 启用您的慈济人账户</h1><p>After saving, Your Appointments will open automatically.<br/>保存后将自动打开“您的预约”。</p>{error&&<div className="registrationError">{error}</div>}<form onSubmit={savePassword}><label>New password / 新密码<input autoFocus required minLength={8} maxLength={72} type="password" value={passwords.newPassword} onChange={event=>setPasswords({...passwords,newPassword:event.target.value})}/></label><label>Confirm password / 确认密码<input required minLength={8} maxLength={72} type="password" value={passwords.confirmPassword} onChange={event=>setPasswords({...passwords,confirmPassword:event.target.value})}/></label><button className="publicRegistrationSubmit" disabled={busy}>{busy?"Saving… / 正在保存…":"Save password and view appointments / 保存并查看预约"}</button></form></main>}
     {form && !done && <main className="publicRegistrationCard">
       {form.photoUrl && <img className="publicRegistrationPhoto" src={form.photoUrl} alt={`${form.eventName} event`} />}
       <small>EVENT PRE-REGISTRATION FORM / 活动预登记表格</small>

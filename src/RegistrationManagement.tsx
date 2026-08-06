@@ -88,7 +88,14 @@ export default function RegistrationManagement() {
   };
   const copyLink = async (form: RegistrationForm) => { const url = `${window.location.origin}/registration/${form.slug}`; try { await navigator.clipboard.writeText(url); flash("Share link copied"); } catch { window.prompt("Copy this registration link", url); } };
   const initials = current?.user?.name?.split(" ").map((part: string) => part[0]).slice(0, 2).join("") || "LN";
-  const registeredPersons = detail?.submissions.filter((submission) => !submission.unregisteredAt).reduce((total, submission) => total + submission.attendances.reduce((sum, attendance) => sum + Number(attendance.totalPersons || 0), 0), 0) || 0;
+  const activeSubmissions = detail?.submissions.filter((submission) => !submission.unregisteredAt) || [];
+  const registeredPersons = activeSubmissions.reduce((total, submission) => total + submission.attendances.reduce((sum, attendance) => sum + Number(attendance.totalPersons || 0), 0), 0);
+  const eventDateSummaries = detail?.eventDates.map((eventDate) => activeSubmissions.reduce((summary, submission) => {
+    const attendance = submission.attendances.find((item) => item.eventDate.id === eventDate.id);
+    if (!attendance) return summary;
+    const persons = Number(attendance.totalPersons || 0);
+    return { ...summary, registered: summary.registered + persons, meals: summary.meals + (attendance.meal ? persons : 0) };
+  }, { eventDate, registered: 0, meals: 0 })) || [];
   return <div className="dash registrationAdmin">
     <aside><Link to="/" className="brand light"><span>LN</span><div>LOCAL NEWS<small>NEWSROOM OS</small></div></Link><div className="workspace"><small>WORKSPACE</small><b>{current?.user?.name}</b></div><button onClick={() => nav("/newsroom")}><LayoutDashboard />Overview</button><button><FileText />Stories</button><button><Users />People</button><button className="active"><ClipboardList />Registration</button><button><Settings />Settings</button><div className="profile"><div>{initials}</div><span><b>{current?.user?.name}</b><small>{current?.user?.role}</small></span></div></aside>
     <section className="content registrationContent"><div className="top"><div><small>ADMINISTRATION / REGISTRATION · 管理 / 登记</small><h1>Registration forms / 登记表格</h1><p>Create event forms, share public links and review pre-registrations. / 建立活动表格、分享公开链接并查看预登记。</p></div><button className="new" onClick={() => open()}><Plus />New form / 新建表格</button></div>
@@ -110,14 +117,17 @@ export default function RegistrationManagement() {
     </form></div>}
     {detail && <div className="modalBackdrop" onMouseDown={() => setDetail(null)}>
       <section className="registrationResponses" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="responseTotal"><span>Total persons registered / 已登记总人数</span><strong>{registeredPersons}</strong></div>
         <div className="modalHead"><div><small>REGISTRATIONS / 登记名单</small><h2>{detail.eventName}</h2></div><button onClick={() => setDetail(null)}><X /></button></div>
+        <div className="responseTotal"><span>Total persons registered / 已登记总人数</span><strong>{registeredPersons}</strong></div>
+        <section className="responseDateSummaries" aria-label="Registration summary by event date">
+          {eventDateSummaries.map((summary) => <article key={summary.eventDate.id}><strong>{new Date(summary.eventDate.eventDate).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" })}</strong><div><span>Total Registered / 登记总人数<b>{summary.registered}</b></span><span>Total require Meal / 需要用餐总人数<b>{summary.meals}</b></span></div></article>)}
+        </section>
         {!detail.submissions.length && <div className="registrationEmpty">No pre-registrations received yet. / 暂无预登记。</div>}
         <div className="responseList">{detail.submissions.map((submission) => <article className={submission.unregisteredAt ? "unregistered" : ""} key={submission.id}>
           <header><div><b>{submission.registrantName}</b><small>{submission.identity === "VOLUNTEER" ? "Volunteer / 志工" : "Non-Volunteer / 非志工"} · {submission.origin}</small></div><div className="responseRegistrationStatus"><span>{submission.unregisteredAt ? "Un-registered / 已取消登记" : "Registered / 已登记"}</span><time>{new Date(submission.createdAt).toLocaleString()}</time></div></header>
           <p>{submission.contact}</p>
           <div className="responseAttendances">{submission.attendances.map((attendance) => <div key={attendance.id}><strong>{new Date(attendance.eventDate.eventDate).toLocaleDateString()}</strong><label>Persons / 人数<input disabled={Boolean(submission.unregisteredAt)} type="number" min={1} max={999} value={attendance.totalPersons} onChange={(event) => editAttendance(submission.id, attendance.id, { totalPersons: Number(event.target.value) })} /></label><label>Meal / 用餐<select disabled={Boolean(submission.unregisteredAt)} value={attendance.meal ? "yes" : "no"} onChange={(event) => editAttendance(submission.id, attendance.id, { meal: event.target.value === "yes" })}><option value="no">No / 否</option><option value="yes">Yes / 是</option></select></label></div>)}</div>
-          {submission.unregisteredAt ? <small className="unregisteredDate">Un-registered {new Date(submission.unregisteredAt).toLocaleString()}</small> : <footer className="responseActions"><button type="button" onClick={() => updateSubmission(submission)}>Save changes / 保存更改</button><button type="button" className="danger" onClick={() => unregister(submission)}><Trash2 />Un-register / 取消登记</button></footer>}
+          {submission.unregisteredAt ? <small className="unregisteredDate">Un-registered {new Date(submission.unregisteredAt).toLocaleString()}</small> : <div className="responseActions"><button type="button" onClick={() => updateSubmission(submission)}>Save changes / 保存更改</button><button type="button" className="danger" onClick={() => unregister(submission)}><Trash2 />Un-register / 取消登记</button></div>}
         </article>)}</div>
       </section>
     </div>}

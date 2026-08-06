@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { HealthAppointmentStatus, PrismaClient, Role } from "@prisma/client";
 import { z } from "zod";
+import { isContactMatch } from "./loginIdentifier.js";
 
 const eventSelect = {
   doctors: { include: { doctor: { include: { user: { select: { id: true, name: true, email: true } } } } } },
@@ -487,15 +488,36 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       const user = jwt.verify(token, secret) as { id: string; role: Role };
-      res.json(await db.healthAppointment.findMany({
-        where: { patientId: user.id },
-        include: {
-          doctor: { include: { user: { select: { name: true, email: true, phone: true, avatarUrl: true } } } },
-          event: { select: { id: true, name: true, eventDate: true, location: true, address: true } },
-          slot: { select: { id: true, startTime: true, endTime: true } },
-        },
-        orderBy: [{ event: { eventDate: "desc" } }, { startTime: "asc" }],
-      }));
+      const [account, healthAppointments, registrationSubmissions] = await Promise.all([
+        db.user.findUnique({ where: { id: user.id }, select: { phone: true } }),
+        db.healthAppointment.findMany({
+          where: { patientId: user.id },
+          include: {
+            doctor: { include: { user: { select: { name: true, email: true, phone: true, avatarUrl: true } } } },
+            event: { select: { id: true, name: true, eventDate: true, location: true, address: true } },
+            slot: { select: { id: true, startTime: true, endTime: true } },
+          },
+          orderBy: [{ event: { eventDate: "desc" } }, { startTime: "asc" }],
+        }),
+        db.registrationSubmission.findMany({
+          where: { unregisteredAt: null },
+          include: { form: true, attendances: { include: { eventDate: true } } },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+      const registrationAppointments = account?.phone ? registrationSubmissions
+        .filter((submission) => isContactMatch(account.phone!, submission.contact))
+        .flatMap((submission) => submission.attendances.map((attendance) => ({
+          id: `registration-${attendance.id}`,
+          startTime: "Pre-registration",
+          endTime: "Confirmed",
+          status: "REGISTERED",
+          reason: `Total persons: ${attendance.totalPersons} · Meal: ${attendance.meal ? "Yes" : "No"}`,
+          createdAt: submission.createdAt,
+          event: { id: submission.form.id, name: submission.form.eventName, eventDate: attendance.eventDate.eventDate, location: submission.origin, address: "Event pre-registration" },
+          doctor: { specialization: "Registered event date", qualification: "Local News Registration", experienceYears: 0, bio: submission.form.description, profileImage: submission.form.photoUrl, consultationFee: 0, user: { name: "Event Registration", email: "", phone: null, avatarUrl: null } },
+        }))) : [];
+      res.json([...healthAppointments, ...registrationAppointments].sort((left, right) => new Date(right.event.eventDate).getTime() - new Date(left.event.eventDate).getTime()));
     } catch {
       res.status(401).json({ error: "Invalid token" });
     }
