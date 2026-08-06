@@ -1,10 +1,13 @@
 // @ts-nocheck
 import express from "express";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { DEFAULT_PASSWORD } from "./passwordPolicy.js";
+import { isContactMatch, loginEmailForContact } from "./loginIdentifier.js";
 
 const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
@@ -85,6 +88,33 @@ export function createRegistrationRouter(db: any, secret: string) {
   };
 
   router.get("/capability", authenticate, (req: any, res) => res.json({ canManage: canManage(req) }));
+  router.get("/mine", authenticate, async (req: any, res) => {
+    const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
+    if (!account?.phone) return res.json([]);
+    const submissions = await db.registrationSubmission.findMany({
+      where: { unregisteredAt: null },
+      include: {
+        form: { select: { id: true, eventName: true, description: true, photoUrl: true } },
+        attendances: { include: { eventDate: true }, orderBy: { eventDate: { eventDate: "asc" } } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(submissions
+      .filter((submission: any) => isContactMatch(account.phone, submission.contact))
+      .flatMap((submission: any) => submission.attendances.map((attendance: any) => ({
+        id: attendance.id,
+        submissionId: submission.id,
+        eventName: submission.form.eventName,
+        description: submission.form.description,
+        photoUrl: submission.form.photoUrl,
+        eventDate: attendance.eventDate.eventDate,
+        totalPersons: attendance.totalPersons,
+        meal: attendance.meal,
+        origin: submission.origin,
+        status: "REGISTERED",
+        createdAt: submission.createdAt,
+      }))));
+  });
   router.get("/admin/forms", authenticate, manage, async (_req, res) => {
     res.json(await db.registrationForm.findMany({ include, orderBy: { updatedAt: "desc" } }));
   });
@@ -191,9 +221,38 @@ export function createRegistrationRouter(db: any, secret: string) {
     if (!form) return res.status(404).json({ error: "This registration form is unavailable" });
     const allowed = new Set(form.eventDates.map((item: any) => item.id));
     if (data.attendances.some((item) => !allowed.has(item.eventDateId))) return res.status(400).json({ error: "One or more selected dates are invalid" });
+    const generatedEmail = loginEmailForContact(data.contact);
+    if (!generatedEmail) return res.status(400).json({ error: "Enter a valid contact number with at least 7 digits" });
+    const contactUsers = await db.user.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true, name: true } });
+    const matches = contactUsers.filter((user: any) => isContactMatch(data.contact, user.phone));
+    if (matches.length > 1) return res.status(409).json({ error: "This contact number belongs to multiple accounts. Please contact an administrator." });
+    let account = matches[0] || await db.user.findUnique({ where: { email: generatedEmail }, select: { id: true, phone: true, name: true } });
+    let accountCreated = false;
+    if (!account) {
+      account = await db.user.create({
+        data: {
+          name: data.registrantName,
+          email: generatedEmail,
+          phone: data.contact,
+          stayArea: data.origin,
+          password: await bcrypt.hash(DEFAULT_PASSWORD, 12),
+          role: Role.DADE,
+        },
+        select: { id: true, phone: true, name: true },
+      });
+      accountCreated = true;
+    } else if (!account.phone) {
+      account = await db.user.update({ where: { id: account.id }, data: { phone: data.contact }, select: { id: true, phone: true, name: true } });
+    }
     const submission = await db.registrationSubmission.create({ data: { formId: form.id, registrantName: data.registrantName, identity: data.identity, contact: data.contact, origin: data.origin, attendances: { create: data.attendances } }, select: { id: true, createdAt: true } });
-    await db.auditLog.create({ data: { action: "REGISTRATION_SUBMITTED", metadata: { formId: form.id, submissionId: submission.id } } });
-    res.status(201).json({ id: submission.id, submittedAt: submission.createdAt });
+    await db.auditLog.create({ data: { action: "REGISTRATION_SUBMITTED", actorId: account.id, metadata: { formId: form.id, submissionId: submission.id, accountCreated } } });
+    res.status(201).json({
+      id: submission.id,
+      submittedAt: submission.createdAt,
+      accountCreated,
+      accountName: account.name,
+      passwordChangeToken: accountCreated ? jwt.sign({ id: account.id, scope: "password-change" }, secret, { expiresIn: "15m" }) : undefined,
+    });
   });
   return router;
 }

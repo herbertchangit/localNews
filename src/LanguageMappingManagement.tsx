@@ -10,6 +10,7 @@ import {
   Network,
   Plus,
   Quote,
+  RefreshCw,
   RotateCcw,
   Search,
   Settings,
@@ -30,6 +31,7 @@ export default function LanguageMappingManagement() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [adding, setAdding] = useState<TranslationMapping | null>(null);
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${session()?.token}` };
   const api = async (url: string, options: RequestInit = {}) => {
@@ -59,6 +61,17 @@ export default function LanguageMappingManagement() {
   const flash = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3500);
+  };
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const items = await api("/api/admin/translations");
+      setOverrides(items);
+      setDrafts({});
+      window.dispatchEvent(new Event("localnews:translations-updated"));
+      flash("Language mappings refreshed with the latest translations");
+    } catch (error: any) { flash(error.message); }
+    finally { setRefreshing(false); }
   };
   const save = async (mapping: TranslationMapping) => {
     setSaving(mapping.source);
@@ -106,7 +119,7 @@ export default function LanguageMappingManagement() {
     <button className="settingsSubnavButton active"><Languages />Language Mapping</button>
     <div className="profile sidebarProfileLast"><div>{initials}</div><span><b>{session()?.user?.name || "Administrator"}</b><small>Administrator</small></span></div>
   </aside><section className="content languageMappingPage">
-    <div className="top"><div><small>SETTINGS / LANGUAGE MAPPING</small><h1>Language Mapping</h1><p>Modify the simplified and traditional Chinese labels used across every page.</p></div><button className="new" onClick={() => setAdding({ source: "", zhCn: "", zhTw: "" })}><Plus />Add Mapping</button></div>
+    <div className="top"><div><small>SETTINGS / LANGUAGE MAPPING</small><h1>Language Mapping</h1><p>Modify the simplified and traditional Chinese labels used across every page.</p></div><button className="new" disabled={refreshing} onClick={refresh}><RefreshCw className={refreshing ? "spinning" : ""} />{refreshing ? "Refreshing…" : "Refresh"}</button><button className="new" onClick={() => setAdding({ source: "", zhCn: "", zhTw: "" })}><Plus />Add Mapping</button></div>
     {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}><X /></button></div>}
     <div className="languageMappingSummary"><div><Languages /><span><b>{DEFAULT_TRANSLATION_MAPPINGS.length}</b><small>Built-in mappings</small></span></div><div><Check /><span><b>{overrides.length}</b><small>Admin overrides</small></span></div></div>
     <div className="panel languageMappingPanel">

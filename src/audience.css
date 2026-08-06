@@ -26,3 +26,4 @@
   .readerDashboardShell .audienceDash>.content{padding-top:24px}
 }
 .audienceDash .audienceTop{display:none}
+@media(max-width:850px){.audienceDash:has(>.audienceSettings){display:block}.audienceDash:has(>.audienceSettings)>aside{display:none}.audienceDash:has(>.audienceSettings)>aside.sessionMobileSidebarOpen{display:flex}}
