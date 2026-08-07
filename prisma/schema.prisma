@@ -72,6 +72,7 @@ model User {
   doctorProfile            DoctorProfile?
   createdHealthEvents      HealthEvent[]       @relation("HealthEventCreator")
   createdRegistrationForms RegistrationForm[]  @relation("RegistrationFormCreator")
+  viewableRegistrationForms RegistrationForm[]  @relation("RegistrationFormViewers")
   patientAppointments      HealthAppointment[] @relation("PatientAppointments")
   passkeys                 PasskeyCredential[]
   passkeyChallenges        WebAuthnChallenge[]
@@ -88,6 +89,7 @@ model RegistrationForm {
   active      Boolean                  @default(true)
   creatorId   String
   creator     User                     @relation("RegistrationFormCreator", fields: [creatorId], references: [id])
+  viewers     User[]                   @relation("RegistrationFormViewers")
   eventDates  RegistrationEventDate[]
   submissions RegistrationSubmission[]
   createdAt   DateTime                 @default(now())

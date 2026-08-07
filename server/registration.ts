@@ -19,6 +19,7 @@ const formInput = z.object({
   description: z.string().trim().min(2).max(5000),
   active: z.boolean().optional().default(true),
   eventDates: z.array(dateValue).min(1).max(60).transform((dates) => [...new Set(dates)]),
+  viewerIds: z.array(z.string().min(1)).max(500).optional().default([]).transform((ids) => [...new Set(ids)]),
 });
 const submissionInput = z.object({
   registrantName: z.string().trim().min(2).max(120),
@@ -82,6 +83,7 @@ export function createRegistrationRouter(db: any, secret: string) {
   const manage = (req: any, res: any, next: any) => canManage(req) ? next() : res.status(403).json({ error: "Registration management permission required" });
   const include = {
     creator: { select: { id: true, name: true } },
+    viewers: { select: { id: true, name: true, email: true }, orderBy: { name: "asc" } },
     eventDates: { orderBy: { eventDate: "asc" } },
     _count: { select: { submissions: { where: { unregisteredAt: null } } } },
   };
@@ -92,7 +94,10 @@ export function createRegistrationRouter(db: any, secret: string) {
     return slug;
   };
 
-  router.get("/capability", authenticate, (req: any, res) => res.json({ canManage: canManage(req) }));
+  router.get("/capability", authenticate, async (req: any, res) => {
+    const assignedCount = canManage(req) ? 0 : await db.registrationForm.count({ where: { viewers: { some: { id: req.user.id } } } });
+    res.json({ canManage: canManage(req), canAccess: canManage(req) || assignedCount > 0, assignedCount });
+  });
   router.get("/mine", authenticate, async (req: any, res) => {
     const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
     if (!account?.phone) return res.json([]);
@@ -151,8 +156,12 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.auditLog.create({ data: { action: "REGISTRATION_ATTENDANCE_UNREGISTERED", actorId: req.user.id, metadata: { formId: attendance.submission.formId, submissionId: attendance.submission.id, attendanceId: attendance.id } } });
     res.status(204).end();
   });
-  router.get("/admin/forms", authenticate, manage, async (_req, res) => {
-    res.json(await db.registrationForm.findMany({ include, orderBy: { updatedAt: "desc" } }));
+  router.get("/admin/viewer-options", authenticate, manage, async (_req, res) => {
+    res.json(await db.user.findMany({ where: { locked: false, suspended: false }, select: { id: true, name: true, email: true, role: true }, orderBy: { name: "asc" } }));
+  });
+  router.get("/admin/forms", authenticate, async (req: any, res) => {
+    const where = canManage(req) ? {} : { viewers: { some: { id: req.user.id } } };
+    res.json(await db.registrationForm.findMany({ where, include, orderBy: { updatedAt: "desc" } }));
   });
   router.post("/admin/forms", authenticate, manage, async (req: any, res) => {
     const data = formInput.parse(req.body);
@@ -163,6 +172,7 @@ export function createRegistrationRouter(db: any, secret: string) {
         active: data.active,
         slug: await availableSlug(data.eventName),
         creatorId: req.user.id,
+        viewers: { connect: data.viewerIds.map((id) => ({ id })) },
         eventDates: { create: data.eventDates.map((eventDate) => ({ eventDate: dateAtUtcMidnight(eventDate) })) },
       },
       include,
@@ -181,7 +191,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.$transaction([
       db.registrationEventDate.deleteMany({ where: { formId: current.id, eventDate: { notIn: data.eventDates.map(dateAtUtcMidnight) } } }),
       db.registrationEventDate.createMany({ data: data.eventDates.filter((date) => !existing.has(date)).map((eventDate) => ({ formId: current.id, eventDate: dateAtUtcMidnight(eventDate) })) }),
-      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active } }),
+      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, viewers: { set: data.viewerIds.map((id) => ({ id })) } } }),
     ]);
     const form = await db.registrationForm.findUnique({ where: { id: current.id }, include });
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
@@ -218,7 +228,9 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_DELETED", actorId: req.user.id, metadata: { formId: current.id, eventName: current.eventName } } });
     res.status(204).end();
   });
-  router.get("/admin/forms/:id/submissions", authenticate, manage, async (req, res) => {
+  router.get("/admin/forms/:id/submissions", authenticate, async (req: any, res) => {
+    const allowed = canManage(req) || Boolean(await db.registrationForm.findFirst({ where: { id: req.params.id, viewers: { some: { id: req.user.id } } }, select: { id: true } }));
+    if (!allowed) return res.status(403).json({ error: "This registration form is not assigned to you" });
     const form = await db.registrationForm.findUnique({
       where: { id: req.params.id },
       include: {

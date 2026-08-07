@@ -5,6 +5,7 @@ import {
   CalendarCheck2,
   CalendarHeart,
   CalendarX2,
+  ClipboardList,
   Clock,
   Eye,
   LayoutDashboard,
@@ -106,6 +107,7 @@ export function AudienceSidebar({
   const isDoctor = u?.role === "DOCTOR";
   const [appointmentCount, setAppointmentCount] = useState(0);
   const [account, setAccount] = useState<SidebarAccount | null>(null);
+  const [canAccessRegistrations, setCanAccessRegistrations] = useState(false);
   const [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(
     null,
   );
@@ -126,6 +128,17 @@ export function AudienceSidebar({
       .then((response) => (response.ok ? response.json() : null))
       .then(setAccount)
       .catch(() => setAccount(null));
+  }, [u?.id]);
+  useEffect(() => {
+    if (!u) return;
+    fetch("/api/registrations/capability", {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((capability) =>
+        setCanAccessRegistrations(Boolean(capability?.canAccess)),
+      )
+      .catch(() => setCanAccessRegistrations(false));
   }, [u?.id]);
   useEffect(() => {
     let clearResult = 0;
@@ -253,6 +266,16 @@ export function AudienceSidebar({
           >
             <Users />
             People
+          </Link>
+        )}
+        {canAccessRegistrations && (
+          <Link
+            className="audienceSidebarLink"
+            to="/newsroom/registrations"
+            onClick={() => setMenuOpen(false)}
+          >
+            <ClipboardList />
+            Registration
           </Link>
         )}
         <Link
