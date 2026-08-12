@@ -4,6 +4,7 @@ import { CalendarDays, ClipboardList, Copy, Eye, FileText, ImagePlus, LayoutDash
 
 type EventDate = { id: string; eventDate: string };
 type Viewer = { id: string; name: string; email: string; role?: string };
+type CustomField = { id: string; title: string; type: "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "RADIO" | "CHECKBOX"; required: boolean; options: string[] };
 type RegistrationForm = {
   id: string;
   eventName: string;
@@ -14,6 +15,7 @@ type RegistrationForm = {
   eventDates: EventDate[];
   creator: { id: string; name: string };
   viewers: Viewer[];
+  customFields: CustomField[];
   _count: { submissions: number };
 };
 type Submission = {
@@ -24,10 +26,11 @@ type Submission = {
   origin: string;
   createdAt: string;
   unregisteredAt: string | null;
+  customAnswers: Record<string, string | number | boolean | string[]>;
   attendances: { id: string; totalPersons: number; meal: boolean; eventDate: EventDate }[];
 };
 type Detail = RegistrationForm & { submissions: Submission[] };
-const empty = { eventName: "", description: "", photoUrl: null, photoDataUrl: "", removePhoto: false, active: true, eventDates: [""], viewerIds: [] as string[] };
+const empty = { eventName: "", description: "", photoUrl: null, photoDataUrl: "", removePhoto: false, active: true, eventDates: [""], viewerIds: [] as string[], customFields: [] as CustomField[] };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const day = (value: string) => value.slice(0, 10);
 
@@ -47,7 +50,9 @@ export default function RegistrationManagement() {
   const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(""), 3500); };
   const load = async () => { try { const capability = await api("/api/registrations/capability"); setCanManage(capability.canManage); const assignedForms = await api("/api/registrations/admin/forms"); setForms(assignedForms); if (capability.canManage) setViewerOptions(await api("/api/registrations/admin/viewer-options")); } catch (error: any) { flash(error.message); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
-  const open = (form?: RegistrationForm) => { if (!canManage) return; setViewerQuery(""); setEditor(form ? { ...form, viewerIds: form.viewers.map((viewer) => viewer.id), photoDataUrl: "", removePhoto: false, eventDates: form.eventDates.map((item) => day(item.eventDate)) } : { ...empty, eventDates: [...empty.eventDates], viewerIds: [] }); };
+  const open = (form?: RegistrationForm) => { if (!canManage) return; setViewerQuery(""); setEditor(form ? { ...form, customFields: Array.isArray(form.customFields) ? form.customFields : [], viewerIds: form.viewers.map((viewer) => viewer.id), photoDataUrl: "", removePhoto: false, eventDates: form.eventDates.map((item) => day(item.eventDate)) } : { ...empty, eventDates: [...empty.eventDates], viewerIds: [], customFields: [] }); };
+  const addCustomField = () => setEditor((current: any) => ({ ...current, customFields: [...current.customFields, { id: `field-${crypto.randomUUID()}`, title: "", type: "TEXT", required: false, options: [] }] }));
+  const updateCustomField = (id: string, changes: Partial<CustomField>) => setEditor((current: any) => ({ ...current, customFields: current.customFields.map((field: CustomField) => field.id === id ? { ...field, ...changes } : field) }));
   const selectPhoto = (file?: File) => {
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return flash("Use a PNG, JPEG, or WebP photo");
@@ -60,7 +65,7 @@ export default function RegistrationManagement() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      const editing = Boolean(editor.id), body = { eventName: editor.eventName, description: editor.description, active: editor.active, eventDates: editor.eventDates.filter(Boolean), viewerIds: editor.viewerIds };
+      const editing = Boolean(editor.id), body = { eventName: editor.eventName, description: editor.description, active: editor.active, eventDates: editor.eventDates.filter(Boolean), viewerIds: editor.viewerIds, customFields: editor.customFields };
       let saved = await api(`/api/registrations/admin/forms${editing ? `/${editor.id}` : ""}`, { method: editing ? "PATCH" : "POST", body: JSON.stringify(body) });
       if (editor.photoDataUrl) saved = await api(`/api/registrations/admin/forms/${saved.id}/photo`, { method: "POST", body: JSON.stringify({ dataUrl: editor.photoDataUrl }) });
       else if (editor.removePhoto && saved.photoUrl) saved = await api(`/api/registrations/admin/forms/${saved.id}/photo`, { method: "DELETE" });
@@ -118,6 +123,7 @@ export default function RegistrationManagement() {
       <label>Event name<input required minLength={2} maxLength={160} value={editor.eventName} onChange={(event) => setEditor({ ...editor, eventName: event.target.value })} /></label>
       <label>Description<textarea required minLength={2} maxLength={5000} rows={5} value={editor.description} onChange={(event) => setEditor({ ...editor, description: event.target.value })} /></label>
       <fieldset><legend>Event dates</legend>{editor.eventDates.map((value: string, index: number) => <div className="registrationDateInput" key={index}><input type="date" required value={value} onChange={(event) => setEditor({ ...editor, eventDates: editor.eventDates.map((item: string, itemIndex: number) => itemIndex === index ? event.target.value : item) })} /><button type="button" disabled={editor.eventDates.length === 1} onClick={() => setEditor({ ...editor, eventDates: editor.eventDates.filter((_: string, itemIndex: number) => itemIndex !== index) })}><Trash2 /></button></div>)}<button className="addDate" type="button" onClick={() => setEditor({ ...editor, eventDates: [...editor.eventDates, ""] })}><Plus />Add another date</button></fieldset>
+      <fieldset className="registrationCustomFields"><legend>Additional form fields</legend><p>Add questions for different event types, similar to Google Forms.</p>{editor.customFields.map((field: CustomField, index: number) => <section key={field.id}><b>Field {index + 1}</b><label>Title<input required maxLength={160} value={field.title} onChange={(event) => updateCustomField(field.id, { title: event.target.value })} placeholder="Question or field title" /></label><label>Type<select value={field.type} onChange={(event) => updateCustomField(field.id, { type: event.target.value as CustomField["type"], options: ["SELECT", "RADIO", "CHECKBOX"].includes(event.target.value) ? field.options : [] })}><option value="TEXT">Short text</option><option value="TEXTAREA">Paragraph</option><option value="NUMBER">Number</option><option value="DATE">Date</option><option value="SELECT">Dropdown</option><option value="RADIO">Multiple choice</option><option value="CHECKBOX">Checkboxes</option></select></label>{["SELECT", "RADIO", "CHECKBOX"].includes(field.type) && <label className="registrationFieldOptions">Options<textarea required rows={3} value={field.options.join("\n")} onChange={(event) => updateCustomField(field.id, { options: event.target.value.split("\n").map((item) => item.trim()).filter(Boolean) })} placeholder={"One option per line\nOption 1\nOption 2"} /></label>}<label className="registrationFieldRequired"><input type="checkbox" checked={field.required} onChange={(event) => updateCustomField(field.id, { required: event.target.checked })} />Required</label><button type="button" className="danger" onClick={() => setEditor({ ...editor, customFields: editor.customFields.filter((item: CustomField) => item.id !== field.id) })}><Trash2 />Remove</button></section>)}<button className="addDate" type="button" onClick={addCustomField}><Plus />Add field</button></fieldset>
       <label className="registrationSwitch"><input type="checkbox" checked={editor.active} onChange={(event) => setEditor({ ...editor, active: event.target.checked })} /><span />Public form is open</label>
       <fieldset className="registrationViewerAssignment"><legend>View-only users</legend><p>Assigned users can only view registrations for this form.</p><label className="registrationViewerSearch"><Search /><input type="search" value={viewerQuery} onChange={(event) => setViewerQuery(event.target.value)} placeholder="Search by name, email or role" aria-label="Search view-only users" /></label><div>{filteredViewerOptions.map((viewer) => <label key={viewer.id}><input type="checkbox" checked={editor.viewerIds.includes(viewer.id)} onChange={(event) => setEditor({ ...editor, viewerIds: event.target.checked ? [...editor.viewerIds, viewer.id] : editor.viewerIds.filter((id: string) => id !== viewer.id) })} /><span><b>{viewer.name}</b><small>{viewer.email} · {viewer.role}</small></span></label>)}{!filteredViewerOptions.length && <small className="registrationViewerEmpty">No users match your search.</small>}</div></fieldset>
       <div className="modalActions"><button type="button" onClick={() => setEditor(null)}>Cancel</button><button className="new" type="submit">{editor.id ? "Save changes" : "Create form"}</button></div>
@@ -134,6 +140,7 @@ export default function RegistrationManagement() {
         <div className="responseList">{visibleSubmissions.map((submission) => <article className={submission.unregisteredAt ? "unregistered" : ""} key={submission.id}>
           <header><div><b>{submission.registrantName}</b><small>{submission.identity === "VOLUNTEER" ? "Volunteer / 志工" : "Non-Volunteer / 非志工"} · {submission.origin}</small></div><div className="responseRegistrationStatus"><span>{submission.unregisteredAt ? "Un-registered / 已取消登记" : "Registered / 已登记"}</span><time>{new Date(submission.createdAt).toLocaleString()}</time></div></header>
           <p>{submission.contact}</p>
+          {detail.customFields?.length > 0 && <dl className="registrationCustomAnswers">{detail.customFields.map((field) => <div key={field.id}><dt>{field.title}</dt><dd>{Array.isArray(submission.customAnswers?.[field.id]) ? (submission.customAnswers[field.id] as string[]).join(", ") : String(submission.customAnswers?.[field.id] ?? "—")}</dd></div>)}</dl>}
           <div className="responseAttendances">{submission.attendances.map((attendance) => <div key={attendance.id}><strong>{new Date(attendance.eventDate.eventDate).toLocaleDateString()}</strong><label>Persons / 人数<input disabled={!canManage || Boolean(submission.unregisteredAt)} type="number" min={1} max={999} value={attendance.totalPersons} onChange={(event) => editAttendance(submission.id, attendance.id, { totalPersons: Number(event.target.value) })} /></label><label>Meal / 用餐<select disabled={!canManage || Boolean(submission.unregisteredAt)} value={attendance.meal ? "yes" : "no"} onChange={(event) => editAttendance(submission.id, attendance.id, { meal: event.target.value === "yes" })}><option value="no">No / 否</option><option value="yes">Yes / 是</option></select></label></div>)}</div>
           {submission.unregisteredAt ? <small className="unregisteredDate">Un-registered {new Date(submission.unregisteredAt).toLocaleString()}</small> : canManage ? <div className="responseActions"><button type="button" onClick={() => updateSubmission(submission)}>Save changes / 保存更改</button><button type="button" className="danger" onClick={() => unregister(submission)}><Trash2 />Un-register / 取消登记</button></div> : <small className="registrationViewOnlyNote">View-only access</small>}
         </article>)}</div>

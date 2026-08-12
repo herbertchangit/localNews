@@ -43,57 +43,58 @@ enum HealthAppointmentStatus {
 }
 
 model User {
-  id                       String              @id @default(cuid())
-  email                    String              @unique
-  password                 String
-  name                     String
-  phone                    String?
-  stayArea                 String?
-  labels                   String[]            @default([])
-  organizationLevel        String?
-  avatarUrl                String?
-  role                     Role                @default(AUDIENCE)
-  locked                   Boolean             @default(false)
-  suspended                Boolean             @default(false)
-  permissions              String[]            @default([])
-  departmentId             String?
-  department               Department?         @relation(fields: [departmentId], references: [id])
-  harmonyGroupId           String?
-  harmonyGroup             HarmonyGroup?       @relation(fields: [harmonyGroupId], references: [id])
-  mutualLoveGroupId        String?
-  mutualLoveGroup          MutualLoveGroup?    @relation(fields: [mutualLoveGroupId], references: [id])
-  cooperationUnitId        String?
-  cooperationUnit          CooperationUnit?    @relation(fields: [cooperationUnitId], references: [id])
-  assignedCategories       Category[]          @relation("UserCategories")
-  articles                 Article[]
-  comments                 Comment[]
-  responses                StoryResponse[]
-  photoResponses           PhotoResponse[]
-  doctorProfile            DoctorProfile?
-  createdHealthEvents      HealthEvent[]       @relation("HealthEventCreator")
-  createdRegistrationForms RegistrationForm[]  @relation("RegistrationFormCreator")
+  id                        String              @id @default(cuid())
+  email                     String              @unique
+  password                  String
+  name                      String
+  phone                     String?
+  stayArea                  String?
+  labels                    String[]            @default([])
+  organizationLevel         String?
+  avatarUrl                 String?
+  role                      Role                @default(AUDIENCE)
+  locked                    Boolean             @default(false)
+  suspended                 Boolean             @default(false)
+  permissions               String[]            @default([])
+  departmentId              String?
+  department                Department?         @relation(fields: [departmentId], references: [id])
+  harmonyGroupId            String?
+  harmonyGroup              HarmonyGroup?       @relation(fields: [harmonyGroupId], references: [id])
+  mutualLoveGroupId         String?
+  mutualLoveGroup           MutualLoveGroup?    @relation(fields: [mutualLoveGroupId], references: [id])
+  cooperationUnitId         String?
+  cooperationUnit           CooperationUnit?    @relation(fields: [cooperationUnitId], references: [id])
+  assignedCategories        Category[]          @relation("UserCategories")
+  articles                  Article[]
+  comments                  Comment[]
+  responses                 StoryResponse[]
+  photoResponses            PhotoResponse[]
+  doctorProfile             DoctorProfile?
+  createdHealthEvents       HealthEvent[]       @relation("HealthEventCreator")
+  createdRegistrationForms  RegistrationForm[]  @relation("RegistrationFormCreator")
   viewableRegistrationForms RegistrationForm[]  @relation("RegistrationFormViewers")
-  patientAppointments      HealthAppointment[] @relation("PatientAppointments")
-  passkeys                 PasskeyCredential[]
-  passkeyChallenges        WebAuthnChallenge[]
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  patientAppointments       HealthAppointment[] @relation("PatientAppointments")
+  passkeys                  PasskeyCredential[]
+  passkeyChallenges         WebAuthnChallenge[]
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
 }
 
 model RegistrationForm {
-  id          String                   @id @default(cuid())
-  eventName   String
-  description String
-  photoUrl    String?
-  slug        String                   @unique
-  active      Boolean                  @default(true)
-  creatorId   String
-  creator     User                     @relation("RegistrationFormCreator", fields: [creatorId], references: [id])
-  viewers     User[]                   @relation("RegistrationFormViewers")
-  eventDates  RegistrationEventDate[]
-  submissions RegistrationSubmission[]
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  id           String                   @id @default(cuid())
+  eventName    String
+  description  String
+  photoUrl     String?
+  slug         String                   @unique
+  active       Boolean                  @default(true)
+  customFields Json                     @default("[]")
+  creatorId    String
+  creator      User                     @relation("RegistrationFormCreator", fields: [creatorId], references: [id])
+  viewers      User[]                   @relation("RegistrationFormViewers")
+  eventDates   RegistrationEventDate[]
+  submissions  RegistrationSubmission[]
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
 
   @@index([creatorId])
 }
@@ -118,6 +119,7 @@ model RegistrationSubmission {
   identity       String
   contact        String
   origin         String
+  customAnswers  Json                     @default("{}")
   attendances    RegistrationAttendance[]
   unregisteredAt DateTime?
   createdAt      DateTime                 @default(now())
