@@ -14,13 +14,25 @@ const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
 const photoInput = z.object({ dataUrl: z.string().max(7_500_000) });
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid event date");
+const customFieldType = z.enum(["TEXT", "TEXTAREA", "NUMBER", "DATE", "SELECT", "RADIO", "CHECKBOX"]);
+const customFieldInput = z.object({
+  id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(160),
+  type: customFieldType,
+  required: z.boolean().optional().default(false),
+  options: z.array(z.string().trim().min(1).max(120)).max(50).optional().default([]),
+}).transform((field) => ({ ...field, options: [...new Set(field.options)] }));
 const formInput = z.object({
   eventName: z.string().trim().min(2).max(160),
   description: z.string().trim().min(2).max(5000),
   active: z.boolean().optional().default(true),
   eventDates: z.array(dateValue).min(1).max(60).transform((dates) => [...new Set(dates)]),
   viewerIds: z.array(z.string().min(1)).max(500).optional().default([]).transform((ids) => [...new Set(ids)]),
+  customFields: z.array(customFieldInput).max(100).optional().default([])
+    .refine((fields) => new Set(fields.map((field) => field.id)).size === fields.length, "Custom field IDs must be unique")
+    .refine((fields) => fields.every((field) => !["SELECT", "RADIO", "CHECKBOX"].includes(field.type) || field.options.length > 0), "Choice fields require at least one option"),
 });
+const customAnswerValue = z.union([z.string().max(5000), z.number().finite(), z.boolean(), z.array(z.string().max(120)).max(50)]);
 const submissionInput = z.object({
   registrantName: z.string().trim().min(2).max(120),
   identity: z.enum(["VOLUNTEER", "NON_VOLUNTEER"]),
@@ -31,6 +43,7 @@ const submissionInput = z.object({
     totalPersons: z.coerce.number().int().min(1).max(999),
     meal: z.boolean(),
   })).min(1).max(60).refine((items) => new Set(items.map((item) => item.eventDateId)).size === items.length, "Duplicate event dates are not allowed"),
+  customAnswers: z.record(customAnswerValue).optional().default({}),
 });
 const submissionUpdateInput = z.object({
   attendances: z.array(z.object({
@@ -46,6 +59,21 @@ const attendanceUpdateInput = z.object({
 
 const dateAtUtcMidnight = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
+const validateCustomAnswers = (fields: any[], answers: Record<string, unknown>) => {
+  const allowed = new Set(fields.map((field) => field.id));
+  if (Object.keys(answers).some((id) => !allowed.has(id))) return "One or more custom answers are invalid";
+  for (const field of fields) {
+    const value = answers[field.id];
+    const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
+    if (field.required && empty) return `${field.title} is required`;
+    if (empty) continue;
+    if (field.type === "NUMBER" && typeof value !== "number") return `${field.title} must be a number`;
+    if (["SELECT", "RADIO"].includes(field.type) && (typeof value !== "string" || !field.options.includes(value))) return `${field.title} has an invalid choice`;
+    if (field.type === "CHECKBOX" && (!Array.isArray(value) || value.some((item) => !field.options.includes(item)))) return `${field.title} has an invalid choice`;
+    if (!["NUMBER", "CHECKBOX"].includes(field.type) && typeof value !== "string") return `${field.title} has an invalid value`;
+  }
+  return null;
+};
 const baseSlug = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 70) || "registration";
 const removeRegistrationPhoto = async (photoUrl?: string | null) => {
   if (!photoUrl?.startsWith("/uploads/registration-")) return;
@@ -170,6 +198,7 @@ export function createRegistrationRouter(db: any, secret: string) {
         eventName: data.eventName,
         description: data.description,
         active: data.active,
+        customFields: data.customFields,
         slug: await availableSlug(data.eventName),
         creatorId: req.user.id,
         viewers: { connect: data.viewerIds.map((id) => ({ id })) },
@@ -191,7 +220,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.$transaction([
       db.registrationEventDate.deleteMany({ where: { formId: current.id, eventDate: { notIn: data.eventDates.map(dateAtUtcMidnight) } } }),
       db.registrationEventDate.createMany({ data: data.eventDates.filter((date) => !existing.has(date)).map((eventDate) => ({ formId: current.id, eventDate: dateAtUtcMidnight(eventDate) })) }),
-      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, viewers: { set: data.viewerIds.map((id) => ({ id })) } } }),
+      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, customFields: data.customFields, viewers: { set: data.viewerIds.map((id) => ({ id })) } } }),
     ]);
     const form = await db.registrationForm.findUnique({ where: { id: current.id }, include });
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
@@ -260,13 +289,15 @@ export function createRegistrationRouter(db: any, secret: string) {
     res.json(updated);
   });
   router.get("/public/:slug", async (req, res) => {
-    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, photoUrl: true, slug: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
+    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, photoUrl: true, slug: true, customFields: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
     form ? res.json(form) : res.status(404).json({ error: "This registration form is unavailable" });
   });
   router.post("/public/:slug/submissions", async (req, res) => {
     const data = submissionInput.parse(req.body);
     const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, include: { eventDates: { select: { id: true, eventDate: true } } } });
     if (!form) return res.status(404).json({ error: "This registration form is unavailable" });
+    const customAnswerError = validateCustomAnswers(Array.isArray(form.customFields) ? form.customFields : [], data.customAnswers);
+    if (customAnswerError) return res.status(400).json({ error: customAnswerError });
     const allowed = new Set(form.eventDates.map((item: any) => item.id));
     if (data.attendances.some((item) => !allowed.has(item.eventDateId))) return res.status(400).json({ error: "One or more selected dates are invalid" });
     const generatedEmail = loginEmailForContact(data.contact);
@@ -311,7 +342,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     } else if (!account.phone) {
       account = await db.user.update({ where: { id: account.id }, data: { phone: data.contact }, select: { id: true, phone: true, name: true } });
     }
-    const submission = await db.registrationSubmission.create({ data: { formId: form.id, registrantName: data.registrantName, identity: data.identity, contact: data.contact, origin: data.origin, attendances: { create: data.attendances } }, select: { id: true, createdAt: true } });
+    const submission = await db.registrationSubmission.create({ data: { formId: form.id, registrantName: data.registrantName, identity: data.identity, contact: data.contact, origin: data.origin, customAnswers: data.customAnswers, attendances: { create: data.attendances } }, select: { id: true, createdAt: true } });
     await db.auditLog.create({ data: { action: "REGISTRATION_SUBMITTED", actorId: account.id, metadata: { formId: form.id, submissionId: submission.id, accountCreated } } });
     res.status(201).json({
       id: submission.id,

@@ -5,7 +5,8 @@ import PublicHeader from "./PublicHeader";
 import { registrationPrefill } from "./registrationPrefill";
 
 type EventDate = { id: string; eventDate: string };
-type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; eventDates: EventDate[] };
+type CustomField = { id: string; title: string; type: "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "RADIO" | "CHECKBOX"; required: boolean; options: string[] };
+type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; eventDates: EventDate[]; customFields: CustomField[] };
 type Attendance = { selected: boolean; totalPersons: number; meal: boolean };
 type AreaOption = { id: string; name: string; mutualLove: { id: string; name: string; harmony: { id: string; name: string } } };
 type Session = { token: string; user: { name?: string; role?: string } };
@@ -25,6 +26,7 @@ export default function PublicRegistration() {
   const [values, setValues] = useState({ registrantName: "", identity: "NON_VOLUNTEER", contact: "", area: "", otherArea: "" });
   const [areas, setAreas] = useState<AreaOption[]>([]);
   const [attendance, setAttendance] = useState<Record<string, Attendance>>({});
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string | number | string[]>>({});
 
   useEffect(() => {
     const session = readSession();
@@ -76,7 +78,7 @@ export default function PublicRegistration() {
       const response = await fetch(`/api/registrations/public/${encodeURIComponent(slug || "")}/submissions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrantName: values.registrantName, identity: values.identity, contact: values.contact, origin, attendances }),
+        body: JSON.stringify({ registrantName: values.registrantName, identity: values.identity, contact: values.contact, origin, attendances, customAnswers }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not submit registration");
@@ -106,6 +108,17 @@ export default function PublicRegistration() {
     finally { setBusy(false); }
   };
 
+  const renderCustomField = (field: CustomField) => {
+    const answer = customAnswers[field.id];
+    const setAnswer = (value: string | number | string[]) => setCustomAnswers((current) => ({ ...current, [field.id]: value }));
+    if (field.type === "RADIO") return <section className="publicCustomField" key={field.id}><fieldset><legend>{field.title}{field.required ? " *" : ""}</legend>{field.options.map((option) => <label key={option}><input required={field.required} type="radio" name={field.id} value={option} checked={answer === option} onChange={() => setAnswer(option)} />{option}</label>)}</fieldset></section>;
+    if (field.type === "CHECKBOX") {
+      const selected = Array.isArray(answer) ? answer : [];
+      return <section className="publicCustomField" key={field.id}><fieldset><legend>{field.title}{field.required ? " *" : ""}</legend>{field.options.map((option) => <label key={option}><input type="checkbox" checked={selected.includes(option)} onChange={(event) => setAnswer(event.target.checked ? [...selected, option] : selected.filter((item) => item !== option))} />{option}</label>)}{field.required && <input className="customCheckboxRequirement" required tabIndex={-1} aria-hidden="true" value={selected.length ? "selected" : ""} onChange={() => undefined} />}</fieldset></section>;
+    }
+    return <section className="publicCustomField" key={field.id}><label>{field.title}{field.type === "TEXT" && <input required={field.required} maxLength={5000} value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)} />}{field.type === "TEXTAREA" && <textarea required={field.required} maxLength={5000} rows={4} value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)} />}{field.type === "NUMBER" && <input required={field.required} type="number" value={answer ?? ""} onChange={(event) => setAnswer(event.target.value === "" ? "" : Number(event.target.value))} />}{field.type === "DATE" && <input required={field.required} type="date" value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)} />}{field.type === "SELECT" && <select required={field.required} value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)}><option value="">Select an option</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>}</label></section>;
+  };
+
   return <div className="publicRegistrationPage">
     <PublicHeader hideLoginWhenSignedOut />
     {loading && <main className="publicRegistrationCard">Loading registration form… / 正在载入登记表格…</main>}
@@ -124,6 +137,7 @@ export default function PublicRegistration() {
         <label>Contact / 联络号码<input required minLength={5} maxLength={80} type="tel" value={values.contact} onChange={(event) => setValues({ ...values, contact: event.target.value })} /></label>
         <label>From / 来自地区<select required value={values.area} onChange={(event) => setValues({ ...values, area: event.target.value, otherArea: event.target.value === "OTHERS" ? values.otherArea : "" })}><option value="">Select area / 选择地区</option>{values.area&&values.area!=="OTHERS"&&!areas.some(area=>area.name===values.area)&&<option value={values.area}>{values.area} (current)</option>}{areas.map((area) => <option key={area.id} value={area.name}>{area.name} : {area.mutualLove.name}</option>)}<option value="OTHERS">Others / 其他地区</option></select></label>
         {values.area === "OTHERS" && <label>Other area / 其他地区<input autoFocus required minLength={2} maxLength={160} value={values.otherArea} onChange={(event) => setValues({ ...values, otherArea: event.target.value })} /></label>}
+        {form.customFields?.map(renderCustomField)}
         <fieldset><legend>Select event date(s) / 选择活动日期</legend>{form.eventDates.map((item) => {
           const value = attendance[item.id];
           return <div className={`publicDateChoice ${value?.selected ? "selected" : ""}`} key={item.id}>
