@@ -2960,7 +2960,9 @@ app.post("/api/admin/accounts/:id/invitations", auth([Role.ADMIN]), async (q: Re
 app.post("/api/admin/accounts/:id/invitations/cancel", auth([Role.ADMIN]), async (q: Req, r) => {
   if (!(await requirePersonInScope(q, r, q.params.id))) return;
   const { formId } = z.object({ formId: z.string().min(1) }).parse(q.body);
-  await db.registrationInvitation.deleteMany({ where: { userId: q.params.id, formId, invitedById: q.user!.id } });
+  const removed = await db.registrationInvitation.deleteMany({ where: { userId: q.params.id, formId } });
+  if (!removed.count) return r.status(404).json({ error: "Invitation not found or already reverted" });
+  await db.auditLog.create({ data: { action: "REGISTRATION_INVITATION_REVERTED", actorId: q.user!.id, metadata: { userId: q.params.id, formId } } });
   r.status(204).end();
 });
 const importedAccount = z

@@ -4,8 +4,8 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 export const MENU_DEFINITIONS = [
-  { id: "overview", label: "Overview", group: "Main menu" },
-  { id: "stories", label: "Stories", group: "Main menu" },
+  { id: "overview", label: "Overview — Daily Brief", group: "Main menu" },
+  { id: "stories", label: "Stories — Story CRUD", group: "Main menu" },
   { id: "people", label: "People", group: "Main menu" },
   { id: "registrations", label: "Registration", group: "Main menu" },
   { id: "talk_with_doc", label: "Talk With Doc", group: "Talk With Doc" },
@@ -121,8 +121,9 @@ export function createRoleMenuRouter(db: PrismaClient, secret: string) {
   return router;
 }
 
-const routeMenu = (path: string) => {
+export const routeMenu = (path: string, method = "GET") => {
   if (/^\/api\/(?:admin\/)?(?:accounts|users)|^\/api\/people\//.test(path)) return "people";
+  if (method === "GET" && (/^\/api\/articles(?:\/[^/]+)?\/?$/.test(path) || /^\/api\/articles\/[^/]+\/discussion\/?$/.test(path))) return "overview";
   if (/^\/api\/(?:newsroom\/)?articles|^\/api\/editor\/articles/.test(path)) return "stories";
   if (/^\/api\/registrations/.test(path)) return "registrations";
   if (/^\/api\/admin\/health\/events/.test(path)) return "health_events";
@@ -152,7 +153,7 @@ const routeAction = (req: Request) => {
 
 export function createRoleAuthorityMiddleware(db: PrismaClient, secret: string) {
   return async (req: Request, res: any, next: any) => {
-    const menu = routeMenu(req.path);
+    const menu = routeMenu(req.path, req.method);
     if (!menu) return next();
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");

@@ -939,7 +939,7 @@ function AdminSidebarMenu({ current }: { current: Session }) {
   return (
     <>
       <Link
-        to={medicalOnly ? "/newsroom/health/events" : "/newsroom/stories"}
+        to={medicalOnly ? "/newsroom/health/events" : "/newsroom"}
         className="brand light"
       >
         <span>LN</span>
@@ -955,14 +955,15 @@ function AdminSidebarMenu({ current }: { current: Session }) {
       </div>
       {!medicalOnly && (
         <>
+          {visible("overview") && (
+            <Link className={active("/newsroom")} to="/newsroom">
+              <LayoutDashboard />
+              Overview
+            </Link>
+          )}
           {visible("stories") && (
             <Link
-              className={
-                where.pathname === "/newsroom" ||
-                where.pathname === "/newsroom/stories"
-                  ? "sessionCommonSidebarButton active"
-                  : "sessionCommonSidebarButton"
-              }
+              className={active("/newsroom/stories")}
               to="/newsroom/stories"
             >
               <FileText />
@@ -2136,11 +2137,16 @@ function OrganizationRouteGuard() {
 }
 function NewsroomByRole() {
   const s = getSession();
+  const visible = useMenuAccess();
+  if (visible.loading) return null;
   if (s?.user.role === "ADMIN_MEDICAL")
     return <Navigate to="/newsroom/health/events" replace />;
-  if (s && ["ADMIN", "EDITOR"].includes(s.user.role))
-    return <Navigate to="/newsroom/stories" replace />;
-  return <AudienceHomepageDashboard />;
+  if (visible("overview")) return <AudienceHomepageDashboard />;
+  if (visible("stories")) return <Navigate to="/newsroom/stories" replace />;
+  if (visible("talk_with_doc")) return <Navigate to="/newsroom/health-services" replace />;
+  if (visible("appointments")) return <Navigate to="/newsroom/appointments" replace />;
+  if (visible("settings")) return <Navigate to="/newsroom/settings" replace />;
+  return <Navigate to="/login" replace />;
 }
 function StoriesByRole() {
   const s = getSession();

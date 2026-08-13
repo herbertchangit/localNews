@@ -19,10 +19,12 @@ import {
   Upload,
   CalendarDays,
   Share2,
+  RotateCcw,
 } from "lucide-react";
 import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 import { pageCount, paginate } from "./pagination";
 import { useAuthorities } from "./menuAccess";
+import { whatsappEventInvitationUrl, whatsappPhone } from "./whatsappInvite";
 import "./account-roles.css";
 type Cat = { id: string; name: string };
 type Group = { id: string; name: string };
@@ -98,6 +100,7 @@ export default function AccountManagement() {
     [accountEvents, setAccountEvents] = useState<AccountEvents | null>(null),
     [invitingFormId, setInvitingFormId] = useState(""),
     [inviting, setInviting] = useState(false),
+    [revertingFormId, setRevertingFormId] = useState(""),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
     [roleFilter, setRoleFilter] = useState(""),
@@ -270,26 +273,37 @@ export default function AccountManagement() {
   };
   const inviteToEvent = async () => {
     if (!edit?.id || !invitingFormId) return;
+    if (!whatsappPhone(edit.phone || "")) {
+      flash("Add a valid contact number before sending a WhatsApp invitation");
+      return;
+    }
     setInviting(true);
     let invitation: any = null;
+    const whatsappWindow = window.open("about:blank", "_blank");
     try {
       invitation = await api(`/api/admin/accounts/${edit.id}/invitations`, {
         method: "POST",
         body: JSON.stringify({ formId: invitingFormId }),
       });
       const shareUrl = `${window.location.origin}${invitation.sharePath}`;
-      const text = `${edit.name}, you are invited to ${invitation.eventName}. Register here: ${shareUrl}`;
-      if (navigator.share) await navigator.share({ title: invitation.eventName, text, url: shareUrl });
-      else {
-        await navigator.clipboard.writeText(text);
-        flash("Invitation link copied");
-      }
+      const whatsappUrl = whatsappEventInvitationUrl({
+        phone: edit.phone,
+        recipientName: edit.name,
+        inviterName: activeSession?.user?.name || "Local News",
+        eventName: invitation.eventName,
+        shareUrl,
+      });
+      if (whatsappWindow) {
+        whatsappWindow.opener = null;
+        whatsappWindow.location.replace(whatsappUrl);
+      } else window.location.assign(whatsappUrl);
       const events = await api(`/api/admin/accounts/${edit.id}/events`);
       setAccountEvents(events);
       const registered = new Set(events.appointments.map((appointment: any) => appointment.formId));
       const invited = new Set(events.invitations.map((item: any) => item.formId));
       setInvitingFormId(events.forms.find((form: any) => !registered.has(form.id) && !invited.has(form.id))?.id || "");
     } catch (error: any) {
+      whatsappWindow?.close();
       if (invitation)
         await api(`/api/admin/accounts/${edit.id}/invitations/cancel`, {
           method: "POST",
@@ -298,6 +312,25 @@ export default function AccountManagement() {
       flash(error?.name === "AbortError" ? "Invitation sharing cancelled" : error.message);
     } finally {
       setInviting(false);
+    }
+  };
+  const revertInvitation = async (formId: string, eventName: string) => {
+    if (!edit?.id || revertingFormId) return;
+    if (!window.confirm(`Revert the invitation to ${eventName}?`)) return;
+    setRevertingFormId(formId);
+    try {
+      await api(`/api/admin/accounts/${edit.id}/invitations/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ formId }),
+      });
+      const events = await api(`/api/admin/accounts/${edit.id}/events`);
+      setAccountEvents(events);
+      setInvitingFormId(formId);
+      flash("Invitation reverted. The event can be invited again.");
+    } catch (error: any) {
+      flash(error.message || "Could not revert invitation");
+    } finally {
+      setRevertingFormId("");
     }
   };
   const mutuals = edit
@@ -531,6 +564,7 @@ export default function AccountManagement() {
             />
             {allowed("new") && (
               <button
+                className="accountTransferAction"
                 type="button"
                 onClick={() => importInput.current?.click()}
               >
@@ -539,6 +573,7 @@ export default function AccountManagement() {
               </button>
             )}
             <a
+              className="accountTransferAction"
               href={`data:text/csv;charset=utf-8,%EF%BB%BF${encodeURIComponent(exportCsv)}`}
               download={`local-news-users-${new Date().toISOString().slice(0, 10)}.csv`}
             >
@@ -1062,8 +1097,11 @@ export default function AccountManagement() {
                   {accountEvents.forms.map((form) => {
                     const invitation = invitationByForm.get(form.id);
                     return invitation ? <span key={form.id}>
-                      <b>{form.eventName}</b>
-                      <small>Invited by {invitation.invitedBy.name} · {new Date(invitation.createdAt).toLocaleDateString()}</small>
+                      <span><b>{form.eventName}</b>
+                      <small>Invited by {invitation.invitedBy.name} · {new Date(invitation.createdAt).toLocaleDateString()}</small></span>
+                      <button className="accountInvitationRevert" type="button" onClick={() => revertInvitation(form.id, form.eventName)} disabled={Boolean(revertingFormId)} title="Revert invitation">
+                        <RotateCcw />{revertingFormId === form.id ? "Reverting…" : "Revert"}
+                      </button>
                     </span> : registeredFormIds.has(form.id) ? <span key={form.id}>
                       <b>{form.eventName}</b><small>Already registered</small>
                     </span> : null;
@@ -1074,7 +1112,7 @@ export default function AccountManagement() {
                       {availableInvitationForms.map((form) => <option value={form.id} key={form.id}>{form.eventName}</option>)}
                     </select>
                     <button type="button" onClick={inviteToEvent} disabled={!invitingFormId || inviting}>
-                      <Share2 />{inviting ? "Sharing…" : "Invite & share link"}
+                      <Share2 />{inviting ? "Opening WhatsApp…" : "Invite via WhatsApp"}
                     </button>
                   </div>
                 </div>

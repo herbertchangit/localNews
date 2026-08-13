@@ -343,8 +343,8 @@ export function AudienceDashboard() {
       <section className="content">
         <div className="top audienceTop">
           <div>
-            <small>AUDIENCE / PERSONAL BOARD</small>
-            <h1>Your local stories</h1>
+            <small>OVERVIEW / DAILY BRIEF</small>
+            <h1>Daily Brief</h1>
             <p>Published reporting from across the community.</p>
           </div>
         </div>
@@ -1171,11 +1171,17 @@ export function AudienceSettings() {
 }
 export function AudienceHomepageDashboard() {
   const [stories, setStories] = useState<Story[]>([]),
-    [busy, setBusy] = useState(true);
+    [busy, setBusy] = useState(true),
+    [error, setError] = useState("");
   useEffect(() => {
     fetch("/api/articles", { headers: { Authorization: `Bearer ${token()}` } })
-      .then((r) => r.json())
-      .then(setStories)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || "Could not load Daily Brief");
+        if (!Array.isArray(data)) throw new Error("Could not load Daily Brief");
+        setStories(data);
+      })
+      .catch((reason) => setError(reason.message || "Could not load Daily Brief"))
       .finally(() => setBusy(false));
   }, []);
   return (
@@ -1184,13 +1190,15 @@ export function AudienceHomepageDashboard() {
       <section className="content">
         <div className="top audienceTop">
           <div>
-            <small>AUDIENCE / PERSONAL BOARD</small>
-            <h1>Your local stories</h1>
+            <small>OVERVIEW / DAILY BRIEF</small>
+            <h1>Daily Brief</h1>
             <p>Published reporting from across the community.</p>
           </div>
         </div>
         {busy ? (
           <div className="panel emptyState">Loading stories…</div>
+        ) : error ? (
+          <div className="panel emptyState">{error}</div>
         ) : (
           <section className="latest dailyBrief audienceDailyBrief">
             <div className="sectionTitle">

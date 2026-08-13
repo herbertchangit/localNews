@@ -4,3 +4,39 @@
 @media(max-width:850px){.sessionCommonSidebarButton{font-size:0;justify-content:center}.sessionCommonSidebarButton svg{width:20px}.sessionCommonVersion{font-size:7px;padding:0;text-align:center}.adminUnifiedSidebar .healthNavLabel{font-size:0;padding:8px}.adminUnifiedSidebar .adminUnifiedSubnav{margin-left:8px;font-size:0;padding-left:10px}.adminUnifiedSidebar .adminUnifiedSubnav:before{display:none}.sessionHeaderShell+.audienceDash>.content,.sessionHeaderShell+.doctorPageShell .audienceDash>.content{padding-top:24px}.sessionHeaderShell+.audienceDash>.audienceSidebarToggle,.sessionHeaderShell+.doctorPageShell .audienceSidebarToggle{display:none}.dash aside.sessionMobileSidebarOpen{position:fixed;z-index:5000;left:0;top:118px;bottom:0;width:min(300px,86vw);padding:24px 18px;overflow-y:auto}.dash aside.sessionMobileSidebarOpen .brand div,.dash aside.sessionMobileSidebarOpen .workspace,.dash aside.sessionMobileSidebarOpen .sessionCommonSidebarButton{display:flex;font-size:13px}.dash aside.sessionMobileSidebarOpen .healthNavLabel{display:block;font-size:10px}.dash aside.sessionMobileSidebarOpen .adminUnifiedSubnav{margin-left:20px;font-size:11px}.dash aside.sessionMobileSidebarOpen .adminWorkspacePortal{display:grid}.dash aside.sessionMobileSidebarOpen .adminWorkspacePortal b,.dash aside.sessionMobileSidebarOpen .adminWorkspacePortal small,.dash aside.sessionMobileSidebarOpen .adminWorkspacePortal .sessionAccountLabel{display:block}.dash aside.sessionMobileSidebarOpen .sessionCommonVersion{font-size:9px;text-align:left;padding:0 12px}}
 .sessionUnifiedSidebar>.workspace{height:auto!important;min-height:0}.sessionUnifiedSidebar>.workspace>:not(.adminWorkspacePortal){display:none!important}.adminWorkspacePortal .accountHierarchyRows{width:100%}
 .sessionHeaderShell{display:contents}
+
+@media(max-width:850px){
+  .sessionHeaderShell+.dash,
+  .sessionHeaderShell+.doctorPageShell>.dash{
+    display:block;
+  }
+  .sessionHeaderShell+.dash>aside:not(.sessionMobileSidebarOpen),
+  .sessionHeaderShell+.doctorPageShell .dash>aside:not(.sessionMobileSidebarOpen){
+    display:none;
+  }
+  .dash aside.sessionMobileSidebarOpen .sessionCommonSidebarButton,
+  .audienceDash .audienceSidebar.open .sessionCommonSidebarButton,
+  .audienceDash .audienceSidebar.open>.audienceSidebarLink,
+  .audienceDash .audienceSidebar.open>.audienceLogoutButton,
+  .audienceDash .audienceSidebar.open>.audienceUpdateButton{
+    width:100%;
+    justify-content:flex-start!important;
+    text-align:left!important;
+    font-size:13px!important;
+  }
+  .dash aside.sessionMobileSidebarOpen .sessionCommonSidebarButton>svg,
+  .audienceDash .audienceSidebar.open .sessionCommonSidebarButton>svg,
+  .audienceDash .audienceSidebar.open>.audienceSidebarLink>svg,
+  .audienceDash .audienceSidebar.open>.audienceLogoutButton>svg,
+  .audienceDash .audienceSidebar.open>.audienceUpdateButton>svg{
+    display:none!important;
+  }
+  .dash aside.sessionMobileSidebarOpen .adminUnifiedSubnav{
+    margin-left:0;
+    padding-left:12px;
+  }
+  .dash aside.sessionMobileSidebarOpen .sessionCommonSidebarButton em,
+  .audienceDash .audienceSidebar.open>.audienceSidebarLink em{
+    margin-left:auto;
+  }
+}

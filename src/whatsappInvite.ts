@@ -11,3 +11,10 @@ export function whatsappInviteUrl({phone,recipientName,inviterName,origin}:{phon
   const message=`Hello ${recipientName}, ${inviterName} invited you to sign in to Local News. 您受邀登录本地新闻。 ${loginUrl}`;
   return`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
+
+export function whatsappEventInvitationUrl({phone,recipientName,inviterName,eventName,shareUrl}:{phone:string;recipientName:string;inviterName:string;eventName:string;shareUrl:string}){
+  const number=whatsappPhone(phone);
+  if(!number)return'';
+  const message=`Hello ${recipientName}, ${inviterName} invited you to ${eventName}. Register here: ${shareUrl}`;
+  return`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+}
