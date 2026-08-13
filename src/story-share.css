@@ -1,0 +1,8 @@
+.storyPrimaryActions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.shareStoryButton{appearance:none;border:0;background:transparent;color:#174f3a;display:inline-flex;align-items:center;gap:6px;width:max-content;padding:8px 0;font:700 10px 'DM Sans',sans-serif;cursor:pointer}
+.shareStoryButton:hover{color:#a13a31}
+.shareStoryButton:focus-visible{outline:2px solid #d0b474;outline-offset:4px}
+.shareStoryButton svg{width:15px;height:15px}
+.audienceReadStory+.shareStoryButton{margin:3px 0 11px}
+.articleShareButton{margin-top:14px}
+@media(max-width:600px){.storyPrimaryActions{gap:18px}.shareStoryButton{min-height:40px}}

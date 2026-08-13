@@ -66,6 +66,7 @@ export function createPasskeyRouter(
     name: user.name,
     email: user.email,
     role: user.role,
+    roles: user.roles?.length ? user.roles : [user.role],
     avatarUrl: user.avatarUrl,
   });
 

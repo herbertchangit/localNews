@@ -23,7 +23,7 @@ export function createAreaRouter(db: any, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       const user = token ? jwt.verify(token, secret) as any : null;
       if (!user) return res.status(401).json({ error: "Authentication required" });
-      if (user.role !== "ADMIN") return res.status(403).json({ error: "Administrator access required" });
+      if (user.role !== "ADMIN" && !user.roles?.includes("ADMIN") && !req.roleAuthorityConfigured) return res.status(403).json({ error: "Administrator access required" });
       req.user = user;
       next();
     } catch {

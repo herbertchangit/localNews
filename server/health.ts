@@ -86,6 +86,8 @@ const timeFromMinutes = (value: number) =>
   `${Math.floor(value / 60).toString().padStart(2, "0")}:${(value % 60).toString().padStart(2, "0")}`;
 const overlaps = (start: number, end: number, otherStart: string, otherEnd: string) =>
   start < minutesFromTime(otherEnd) && end > minutesFromTime(otherStart);
+const tokenRoles = (user: { role: Role; roles?: Role[] }) =>
+  [...new Set([...(user.roles || []), user.role])];
 
 export function createHealthAdminRouter(db: PrismaClient, secret: string) {
   const router = express.Router();
@@ -94,7 +96,7 @@ export function createHealthAdminRouter(db: PrismaClient, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       req.user = jwt.verify(token, secret);
-      if (![Role.ADMIN, Role.ADMIN_MEDICAL].includes(req.user.role)) return res.status(403).json({ error: "Medical administrator access required" });
+      if (!tokenRoles(req.user).some((role) => role === Role.ADMIN || role === Role.ADMIN_MEDICAL) && !req.roleAuthorityConfigured) return res.status(403).json({ error: "Medical administrator access required" });
       next();
     } catch {
       res.status(401).json({ error: "Invalid token" });
@@ -150,7 +152,7 @@ export function createHealthAdminRouter(db: PrismaClient, secret: string) {
         profileImage: data.profileImage,
         consultationFee: data.consultationFee,
         dutySlots: data.dutySlots,
-        user: { create: { name: data.name, email: data.email, phone: data.phone, password: await bcrypt.hash(data.password, 12), role: Role.DOCTOR } },
+        user: { create: { name: data.name, email: data.email, phone: data.phone, password: await bcrypt.hash(data.password, 12), role: Role.DOCTOR, roles: [Role.DOCTOR] } },
       },
       include: doctorSelect,
     });
@@ -187,7 +189,7 @@ export function createHealthAdminRouter(db: PrismaClient, secret: string) {
   router.delete("/doctors/:id", async (req: any, res) => {
     const current = await db.doctorProfile.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true } });
     if (!current) return res.status(404).json({ error: "Doctor not found" });
-    await db.$transaction([db.user.update({ where: { id: current.userId }, data: { role: Role.DADE } }), db.doctorProfile.delete({ where: { id: current.id } })]);
+    await db.$transaction([db.user.update({ where: { id: current.userId }, data: { role: Role.DADE, roles: [Role.DADE] } }), db.doctorProfile.delete({ where: { id: current.id } })]);
     await db.auditLog.create({ data: { action: "DOCTOR_DELETED", actorId: req.user.id, metadata: { doctorId: current.id, userId: current.userId } } });
     res.status(204).end();
   });
@@ -257,7 +259,7 @@ export function createHealthAdminRouter(db: PrismaClient, secret: string) {
 
   router.get("/options", async (_req, res) => {
     const [patients, doctors, events, timeSlots] = await Promise.all([
-      db.user.findMany({ where: { role: { in: [Role.DADE, Role.AUDIENCE] }, suspended: false }, select: { id: true, name: true, email: true, phone: true }, orderBy: { name: "asc" } }),
+      db.user.findMany({ where: { OR: [{ role: { in: [Role.DADE, Role.AUDIENCE] } }, { roles: { hasSome: [Role.DADE, Role.AUDIENCE] } }], suspended: false }, select: { id: true, name: true, email: true, phone: true }, orderBy: { name: "asc" } }),
       db.doctorProfile.findMany({ include: { user: { select: { name: true, email: true } } }, orderBy: { user: { name: "asc" } } }),
       db.healthEvent.findMany({ select: { id: true, name: true, eventDate: true, startTime: true, endTime: true, active: true }, orderBy: { eventDate: "desc" } }),
       db.healthTimeSlot.findMany({ select: { id: true, eventId: true, doctorId: true, startTime: true, endTime: true, booked: true }, orderBy: { startTime: "asc" } }),
@@ -275,7 +277,7 @@ export function createHealthDoctorRouter(db: PrismaClient, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       req.user = jwt.verify(token, secret);
-      if (req.user.role !== Role.DOCTOR) return res.status(403).json({ error: "Doctor access required" });
+      if (!tokenRoles(req.user).includes(Role.DOCTOR)) return res.status(403).json({ error: "Doctor access required" });
       next();
     } catch {
       res.status(401).json({ error: "Invalid token" });
@@ -284,7 +286,7 @@ export function createHealthDoctorRouter(db: PrismaClient, secret: string) {
 
   const profileFor = async (userId: string) => {
     const user = await db.user.findFirst({
-      where: { id: userId, role: Role.DOCTOR, suspended: false },
+      where: { id: userId, OR: [{ role: Role.DOCTOR }, { roles: { has: Role.DOCTOR } }], suspended: false },
       select: { id: true },
     });
     if (!user) return null;

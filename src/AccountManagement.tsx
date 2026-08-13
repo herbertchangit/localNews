@@ -21,11 +21,17 @@ import {
 } from "lucide-react";
 import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 import { pageCount, paginate } from "./pagination";
+import { useAuthorities } from "./menuAccess";
+import "./account-roles.css";
 type Cat = { id: string; name: string };
 type Group = { id: string; name: string };
 type Mutual = Group & { harmonyId: string; cooperations: Group[] };
 type Harmony = Group & { mutualLoves: Mutual[] };
-type AreaOption = { id: string; name: string; mutualLove: Group & { harmony: Group } };
+type AreaOption = {
+  id: string;
+  name: string;
+  mutualLove: Group & { harmony: Group };
+};
 type User = {
   id: string;
   name: string;
@@ -35,6 +41,7 @@ type User = {
   labels: string[];
   organizationLevel: string | null;
   role: string;
+  roles: string[];
   locked: boolean;
   suspended: boolean;
   permissions: string[];
@@ -55,6 +62,7 @@ const blank = {
   organizationLevel: "",
   password: "Demo123!",
   role: "VOLUNTEER",
+  roles: ["VOLUNTEER"] as string[],
   locked: false,
   suspended: false,
   permissions: [] as string[],
@@ -66,6 +74,7 @@ const blank = {
 };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 export default function AccountManagement() {
+  const allowed = useAuthorities("people");
   const nav = useNavigate(),
     activeSession = session(),
     token = activeSession?.token,
@@ -76,9 +85,14 @@ export default function AccountManagement() {
     [categories, setCategories] = useState<Cat[]>([]),
     [structure, setStructure] = useState<Harmony[]>([]),
     [areas, setAreas] = useState<AreaOption[]>([]),
+    [availableRoles, setAvailableRoles] = useState<string[]>([]),
     [edit, setEdit] = useState<any | null>(null),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
+    [roleFilter, setRoleFilter] = useState(""),
+    [harmonyFilter, setHarmonyFilter] = useState(""),
+    [mutualLoveFilter, setMutualLoveFilter] = useState(""),
+    [cooperationFilter, setCooperationFilter] = useState(""),
     [reset, setReset] = useState<User | null>(null),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [page, setPage] = useState(1);
@@ -94,17 +108,19 @@ export default function AccountManagement() {
   };
   const load = async () => {
     try {
-      const [u, o, s, a] = await Promise.all([
+      const [u, o, s, a, roleData] = await Promise.all([
         api("/api/admin/accounts"),
         api("/api/admin/user-options"),
         api("/api/admin/org-structure"),
         api("/api/areas"),
+        api("/api/role-menus/admin"),
       ]);
       setUsers(u);
       setDepartments(o.departments);
       setCategories(o.categories);
       setStructure(s);
       setAreas(a);
+      setAvailableRoles(roleData.roles);
     } catch (e: any) {
       setNotice(e.message);
     }
@@ -116,32 +132,108 @@ export default function AccountManagement() {
     setNotice(x);
     setTimeout(() => setNotice(""), 3000);
   };
+  const roleLabel = (role: string) =>
+    role === "ADMIN_MEDICAL"
+      ? "Admin Medical"
+      : role
+          .replaceAll("_", " ")
+          .toLowerCase()
+          .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const mutualLoveOptions = useMemo(
+    () =>
+      harmonyFilter
+        ? structure.find((harmony) => harmony.id === harmonyFilter)
+            ?.mutualLoves || []
+        : structure.flatMap((harmony) => harmony.mutualLoves),
+    [structure, harmonyFilter],
+  );
+  const cooperationOptions = useMemo(
+    () =>
+      mutualLoveFilter
+        ? mutualLoveOptions.find(
+            (mutualLove) => mutualLove.id === mutualLoveFilter,
+          )?.cooperations || []
+        : mutualLoveOptions.flatMap((mutualLove) => mutualLove.cooperations),
+    [mutualLoveOptions, mutualLoveFilter],
+  );
   const visible = useMemo(
     () =>
-      users.filter((u) =>
-        `${u.name} ${u.email} ${u.phone || ""} ${u.stayArea || ""} ${(u.labels || []).join(" ")} ${u.harmonyGroup?.name || ""} ${u.mutualLoveGroup?.name || ""} ${u.cooperationUnit?.name || ""}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
+      users.filter(
+        (u) =>
+          (!roleFilter || (u.roles?.length ? u.roles : [u.role]).includes(roleFilter)) &&
+          (!harmonyFilter || u.harmonyGroup?.id === harmonyFilter) &&
+          (!mutualLoveFilter || u.mutualLoveGroup?.id === mutualLoveFilter) &&
+          (!cooperationFilter || u.cooperationUnit?.id === cooperationFilter) &&
+          `${u.name} ${u.email} ${u.phone || ""} ${u.stayArea || ""} ${(u.labels || []).join(" ")} ${u.harmonyGroup?.name || ""} ${u.mutualLoveGroup?.name || ""} ${u.cooperationUnit?.name || ""}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
       ),
-    [users, query],
+    [
+      users,
+      query,
+      roleFilter,
+      harmonyFilter,
+      mutualLoveFilter,
+      cooperationFilter,
+    ],
   );
   const totalPages = pageCount(visible.length),
     pageUsers = useMemo(() => paginate(visible, page), [visible, page]),
     selectablePageUsers = pageUsers.filter((user) => user.id !== currentUserId),
-    pageSelected = selectablePageUsers.length > 0 && selectablePageUsers.every((user) => selected.has(user.id));
-  useEffect(() => setPage(1), [query]);
+    pageSelected =
+      selectablePageUsers.length > 0 &&
+      selectablePageUsers.every((user) => selected.has(user.id));
+  useEffect(
+    () => setPage(1),
+    [query, roleFilter, harmonyFilter, mutualLoveFilter, cooperationFilter],
+  );
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
-  const exportCsv = useMemo(() => toCsv(
-    ["name", "email", "role", "contact", "area", "labels", "organization", "harmony", "mutualLove", "cooperation", "level", "locked", "suspended", "password"],
-    users.map((user) => [user.name, user.email, user.role, user.phone, user.stayArea, (user.labels || []).join("|"), user.department?.name, user.harmonyGroup?.name, user.mutualLoveGroup?.name, user.cooperationUnit?.name, user.organizationLevel, user.locked, user.suspended, ""]),
-  ), [users]);
+  const exportCsv = useMemo(
+    () =>
+      toCsv(
+        [
+          "name",
+          "email",
+          "role",
+          "contact",
+          "area",
+          "labels",
+          "organization",
+          "harmony",
+          "mutualLove",
+          "cooperation",
+          "level",
+          "locked",
+          "suspended",
+          "password",
+        ],
+        users.map((user) => [
+          user.name,
+          user.email,
+          user.role,
+          user.phone,
+          user.stayArea,
+          (user.labels || []).join("|"),
+          user.department?.name,
+          user.harmonyGroup?.name,
+          user.mutualLoveGroup?.name,
+          user.cooperationUnit?.name,
+          user.organizationLevel,
+          user.locked,
+          user.suspended,
+          "",
+        ]),
+      ),
+    [users],
+  );
   const open = (u?: User) =>
     setEdit(
       u
         ? {
-            ...u,
+          ...u,
+            roles: u.roles?.length ? u.roles : [u.role],
             phone: u.phone || "",
             stayArea: u.stayArea || "",
             organizationLevel: u.organizationLevel || "",
@@ -165,12 +257,21 @@ export default function AccountManagement() {
   const save = async (e: any) => {
     e.preventDefault();
     try {
+      if (!edit.roles?.length) throw new Error("Select at least one role");
       const editing = !!edit.id,
         body = {
           ...edit,
+          role: edit.roles[0],
           phone: edit.phone?.trim() || null,
           stayArea: edit.stayArea?.trim() || null,
-          labels: [...new Set(edit.labelsText.split(",").map((value: string) => value.trim()).filter(Boolean))],
+          labels: [
+            ...new Set(
+              edit.labelsText
+                .split(",")
+                .map((value: string) => value.trim())
+                .filter(Boolean),
+            ),
+          ],
           departmentId: edit.departmentId || null,
           harmonyGroupId: edit.harmonyGroupId || null,
           mutualLoveGroupId: edit.mutualLoveGroupId || null,
@@ -192,10 +293,13 @@ export default function AccountManagement() {
         delete body.email;
         delete body.password;
       }
-      const saved = await api(`/api/admin/accounts${editing ? "/" + edit.id : ""}`, {
-        method: editing ? "PATCH" : "POST",
-        body: JSON.stringify(body),
-      });
+      const saved = await api(
+        `/api/admin/accounts${editing ? "/" + edit.id : ""}`,
+        {
+          method: editing ? "PATCH" : "POST",
+          body: JSON.stringify(body),
+        },
+      );
       setUsers((current) =>
         editing
           ? current.map((user) => (user.id === saved.id ? saved : user))
@@ -213,10 +317,13 @@ export default function AccountManagement() {
     event.target.value = "";
     if (!file) return;
     try {
-      if (file.size > 2_000_000) throw new Error("CSV files must be 2 MB or smaller");
+      if (file.size > 2_000_000)
+        throw new Error("CSV files must be 2 MB or smaller");
       const rows = parseCsv(await file.text());
-      if (!rows.length) throw new Error("The CSV file does not contain any users");
-      if (!("name" in rows[0]) || !("email" in rows[0])) throw new Error("CSV requires name and email columns");
+      if (!rows.length)
+        throw new Error("The CSV file does not contain any users");
+      if (!("name" in rows[0]) || !("email" in rows[0]))
+        throw new Error("CSV requires name and email columns");
       const usersToImport = rows.map((row) => ({
         name: row.name,
         email: row.email,
@@ -228,14 +335,21 @@ export default function AccountManagement() {
         harmony: row.harmony || "",
         mutualLove: row.mutuallove || row.mutual_love || "",
         cooperation: row.cooperation || "",
-        organizationLevel: row.level ? row.level.trim().toUpperCase().replaceAll(" ", "_") : null,
+        organizationLevel: row.level
+          ? row.level.trim().toUpperCase().replaceAll(" ", "_")
+          : null,
         locked: csvBoolean(row.locked || ""),
         suspended: csvBoolean(row.suspended || ""),
         ...(row.password ? { password: row.password } : {}),
       }));
-      const result = await api("/api/admin/accounts/import", { method: "POST", body: JSON.stringify({ users: usersToImport }) });
+      const result = await api("/api/admin/accounts/import", {
+        method: "POST",
+        body: JSON.stringify({ users: usersToImport }),
+      });
       await load();
-      flash(`Import complete: ${result.created} created, ${result.updated} updated${result.errors.length ? `, ${result.errors.length} skipped — ${result.errors.slice(0, 2).join("; ")}` : ""}`);
+      flash(
+        `Import complete: ${result.created} created, ${result.updated} updated${result.errors.length ? `, ${result.errors.length} skipped — ${result.errors.slice(0, 2).join("; ")}` : ""}`,
+      );
     } catch (error: any) {
       flash(error.message || "Could not import users");
     }
@@ -261,8 +375,11 @@ export default function AccountManagement() {
     }
   };
   const bulkRemove = async () => {
-    const targets = users.filter((user) => selected.has(user.id) && user.id !== currentUserId);
-    if (!targets.length || !confirm(`Delete ${targets.length} selected users?`)) return;
+    const targets = users.filter(
+      (user) => selected.has(user.id) && user.id !== currentUserId,
+    );
+    if (!targets.length || !confirm(`Delete ${targets.length} selected users?`))
+      return;
     let deleted = 0;
     const failures: string[] = [];
     for (const user of targets) {
@@ -275,13 +392,18 @@ export default function AccountManagement() {
     }
     setSelected(new Set());
     await load();
-    flash(`${deleted} users deleted${failures.length ? `, ${failures.length} not deleted — ${failures.slice(0, 2).join("; ")}` : ""}`);
+    flash(
+      `${deleted} users deleted${failures.length ? `, ${failures.length} not deleted — ${failures.slice(0, 2).join("; ")}` : ""}`,
+    );
   };
-  const togglePage = () => setSelected((current) => {
-    const next = new Set(current);
-    selectablePageUsers.forEach((user) => pageSelected ? next.delete(user.id) : next.add(user.id));
-    return next;
-  });
+  const togglePage = () =>
+    setSelected((current) => {
+      const next = new Set(current);
+      selectablePageUsers.forEach((user) =>
+        pageSelected ? next.delete(user.id) : next.add(user.id),
+      );
+      return next;
+    });
   const resetPassword = async (e: any) => {
     e.preventDefault();
     const password = new FormData(e.currentTarget).get("password");
@@ -345,10 +467,35 @@ export default function AccountManagement() {
             <p>Manage accounts and normalized organization assignments.</p>
           </div>
           <div className="accountTopActions">
-            <input ref={importInput} type="file" accept=".csv,text/csv" hidden onChange={importUsers} />
-            <button type="button" onClick={() => importInput.current?.click()}><Upload />Import CSV</button>
-            <a href={`data:text/csv;charset=utf-8,%EF%BB%BF${encodeURIComponent(exportCsv)}`} download={`local-news-users-${new Date().toISOString().slice(0, 10)}.csv`}><Download />Export CSV</a>
-            <button className="new" onClick={() => open()}><Plus />Create user</button>
+            <input
+              ref={importInput}
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={importUsers}
+            />
+            {allowed("new") && (
+              <button
+                type="button"
+                onClick={() => importInput.current?.click()}
+              >
+                <Upload />
+                Import CSV
+              </button>
+            )}
+            <a
+              href={`data:text/csv;charset=utf-8,%EF%BB%BF${encodeURIComponent(exportCsv)}`}
+              download={`local-news-users-${new Date().toISOString().slice(0, 10)}.csv`}
+            >
+              <Download />
+              Export CSV
+            </a>
+            {allowed("new") && (
+              <button className="new" onClick={() => open()}>
+                <Plus />
+                Create user
+              </button>
+            )}
           </div>
         </div>
         {notice && (
@@ -367,11 +514,107 @@ export default function AccountManagement() {
                 placeholder="Search people or organization assignment"
               />
             </div>
-            {!!selected.size && <button className="bulkDelete" type="button" onClick={bulkRemove}><Trash2 />Delete selected ({selected.size})</button>}
+            {!!selected.size && (
+              <button className="bulkDelete" type="button" onClick={bulkRemove}>
+                <Trash2 />
+                Delete selected ({selected.size})
+              </button>
+            )}
             <span>{visible.length} people</span>
           </div>
+          <div className="accountFilters" aria-label="Filter users">
+            <label>
+              Role
+              <select
+                data-role-options-ignore="true"
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.target.value)}
+              >
+                <option value="">All roles</option>
+                {availableRoles.map((role) => (
+                  <option value={role} key={role}>
+                    {roleLabel(role)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Harmony
+              <select
+                value={harmonyFilter}
+                onChange={(event) => {
+                  setHarmonyFilter(event.target.value);
+                  setMutualLoveFilter("");
+                  setCooperationFilter("");
+                }}
+              >
+                <option value="">All Harmony</option>
+                {structure.map((harmony) => (
+                  <option value={harmony.id} key={harmony.id}>
+                    {harmony.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              MutualLove
+              <select
+                value={mutualLoveFilter}
+                onChange={(event) => {
+                  setMutualLoveFilter(event.target.value);
+                  setCooperationFilter("");
+                }}
+              >
+                <option value="">All MutualLove</option>
+                {mutualLoveOptions.map((mutualLove) => (
+                  <option value={mutualLove.id} key={mutualLove.id}>
+                    {mutualLove.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Cooperation
+              <select
+                value={cooperationFilter}
+                onChange={(event) => setCooperationFilter(event.target.value)}
+              >
+                <option value="">All Cooperation</option>
+                {cooperationOptions.map((cooperation) => (
+                  <option value={cooperation.id} key={cooperation.id}>
+                    {cooperation.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {(roleFilter ||
+              harmonyFilter ||
+              mutualLoveFilter ||
+              cooperationFilter) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRoleFilter("");
+                  setHarmonyFilter("");
+                  setMutualLoveFilter("");
+                  setCooperationFilter("");
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
           <div className="accountRow accountHeader">
-            <span className="accountSelectHeader"><input type="checkbox" aria-label="Select all users on this page" checked={pageSelected} onChange={togglePage} disabled={!selectablePageUsers.length} />Person</span>
+            <span className="accountSelectHeader">
+              <input
+                type="checkbox"
+                aria-label="Select all users on this page"
+                checked={pageSelected}
+                onChange={togglePage}
+                disabled={!selectablePageUsers.length}
+              />
+              Person
+            </span>
             <span>Organization assignment</span>
             <span>Role</span>
             <span>Status</span>
@@ -380,7 +623,19 @@ export default function AccountManagement() {
           {pageUsers.map((u) => (
             <div className="accountRow" key={u.id}>
               <div className="person accountSelectable">
-                <input type="checkbox" aria-label={`Select ${u.name}`} checked={selected.has(u.id)} disabled={u.id === currentUserId} onChange={(event) => setSelected((current) => { const next = new Set(current); event.target.checked ? next.add(u.id) : next.delete(u.id); return next; })} />
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${u.name}`}
+                  checked={selected.has(u.id)}
+                  disabled={u.id === currentUserId}
+                  onChange={(event) =>
+                    setSelected((current) => {
+                      const next = new Set(current);
+                      event.target.checked ? next.add(u.id) : next.delete(u.id);
+                      return next;
+                    })
+                  }
+                />
                 <span className="avatar">
                   {u.name
                     .split(" ")
@@ -391,14 +646,29 @@ export default function AccountManagement() {
                 <span>
                   <b>{u.name}</b>
                   <small>{u.email}</small>
-                  {(u.phone || u.stayArea) && <small>{[u.phone, u.stayArea].filter(Boolean).join(" · ")}</small>}
-                  {!!u.labels?.length && <span className="accountLabels">{u.labels.map((label) => <i key={label}>{label}</i>)}</span>}
+                  {(u.phone || u.stayArea) && (
+                    <small>
+                      {[u.phone, u.stayArea].filter(Boolean).join(" · ")}
+                    </small>
+                  )}
+                  {!!u.labels?.length && (
+                    <span className="accountLabels">
+                      {u.labels.map((label) => (
+                        <i key={label}>{label}</i>
+                      ))}
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="accountHierarchy">
                 <small className="organizationLine">
-                  <i>{u.role === "ADMIN_MEDICAL" ? "Admin Medical" : u.role}</i>
-                  {u.department?.name && <> : <em>{u.department.name}</em></>}
+                  <i>{(u.roles?.length ? u.roles : [u.role]).map(roleLabel).join(", ")}</i>
+                  {u.department?.name && (
+                    <>
+                      {" "}
+                      : <em>{u.department.name}</em>
+                    </>
+                  )}
                 </small>
                 <span>{u.harmonyGroup?.name || "—"}</span>
                 <b>›</b>
@@ -407,7 +677,7 @@ export default function AccountManagement() {
                 <span>{u.cooperationUnit?.name || "—"}</span>
               </div>
               <span className={"rolePill " + u.role.toLowerCase()}>
-                {u.role === "ADMIN_MEDICAL" ? "Admin Medical" : u.role}
+                {(u.roles?.length ? u.roles : [u.role]).map(roleLabel).join(", ")}
               </span>
               <span
                 className={
@@ -418,38 +688,69 @@ export default function AccountManagement() {
                 {u.suspended ? "Suspended" : u.locked ? "Locked" : "Active"}
               </span>
               <div className="wideActions">
-                <button title="Edit user" onClick={() => open(u)}>
-                  <Pencil />
-                </button>
-                <button title="Reset password" onClick={() => setReset(u)}>
-                  <KeyRound />
-                </button>
-                <button
-                  title={u.locked ? "Unlock" : "Lock"}
-                  onClick={() => status(u, { locked: !u.locked })}
-                >
-                  {u.locked ? <Unlock /> : <Lock />}
-                </button>
-                <button
-                  title={u.suspended ? "Restore" : "Suspend"}
-                  onClick={() => status(u, { suspended: !u.suspended })}
-                >
-                  <PauseCircle />
-                </button>
-                <button
-                  className="danger"
-                  disabled={u.id === currentUserId}
-                  onClick={() => remove(u)}
-                >
-                  <Trash2 />
-                </button>
+                {allowed("edit") && (
+                  <button title="Edit user" onClick={() => open(u)}>
+                    <Pencil />
+                  </button>
+                )}
+                {allowed("reset_password") && (
+                  <button title="Reset password" onClick={() => setReset(u)}>
+                    <KeyRound />
+                  </button>
+                )}
+                {allowed("lock_unlock") && (
+                  <button
+                    title={u.locked ? "Unlock" : "Lock"}
+                    onClick={() => status(u, { locked: !u.locked })}
+                  >
+                    {u.locked ? <Unlock /> : <Lock />}
+                  </button>
+                )}
+                {allowed("suspend") && (
+                  <button
+                    title={u.suspended ? "Restore" : "Suspend"}
+                    onClick={() => status(u, { suspended: !u.suspended })}
+                  >
+                    <PauseCircle />
+                  </button>
+                )}
+                {allowed("delete") && (
+                  <button
+                    className="danger"
+                    disabled={u.id === currentUserId}
+                    onClick={() => remove(u)}
+                  >
+                    <Trash2 />
+                  </button>
+                )}
               </div>
             </div>
           ))}
+          {!pageUsers.length && (
+            <div className="emptyState">
+              No users match the selected filters.
+            </div>
+          )}
           <div className="accountPagination">
-            <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button>
-            <span>{page} / {totalPages}</span>
-            <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Next</button>
+            <button
+              type="button"
+              disabled={page === 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Previous
+            </button>
+            <span>
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={page === totalPages}
+              onClick={() =>
+                setPage((current) => Math.min(totalPages, current + 1))
+              }
+            >
+              Next
+            </button>
           </div>
         </div>
       </section>
@@ -513,11 +814,22 @@ export default function AccountManagement() {
                 Area
                 <select
                   value={edit.stayArea || ""}
-                  onChange={(e) => setEdit({ ...edit, stayArea: e.target.value })}
+                  onChange={(e) =>
+                    setEdit({ ...edit, stayArea: e.target.value })
+                  }
                 >
                   <option value="">Select area</option>
-                  {edit.stayArea && !areas.some((area) => area.name === edit.stayArea) && <option value={edit.stayArea}>{edit.stayArea} (current)</option>}
-                  {areas.map((area) => <option value={area.name} key={area.id}>{area.name} : {area.mutualLove.name}</option>)}
+                  {edit.stayArea &&
+                    !areas.some((area) => area.name === edit.stayArea) && (
+                      <option value={edit.stayArea}>
+                        {edit.stayArea} (current)
+                      </option>
+                    )}
+                  {areas.map((area) => (
+                    <option value={area.name} key={area.id}>
+                      {area.name} : {area.mutualLove.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -526,23 +838,42 @@ export default function AccountManagement() {
               <input
                 maxLength={400}
                 value={edit.labelsText}
-                onChange={(e) => setEdit({ ...edit, labelsText: e.target.value })}
+                onChange={(e) =>
+                  setEdit({ ...edit, labelsText: e.target.value })
+                }
                 placeholder="Separate labels with commas"
               />
-              <small className="fieldHint">Example: volunteer, translator, event team</small>
+              <small className="fieldHint">
+                Example: volunteer, translator, event team
+              </small>
             </label>
+            <fieldset className="accountRoleChoices" data-role-options-ignore="true">
+              <legend>Roles</legend>
+              <div>
+                {availableRoles.map((role) => {
+                  const checked = (edit.roles || []).includes(role);
+                  return (
+                    <label key={role}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          setEdit((current: any) => ({
+                            ...current,
+                            roles: event.target.checked
+                              ? [...new Set([...(current.roles || []), role])]
+                              : (current.roles || []).filter((item: string) => item !== role),
+                          }))
+                        }
+                      />
+                      <span>{roleLabel(role)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <small>Select one or more roles. Access from the selected roles is combined.</small>
+            </fieldset>
             <div className="formPair">
-              <label>
-                Role
-                <select
-                  value={edit.role}
-                  onChange={(e) => setEdit({ ...edit, role: e.target.value })}
-                >
-                  {["ADMIN", "ADMIN_MEDICAL", "EDITOR", "DOCTOR", "VOLUNTEER", "DADE"].map((x) => (
-                    <option key={x} value={x}>{x === "ADMIN_MEDICAL" ? "Admin Medical" : x}</option>
-                  ))}
-                </select>
-              </label>
               <label>
                 Organization
                 <select
@@ -629,28 +960,49 @@ export default function AccountManagement() {
                   Level
                   <select
                     value={edit.organizationLevel || ""}
-                    onChange={(e) => setEdit({ ...edit, organizationLevel: e.target.value })}
+                    onChange={(e) =>
+                      setEdit({ ...edit, organizationLevel: e.target.value })
+                    }
                   >
                     <option value="">Unassigned</option>
                     <option value="HARMONY_LEADER">Harmony Leader</option>
-                    <option value="MUTUAL_LOVE_LEADER">MutualLove Leader</option>
-                    <option value="COOPERATION_LEADER">Cooperation Leader</option>
+                    <option value="MUTUAL_LOVE_LEADER">
+                      MutualLove Leader
+                    </option>
+                    <option value="COOPERATION_LEADER">
+                      Cooperation Leader
+                    </option>
                   </select>
                 </label>
               </div>
             </fieldset>
             <fieldset className="hierarchyFields registrationPermissionField">
-              <legend><ClipboardList />Registration access</legend>
+              <legend>
+                <ClipboardList />
+                Registration access
+              </legend>
               <label>
                 <input
                   type="checkbox"
-                  checked={(edit.permissions || []).includes("registrations.manage")}
-                  onChange={(e) => setEdit({
-                    ...edit,
-                    permissions: e.target.checked
-                      ? [...new Set([...(edit.permissions || []), "registrations.manage"])]
-                      : (edit.permissions || []).filter((permission: string) => permission !== "registrations.manage"),
-                  })}
+                  checked={(edit.permissions || []).includes(
+                    "registrations.manage",
+                  )}
+                  onChange={(e) =>
+                    setEdit({
+                      ...edit,
+                      permissions: e.target.checked
+                        ? [
+                            ...new Set([
+                              ...(edit.permissions || []),
+                              "registrations.manage",
+                            ]),
+                          ]
+                        : (edit.permissions || []).filter(
+                            (permission: string) =>
+                              permission !== "registrations.manage",
+                          ),
+                    })
+                  }
                 />
                 Authorized to create, edit, delete and review registration forms
               </label>

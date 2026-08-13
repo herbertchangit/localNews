@@ -53,6 +53,7 @@ model User {
   organizationLevel         String?
   avatarUrl                 String?
   role                      Role                @default(AUDIENCE)
+  roles                     Role[]              @default([])
   locked                    Boolean             @default(false)
   suspended                 Boolean             @default(false)
   permissions               String[]            @default([])
@@ -78,6 +79,15 @@ model User {
   passkeyChallenges         WebAuthnChallenge[]
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt
+}
+
+model RoleMenuAccess {
+  id          String   @id @default(cuid())
+  role        Role     @unique
+  menuIds     String[] @default([])
+  authorities Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model RegistrationForm {

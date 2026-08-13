@@ -1,0 +1,21 @@
+.roleAuthorityTable thead th > span {
+  display: block;
+}
+
+.roleAuthorityTable thead th > button {
+  margin-top: 6px;
+  border: 1px solid #ffffff66;
+  background: #ffffff12;
+  color: #fff;
+  padding: 4px 6px;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.roleAuthorityTable thead th > button:hover,
+.roleAuthorityTable thead th > button:focus-visible {
+  background: #d0b474;
+  color: #173f32;
+}

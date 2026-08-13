@@ -1,0 +1,7 @@
+.accountRoleChoices{border:1px solid #d1d9d3;background:#f3f6f2;padding:15px;margin:4px 0 18px}
+.accountRoleChoices legend{font-size:9px;font-weight:700;color:#315f49;padding:0 7px}
+.accountRoleChoices>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.accountRoleChoices label{display:flex;flex-direction:row;align-items:center;gap:7px;margin:0;padding:9px;background:#fff;border:1px solid #d8dfd9;font-size:9px;font-weight:700}
+.accountRoleChoices input{width:16px;height:16px;margin:0;accent-color:#174f3a}
+.accountRoleChoices small{display:block;color:#6f7d74;font-size:8px;margin-top:10px}
+@media(max-width:700px){.accountRoleChoices>div{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -7,6 +7,7 @@ import "./story-media.css";
 import "./story-preview.css";
 import "./story-lightbox.css";
 import { firstHttpUrl, isFacebookUrl, isVideoUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
+import ShareStoryButton from "./ShareStoryButton";
 
 type Photo = { id: string; url: string; caption: string | null; sortOrder: number };
 type Article = {
@@ -221,6 +222,7 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
         <h1>{article.title}</h1>
         <RichText value={article.excerpt} className="articleSummaryRichText" />
         <div><b>By {article.author.name}</b><span><Clock />{readMinutes} min read</span>{!preview && <span><Eye />{article.views.toLocaleString()} views</span>}<time>{new Date(article.storyDate || article.publishedAt || article.updatedAt || Date.now()).toLocaleDateString()}</time></div>
+        {!preview && <ShareStoryButton title={article.title} slug={article.slug} className="articleShareButton" />}
       </header>
       {photos[0] && <figure className="articleLeadPhoto"><button type="button" className="articleMediaCard" onClick={() => openMedia(0)} aria-label={`${facebookPreview ? "View Facebook" : youtubePreview || isVideoUrl(photos[0].url) ? "Play video" : "View photo"}: ${photos[0].caption || article.title}`}><StoryMedia media={photos[0]} title={article.title} thumbnail /><span className="articleMediaCue">{facebookPreview ? <><Eye />View Facebook / 查看 Facebook</> : youtubePreview || isVideoUrl(photos[0].url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{!preview && photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>}
       <RichText value={article.content} className="articleBody" onLinkClick={openFacebookLink} />

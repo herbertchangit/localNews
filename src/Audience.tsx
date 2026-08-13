@@ -34,6 +34,8 @@ import {
   type AppUpdateResult,
 } from "./pwaEvents";
 import { firstHttpUrl, isVideoUrl, previewImageForUrl } from "./richTextUtils";
+import { useMenuAccess } from "./menuAccess";
+import ShareStoryButton from "./ShareStoryButton";
 type Story = {
   id: string;
   title: string;
@@ -104,6 +106,7 @@ export function AudienceSidebar({
   active: "overview" | "people" | "health" | "appointments" | "settings";
 }) {
   const u = session()?.user;
+  const visible = useMenuAccess();
   const isDoctor = u?.role === "DOCTOR";
   const [appointmentCount, setAppointmentCount] = useState(0);
   const [account, setAccount] = useState<SidebarAccount | null>(null);
@@ -250,15 +253,15 @@ export function AudienceSidebar({
             </span>
           </div>
         </div>
-        <Link
+        {visible("overview") && <Link
           className={`audienceSidebarLink${active === "overview" ? " active" : ""}`}
           to="/newsroom"
           onClick={() => setMenuOpen(false)}
         >
           <LayoutDashboard />
           Overview
-        </Link>
-        {account?.organizationLevel === "COOPERATION_LEADER" && (
+        </Link>}
+        {visible("people") && account?.organizationLevel === "COOPERATION_LEADER" && (
           <Link
             className={`audienceSidebarLink${active === "people" ? " active" : ""}`}
             to="/newsroom/people"
@@ -268,7 +271,7 @@ export function AudienceSidebar({
             People
           </Link>
         )}
-        {canAccessRegistrations && (
+        {visible("registrations") && canAccessRegistrations && (
           <Link
             className="audienceSidebarLink"
             to="/newsroom/registrations"
@@ -278,15 +281,15 @@ export function AudienceSidebar({
             Registration
           </Link>
         )}
-        <Link
+        {visible("talk_with_doc") && <Link
           className={`audienceSidebarLink${active === "health" ? " active" : ""}`}
           to="/newsroom/health-services"
           onClick={() => setMenuOpen(false)}
         >
           <CalendarHeart />
           Talk With Doc
-        </Link>
-        <Link
+        </Link>}
+        {visible("appointments") && <Link
           className={`audienceSidebarLink${active === "appointments" ? " active" : ""}`}
           to={
             isDoctor
@@ -297,20 +300,20 @@ export function AudienceSidebar({
         >
           <CalendarCheck2 />
           Appointments{appointmentCount > 0 && <em>{appointmentCount}</em>}
-        </Link>
-        <Link
+        </Link>}
+        {visible("settings") && <Link
           className={`audienceSidebarLink${active === "settings" ? " active" : ""}`}
           to="/newsroom/settings"
           onClick={() => setMenuOpen(false)}
         >
           <Settings />
           Settings
-        </Link>
-        <button className="audienceLogoutButton" onClick={logout}>
+        </Link>}
+        {visible("logout") && <button className="audienceLogoutButton" onClick={logout}>
           <LogOut />
           Logout
-        </button>
-        <button
+        </button>}
+        {visible("update_app") && <><button
           className="audienceUpdateButton"
           disabled={updating}
           onClick={() =>
@@ -320,7 +323,7 @@ export function AudienceSidebar({
           <RefreshCw className={updating ? "spinning" : ""} />
           {updateLabel}
         </button>
-        <small className="audienceAppVersion">Version {__APP_VERSION__}</small>
+        <small className="audienceAppVersion">Version {__APP_VERSION__}</small></>}
       </aside>
     </>
   );
@@ -402,6 +405,7 @@ export function AudienceDashboard() {
                     >
                       Read Story <ArrowUpRight />
                     </Link>
+                    <ShareStoryButton title={s.title} slug={s.slug} />
                     <div>
                       <span>By {s.author.name}</span>
                       <span>
@@ -1270,12 +1274,15 @@ export function AudienceHomepageDashboard() {
                         className="cardRichSummary"
                       />
                       <div className="dailyBriefStoryFooter">
-                        <Link
-                          className="cardReadStory"
-                          to={`/stories/${story.slug}`}
-                        >
-                          Read Story <ArrowUpRight />
-                        </Link>
+                        <div className="storyPrimaryActions">
+                          <Link
+                            className="cardReadStory"
+                            to={`/stories/${story.slug}`}
+                          >
+                            Read Story <ArrowUpRight />
+                          </Link>
+                          <ShareStoryButton title={story.title} slug={story.slug} />
+                        </div>
                         <div className="articleFoot">
                           <b>{story.author.name}</b>
                           <span>{story.views.toLocaleString()} views</span>
