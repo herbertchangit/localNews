@@ -13,6 +13,7 @@ import {
 import swaggerUi from "swagger-ui-express";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import dotenv from "dotenv";
 import sanitizeHtml from "sanitize-html";
 import { z } from "zod";
@@ -2761,13 +2762,44 @@ app.get("/api/admin/accounts/options", auth([Role.ADMIN]), async (q: Req, r) => 
 app.get("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
   const scope = await requirePeopleScope(q, r);
   if (!scope) return;
-  r.json(
-    await db.user.findMany({
+  const [users, submissions] = await Promise.all([
+    db.user.findMany({
       where: scope.where,
       select: accountSelect,
       orderBy: { createdAt: "desc" },
     }),
-  );
+    db.registrationSubmission.findMany({
+      where: { unregisteredAt: null },
+      select: {
+        contact: true,
+        form: { select: { id: true, eventName: true } },
+        attendances: {
+          select: { eventDate: { select: { id: true, eventDate: true } } },
+          orderBy: { eventDate: { eventDate: "asc" } },
+        },
+      },
+    }),
+  ]);
+  const eventsByContact = new Map<string, Array<{ formId: string; eventName: string; eventDateId: string; eventDate: Date }>>();
+  for (const submission of submissions) {
+    const contact = normalizeLoginContact(submission.contact);
+    if (contact.length < 7) continue;
+    const events = eventsByContact.get(contact) || [];
+    for (const attendance of submission.attendances)
+      events.push({
+        formId: submission.form.id,
+        eventName: submission.form.eventName,
+        eventDateId: attendance.eventDate.id,
+        eventDate: attendance.eventDate.eventDate,
+      });
+    eventsByContact.set(contact, events);
+  }
+  r.json(users.map((user) => ({
+    ...user,
+    registeredEvents: user.phone
+      ? (eventsByContact.get(normalizeLoginContact(user.phone)) || []).sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime())
+      : [],
+  })));
 });
 app.post("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
   const scope = await requirePeopleScope(q, r);
@@ -2861,6 +2893,75 @@ app.patch("/api/admin/accounts/:id", auth([Role.ADMIN]), async (q: Req, r) => {
     },
   });
   r.json(user);
+});
+app.get("/api/admin/accounts/:id/events", auth([Role.ADMIN]), async (q: Req, r) => {
+  if (!(await requirePersonInScope(q, r, q.params.id))) return;
+  const target = await db.user.findUnique({ where: { id: q.params.id }, select: { id: true, phone: true } });
+  if (!target) return r.status(404).json({ error: "User not found" });
+  const [forms, invitations, submissions] = await Promise.all([
+    db.registrationForm.findMany({
+      where: { active: true },
+      select: { id: true, eventName: true, slug: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.registrationInvitation.findMany({
+      where: { userId: target.id },
+      select: { formId: true, sharePath: true, createdAt: true, invitedBy: { select: { id: true, name: true } } },
+    }),
+    target.phone
+      ? db.registrationSubmission.findMany({
+          where: { unregisteredAt: null },
+          select: {
+            form: { select: { id: true, eventName: true } },
+            contact: true,
+            attendances: { select: { totalPersons: true, meal: true, eventDate: { select: { id: true, eventDate: true } } } },
+          },
+        })
+      : [],
+  ]);
+  const appointments = submissions
+    .filter((submission) => isContactMatch(target.phone!, submission.contact))
+    .flatMap((submission) => submission.attendances.map((attendance) => ({
+      formId: submission.form.id,
+      eventName: submission.form.eventName,
+      eventDateId: attendance.eventDate.id,
+      eventDate: attendance.eventDate.eventDate,
+      totalPersons: attendance.totalPersons,
+      meal: attendance.meal,
+    })))
+    .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
+  r.json({ forms, appointments, invitations });
+});
+app.post("/api/admin/accounts/:id/invitations", auth([Role.ADMIN]), async (q: Req, r) => {
+  if (!(await requirePersonInScope(q, r, q.params.id))) return;
+  const { formId } = z.object({ formId: z.string().min(1) }).parse(q.body);
+  const form = await db.registrationForm.findFirst({ where: { id: formId, active: true }, select: { id: true, eventName: true, slug: true } });
+  if (!form) return r.status(404).json({ error: "Active registration event not found" });
+  const existing = await db.registrationInvitation.findUnique({
+    where: { userId_formId: { userId: q.params.id, formId } },
+    select: { createdAt: true, invitedBy: { select: { name: true } } },
+  });
+  if (existing)
+    return r.status(409).json({ error: `Already invited by ${existing.invitedBy.name} on ${existing.createdAt.toLocaleDateString()}` });
+  let invitation;
+  try {
+    const token = randomUUID();
+    invitation = await db.registrationInvitation.create({
+      data: { userId: q.params.id, formId, invitedById: q.user!.id, token, sharePath: `/registration/${form.slug}?invite=${encodeURIComponent(token)}` },
+      select: { formId: true, sharePath: true, createdAt: true, invitedBy: { select: { id: true, name: true } } },
+    });
+  } catch (error: any) {
+    if (error?.code === "P2002") return r.status(409).json({ error: "This user has already been invited to the event" });
+    throw error;
+  }
+  await db.auditLog.create({ data: { action: "REGISTRATION_INVITATION_SHARED", actorId: q.user!.id, metadata: { userId: q.params.id, formId, eventName: form.eventName, sharePath: invitation.sharePath } } });
+  r.status(201).json({ ...invitation, eventName: form.eventName });
+});
+app.post("/api/admin/accounts/:id/invitations/cancel", auth([Role.ADMIN]), async (q: Req, r) => {
+  if (!(await requirePersonInScope(q, r, q.params.id))) return;
+  const { formId } = z.object({ formId: z.string().min(1) }).parse(q.body);
+  await db.registrationInvitation.deleteMany({ where: { userId: q.params.id, formId, invitedById: q.user!.id } });
+  r.status(204).end();
 });
 const importedAccount = z
   .object({

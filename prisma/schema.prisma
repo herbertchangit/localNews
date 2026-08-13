@@ -75,6 +75,8 @@ model User {
   createdHealthEvents       HealthEvent[]       @relation("HealthEventCreator")
   createdRegistrationForms  RegistrationForm[]  @relation("RegistrationFormCreator")
   viewableRegistrationForms RegistrationForm[]  @relation("RegistrationFormViewers")
+  registrationInvitations   RegistrationInvitation[] @relation("RegistrationInvitee")
+  sentRegistrationInvitations RegistrationInvitation[] @relation("RegistrationInviter")
   patientAppointments       HealthAppointment[] @relation("PatientAppointments")
   passkeys                  PasskeyCredential[]
   passkeyChallenges         WebAuthnChallenge[]
@@ -107,10 +109,28 @@ model RegistrationForm {
   viewers      User[]                   @relation("RegistrationFormViewers")
   eventDates   RegistrationEventDate[]
   submissions  RegistrationSubmission[]
+  invitations RegistrationInvitation[]
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
 
   @@index([creatorId])
+}
+
+model RegistrationInvitation {
+  userId      String
+  user        User             @relation("RegistrationInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  formId      String
+  form        RegistrationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  invitedById String
+  invitedBy   User             @relation("RegistrationInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+  token       String?
+  sharePath   String
+  createdAt   DateTime         @default(now())
+
+  @@id([userId, formId])
+  @@index([token])
+  @@index([invitedById, createdAt])
+  @@index([formId, createdAt])
 }
 
 model RegistrationEventDate {

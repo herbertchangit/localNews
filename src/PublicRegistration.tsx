@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CalendarDays, CheckCircle2 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
 import { registrationPrefill } from "./registrationPrefill";
@@ -18,6 +18,8 @@ const readSession = (): Session | null => {
 
 export default function PublicRegistration() {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const invitationToken = searchParams.get("invite")?.trim() || "";
   const navigate = useNavigate();
   const [form, setForm] = useState<Form | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(""), [done, setDone] = useState(false), [busy, setBusy] = useState(false);
   const [accountCreated, setAccountCreated] = useState(false);
@@ -29,6 +31,7 @@ export default function PublicRegistration() {
   const [customAnswers, setCustomAnswers] = useState<Record<string, string | number | string[]>>({});
 
   useEffect(() => {
+    if (invitationToken) return;
     const session = readSession();
     if (!session?.token || !session.user) return;
 
@@ -42,7 +45,18 @@ export default function PublicRegistration() {
         setValues((current) => ({ ...current, contact: current.contact || accountDefaults.contact, area: current.area || accountDefaults.area }));
       })
       .catch(() => undefined);
-  }, []);
+  }, [invitationToken]);
+
+  useEffect(() => {
+    if (!slug || !invitationToken) return;
+    fetch(`/api/registrations/public/${encodeURIComponent(slug)}/invitations/${encodeURIComponent(invitationToken)}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || "Could not load invitation details");
+        setValues((current) => ({ ...current, ...data }));
+      })
+      .catch((reason) => setError(reason.message || "This invitation link is invalid or unavailable"));
+  }, [slug, invitationToken]);
 
   useEffect(() => {
     fetch("/api/public/areas")

@@ -288,6 +288,33 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.auditLog.create({ data: { action: "REGISTRATION_UNREGISTERED", actorId: req.user.id, metadata: { formId: submission.formId, submissionId: submission.id, registrantName: submission.registrantName } } });
     res.json(updated);
   });
+  router.get("/public/:slug/invitations/:token", async (req, res) => {
+    const invitation = await db.registrationInvitation.findFirst({
+      where: {
+        token: req.params.token,
+        form: { slug: req.params.slug, active: true },
+      },
+      select: {
+        user: {
+          select: {
+            name: true,
+            phone: true,
+            stayArea: true,
+            role: true,
+            roles: true,
+          },
+        },
+      },
+    });
+    if (!invitation) return res.status(404).json({ error: "This invitation link is invalid or unavailable" });
+    const isVolunteer = invitation.user.role === Role.VOLUNTEER || invitation.user.roles.includes(Role.VOLUNTEER);
+    res.json({
+      registrantName: invitation.user.name,
+      identity: isVolunteer ? "VOLUNTEER" : "NON_VOLUNTEER",
+      contact: invitation.user.phone || "",
+      area: invitation.user.stayArea || "",
+    });
+  });
   router.get("/public/:slug", async (req, res) => {
     const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, photoUrl: true, slug: true, customFields: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
     form ? res.json(form) : res.status(404).json({ error: "This registration form is unavailable" });

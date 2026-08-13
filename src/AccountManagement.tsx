@@ -17,7 +17,8 @@ import {
   Network,
   Download,
   Upload,
-  ClipboardList,
+  CalendarDays,
+  Share2,
 } from "lucide-react";
 import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 import { pageCount, paginate } from "./pagination";
@@ -51,7 +52,13 @@ type User = {
   mutualLoveGroup: Group | null;
   cooperationUnit: Group | null;
   assignedCategories: Cat[];
+  registeredEvents: Array<{ formId: string; eventName: string; eventDateId: string; eventDate: string }>;
   _count: { articles: number };
+};
+type AccountEvents = {
+  forms: Array<{ id: string; eventName: string; slug: string; eventDates: Array<{ id: string; eventDate: string }> }>;
+  appointments: Array<{ formId: string; eventName: string; eventDateId: string; eventDate: string; totalPersons: number; meal: boolean }>;
+  invitations: Array<{ formId: string; sharePath: string; createdAt: string; invitedBy: { id: string; name: string } }>;
 };
 const blank = {
   name: "",
@@ -88,6 +95,9 @@ export default function AccountManagement() {
     [areas, setAreas] = useState<AreaOption[]>([]),
     [availableRoles, setAvailableRoles] = useState<string[]>([]),
     [edit, setEdit] = useState<any | null>(null),
+    [accountEvents, setAccountEvents] = useState<AccountEvents | null>(null),
+    [invitingFormId, setInvitingFormId] = useState(""),
+    [inviting, setInviting] = useState(false),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
     [roleFilter, setRoleFilter] = useState(""),
@@ -162,7 +172,7 @@ export default function AccountManagement() {
           (!harmonyFilter || u.harmonyGroup?.id === harmonyFilter) &&
           (!mutualLoveFilter || u.mutualLoveGroup?.id === mutualLoveFilter) &&
           (!cooperationFilter || u.cooperationUnit?.id === cooperationFilter) &&
-          `${u.name} ${u.email} ${u.phone || ""} ${u.stayArea || ""} ${(u.labels || []).join(" ")} ${u.harmonyGroup?.name || ""} ${u.mutualLoveGroup?.name || ""} ${u.cooperationUnit?.name || ""}`
+          `${u.name} ${u.email} ${u.phone || ""} ${u.stayArea || ""} ${(u.labels || []).join(" ")} ${(u.registeredEvents || []).map((event) => event.eventName).join(" ")} ${u.harmonyGroup?.name || ""} ${u.mutualLoveGroup?.name || ""} ${u.cooperationUnit?.name || ""}`
             .toLowerCase()
             .includes(query.toLowerCase()),
       ),
@@ -226,7 +236,9 @@ export default function AccountManagement() {
       ),
     [users],
   );
-  const open = (u?: User) =>
+  const open = (u?: User) => {
+    setAccountEvents(null);
+    setInvitingFormId("");
     setEdit(
       u
         ? {
@@ -246,12 +258,57 @@ export default function AccountManagement() {
           }
         : { ...blank },
     );
+    if (u)
+      api(`/api/admin/accounts/${u.id}/events`)
+        .then((events) => {
+          setAccountEvents(events);
+          const registered = new Set(events.appointments.map((appointment: any) => appointment.formId));
+          const invited = new Set(events.invitations.map((invitation: any) => invitation.formId));
+          setInvitingFormId(events.forms.find((form: any) => !registered.has(form.id) && !invited.has(form.id))?.id || "");
+        })
+        .catch((error) => flash(error.message));
+  };
+  const inviteToEvent = async () => {
+    if (!edit?.id || !invitingFormId) return;
+    setInviting(true);
+    let invitation: any = null;
+    try {
+      invitation = await api(`/api/admin/accounts/${edit.id}/invitations`, {
+        method: "POST",
+        body: JSON.stringify({ formId: invitingFormId }),
+      });
+      const shareUrl = `${window.location.origin}${invitation.sharePath}`;
+      const text = `${edit.name}, you are invited to ${invitation.eventName}. Register here: ${shareUrl}`;
+      if (navigator.share) await navigator.share({ title: invitation.eventName, text, url: shareUrl });
+      else {
+        await navigator.clipboard.writeText(text);
+        flash("Invitation link copied");
+      }
+      const events = await api(`/api/admin/accounts/${edit.id}/events`);
+      setAccountEvents(events);
+      const registered = new Set(events.appointments.map((appointment: any) => appointment.formId));
+      const invited = new Set(events.invitations.map((item: any) => item.formId));
+      setInvitingFormId(events.forms.find((form: any) => !registered.has(form.id) && !invited.has(form.id))?.id || "");
+    } catch (error: any) {
+      if (invitation)
+        await api(`/api/admin/accounts/${edit.id}/invitations/cancel`, {
+          method: "POST",
+          body: JSON.stringify({ formId: invitation.formId }),
+        }).catch(() => null);
+      flash(error?.name === "AbortError" ? "Invitation sharing cancelled" : error.message);
+    } finally {
+      setInviting(false);
+    }
+  };
   const mutuals = edit
     ? structure.find((h) => h.id === edit.harmonyGroupId)?.mutualLoves || []
     : [];
   const units = edit
     ? mutuals.find((m) => m.id === edit.mutualLoveGroupId)?.cooperations || []
     : [];
+  const registeredFormIds = new Set(accountEvents?.appointments.map((appointment) => appointment.formId) || []);
+  const invitationByForm = new Map(accountEvents?.invitations.map((invitation) => [invitation.formId, invitation]) || []);
+  const availableInvitationForms = accountEvents?.forms.filter((form) => !registeredFormIds.has(form.id) && !invitationByForm.has(form.id)) || [];
   const save = async (e: any) => {
     e.preventDefault();
     try {
@@ -649,6 +706,17 @@ export default function AccountManagement() {
                       {[u.phone, u.stayArea].filter(Boolean).join(" · ")}
                     </small>
                   )}
+                  {!!u.registeredEvents?.length && (
+                    <span className="accountRegisteredEvents">
+                      {u.registeredEvents.map((event) => (
+                        <small key={`${event.formId}-${event.eventDateId}`}>
+                          <CalendarDays />
+                          <b>{event.eventName}</b>
+                          <time>{new Date(event.eventDate).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</time>
+                        </small>
+                      ))}
+                    </span>
+                  )}
                   {!!u.labels?.length && (
                     <span className="accountLabels">
                       {u.labels.map((label) => (
@@ -974,37 +1042,44 @@ export default function AccountManagement() {
                 </label>
               </div>
             </fieldset>
-            <fieldset className="hierarchyFields registrationPermissionField">
+            {edit.id && <fieldset className="hierarchyFields accountEventAccess">
               <legend>
-                <ClipboardList />
-                Registration access
+                <CalendarDays />
+                Event appointments and invitations
               </legend>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={(edit.permissions || []).includes(
-                    "registrations.manage",
-                  )}
-                  onChange={(e) =>
-                    setEdit({
-                      ...edit,
-                      permissions: e.target.checked
-                        ? [
-                            ...new Set([
-                              ...(edit.permissions || []),
-                              "registrations.manage",
-                            ]),
-                          ]
-                        : (edit.permissions || []).filter(
-                            (permission: string) =>
-                              permission !== "registrations.manage",
-                          ),
-                    })
-                  }
-                />
-                Authorized to create, edit, delete and review registration forms
-              </label>
-            </fieldset>
+              {!accountEvents ? <p>Loading event records…</p> : <>
+                <div className="accountAppointmentList">
+                  <strong>User appointments</strong>
+                  {accountEvents.appointments.length ? accountEvents.appointments.map((appointment) => (
+                    <span key={`${appointment.formId}-${appointment.eventDateId}`}>
+                      <b>{appointment.eventName}</b>
+                      <time>{new Date(appointment.eventDate).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</time>
+                    </span>
+                  )) : <small>No event appointments found for this contact number.</small>}
+                </div>
+                <div className="accountInvitationList">
+                  <strong>Event invitations</strong>
+                  {accountEvents.forms.map((form) => {
+                    const invitation = invitationByForm.get(form.id);
+                    return invitation ? <span key={form.id}>
+                      <b>{form.eventName}</b>
+                      <small>Invited by {invitation.invitedBy.name} · {new Date(invitation.createdAt).toLocaleDateString()}</small>
+                    </span> : registeredFormIds.has(form.id) ? <span key={form.id}>
+                      <b>{form.eventName}</b><small>Already registered</small>
+                    </span> : null;
+                  })}
+                  <div className="accountInviteAction">
+                    <select value={invitingFormId} onChange={(event) => setInvitingFormId(event.target.value)} disabled={!availableInvitationForms.length}>
+                      <option value="">{availableInvitationForms.length ? "Select an event" : "No events available to invite"}</option>
+                      {availableInvitationForms.map((form) => <option value={form.id} key={form.id}>{form.eventName}</option>)}
+                    </select>
+                    <button type="button" onClick={inviteToEvent} disabled={!invitingFormId || inviting}>
+                      <Share2 />{inviting ? "Sharing…" : "Invite & share link"}
+                    </button>
+                  </div>
+                </div>
+              </>}
+            </fieldset>}
             <div className="accountChecks">
               <label>
                 <input
