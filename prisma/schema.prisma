@@ -85,11 +85,13 @@ model User {
 model RoleMenuAccess {
   id          String   @id @default(cuid())
   role        Role?    @unique
-  roleKey     String?  @unique
+  roleKey     String?
   menuIds     String[] @default([])
   authorities Json     @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([roleKey])
 }
 
 model RegistrationForm {
