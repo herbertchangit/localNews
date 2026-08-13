@@ -42,6 +42,7 @@ type User = {
   organizationLevel: string | null;
   role: string;
   roles: string[];
+  customRoles: string[];
   locked: boolean;
   suspended: boolean;
   permissions: string[];
@@ -108,19 +109,16 @@ export default function AccountManagement() {
   };
   const load = async () => {
     try {
-      const [u, o, s, a, roleData] = await Promise.all([
+      const [u, options] = await Promise.all([
         api("/api/admin/accounts"),
-        api("/api/admin/user-options"),
-        api("/api/admin/org-structure"),
-        api("/api/areas"),
-        api("/api/role-menus/admin"),
+        api("/api/admin/accounts/options"),
       ]);
       setUsers(u);
-      setDepartments(o.departments);
-      setCategories(o.categories);
-      setStructure(s);
-      setAreas(a);
-      setAvailableRoles(roleData.roles);
+      setDepartments(options.departments);
+      setCategories(options.categories);
+      setStructure(options.structure);
+      setAreas(options.areas);
+      setAvailableRoles(options.roles);
     } catch (e: any) {
       setNotice(e.message);
     }
@@ -160,7 +158,7 @@ export default function AccountManagement() {
     () =>
       users.filter(
         (u) =>
-          (!roleFilter || (u.roles?.length ? u.roles : [u.role]).includes(roleFilter)) &&
+          (!roleFilter || [...new Set([...(u.roles || []), u.role, ...(u.customRoles || [])])].includes(roleFilter)) &&
           (!harmonyFilter || u.harmonyGroup?.id === harmonyFilter) &&
           (!mutualLoveFilter || u.mutualLoveGroup?.id === mutualLoveFilter) &&
           (!cooperationFilter || u.cooperationUnit?.id === cooperationFilter) &&
@@ -233,7 +231,7 @@ export default function AccountManagement() {
       u
         ? {
           ...u,
-            roles: u.roles?.length ? u.roles : [u.role],
+            roles: [...new Set([...(u.roles || []), u.role, ...(u.customRoles || [])])],
             phone: u.phone || "",
             stayArea: u.stayArea || "",
             organizationLevel: u.organizationLevel || "",
@@ -261,7 +259,6 @@ export default function AccountManagement() {
       const editing = !!edit.id,
         body = {
           ...edit,
-          role: edit.roles[0],
           phone: edit.phone?.trim() || null,
           stayArea: edit.stayArea?.trim() || null,
           labels: [
@@ -286,6 +283,7 @@ export default function AccountManagement() {
         "cooperationUnit",
         "assignedCategories",
         "labelsText",
+        "customRoles",
         "_count",
       ])
         delete body[k];
@@ -514,7 +512,7 @@ export default function AccountManagement() {
                 placeholder="Search people or organization assignment"
               />
             </div>
-            {!!selected.size && (
+            {!!selected.size && allowed("delete") && (
               <button className="bulkDelete" type="button" onClick={bulkRemove}>
                 <Trash2 />
                 Delete selected ({selected.size})
@@ -611,7 +609,7 @@ export default function AccountManagement() {
                 aria-label="Select all users on this page"
                 checked={pageSelected}
                 onChange={togglePage}
-                disabled={!selectablePageUsers.length}
+                disabled={!selectablePageUsers.length || !allowed("delete")}
               />
               Person
             </span>
@@ -627,7 +625,7 @@ export default function AccountManagement() {
                   type="checkbox"
                   aria-label={`Select ${u.name}`}
                   checked={selected.has(u.id)}
-                  disabled={u.id === currentUserId}
+                  disabled={u.id === currentUserId || !allowed("delete")}
                   onChange={(event) =>
                     setSelected((current) => {
                       const next = new Set(current);
@@ -662,7 +660,7 @@ export default function AccountManagement() {
               </div>
               <div className="accountHierarchy">
                 <small className="organizationLine">
-                  <i>{(u.roles?.length ? u.roles : [u.role]).map(roleLabel).join(", ")}</i>
+                  <i>{[...new Set([...(u.roles || []), u.role, ...(u.customRoles || [])])].map(roleLabel).join(", ")}</i>
                   {u.department?.name && (
                     <>
                       {" "}
@@ -677,7 +675,7 @@ export default function AccountManagement() {
                 <span>{u.cooperationUnit?.name || "—"}</span>
               </div>
               <span className={"rolePill " + u.role.toLowerCase()}>
-                {(u.roles?.length ? u.roles : [u.role]).map(roleLabel).join(", ")}
+                {[...new Set([...(u.roles || []), u.role, ...(u.customRoles || [])])].map(roleLabel).join(", ")}
               </span>
               <span
                 className={

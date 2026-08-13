@@ -37,6 +37,12 @@ import {
   createRoleMenuRouter,
 } from "./roleMenus.js";
 import { articlePublicationCutoff } from "./articleExpiry.js";
+import {
+  absoluteWebUrl,
+  injectSocialMeta,
+  plainText,
+  youtubeThumbnailFromText,
+} from "./socialPreview.js";
 const app = express(),
   db = new PrismaClient(),
   secret = process.env.JWT_SECRET || "dev-only-secret-change-me",
@@ -87,7 +93,7 @@ const saveAvatar = (
   previous?: string | null,
 ) => saveImage(userId, dataUrl, previous, 2 * 1024 * 1024);
 type Req = express.Request & {
-  user?: { id: string; role: Role; roles?: Role[] };
+  user?: { id: string; role: Role; roles?: Role[]; customRoles?: string[] };
   roleAuthorityConfigured?: boolean;
 };
 const rolePriority = [
@@ -100,8 +106,8 @@ const rolePriority = [
   Role.DADE,
   Role.AUDIENCE,
 ];
-const effectiveRoles = (user: { role: Role; roles?: Role[] | null }) =>
-  [...new Set([...(user.roles || []), user.role])];
+const effectiveRoles = (user: { role: Role; roles?: Role[] | null; customRoles?: string[] | null }) =>
+  [...new Set([...(user.roles || []), user.role, ...(user.customRoles || [])])];
 const primaryRole = (roles: Role[]) =>
   rolePriority.find((role) => roles.includes(role)) || roles[0] || Role.DADE;
 const auth =
@@ -282,13 +288,14 @@ const loginUserSelect = {
     phone: true,
     role: true,
     roles: true,
+    customRoles: true,
     avatarUrl: true,
     password: true,
     locked: true,
     suspended: true,
   },
   sessionFor = (user: any) => ({
-    token: jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user) }, secret, {
+    token: jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user), customRoles: user.customRoles || [] }, secret, {
       expiresIn: "8h",
     }),
     user: {
@@ -297,6 +304,7 @@ const loginUserSelect = {
       email: user.email,
       role: user.role,
       roles: effectiveRoles(user),
+      customRoles: user.customRoles || [],
       avatarUrl: user.avatarUrl,
     },
   });
@@ -455,7 +463,7 @@ app.post("/api/auth/register", async (q, r) => {
       },
     },
   });
-  const token = jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user) }, secret, {
+  const token = jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user), customRoles: user.customRoles || [] }, secret, {
     expiresIn: "8h",
   });
   r.status(201).json({ token, user });
@@ -1899,6 +1907,7 @@ const userSelect = {
   email: true,
   role: true,
   roles: true,
+  customRoles: true,
   locked: true,
   createdAt: true,
   _count: { select: { articles: true } },
@@ -2090,6 +2099,7 @@ app.post(
   "/api/admin/users/:id/reset-password",
   auth([Role.ADMIN]),
   async (q: Req, r) => {
+    if (!(await requirePersonInScope(q, r, q.params.id))) return;
     const { password } = z
       .object({ password: z.string().min(8) })
       .parse(q.body);
@@ -2109,6 +2119,7 @@ app.post(
   },
 );
 app.delete("/api/admin/users/:id", auth([Role.ADMIN]), async (q: Req, r) => {
+  if (!(await requirePersonInScope(q, r, q.params.id))) return;
   if (q.user!.id === q.params.id)
     return r.status(400).json({ error: "You cannot delete your own account" });
   const linked = await db.user.findUnique({
@@ -2627,6 +2638,7 @@ const accountSelect = {
   organizationLevel: true,
   role: true,
   roles: true,
+  customRoles: true,
   locked: true,
   suspended: true,
   permissions: true,
@@ -2650,8 +2662,8 @@ const accountInput = z.object({
   stayArea: z.string().trim().max(120).nullable().optional(),
   labels: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
   organizationLevel: organizationLevelInput.nullable().optional(),
-  role: z.nativeEnum(Role),
-  roles: z.array(z.nativeEnum(Role)).min(1).max(Object.values(Role).length).optional(),
+  role: z.nativeEnum(Role).optional(),
+  roles: z.array(z.string().trim().min(2).max(50)).min(1).max(30).optional(),
   password: z.string().min(8).optional(),
   locked: z.boolean().optional(),
   suspended: z.boolean().optional(),
@@ -2662,25 +2674,123 @@ const accountInput = z.object({
   categoryIds: z.array(z.string()).optional(),
   permissions: z.array(z.string()).optional(),
 });
-app.get("/api/admin/accounts", auth([Role.ADMIN]), async (_q, r) =>
+const validateCustomRoles = async (roles: string[]) => {
+  if (!roles.length) return;
+  const configured = await db.roleMenuAccess.count({ where: { roleKey: { in: roles } } });
+  if (configured !== roles.length) throw new z.ZodError([{ code: "custom", path: ["roles"], message: "One or more selected roles no longer exist" }]);
+};
+const peopleAccessScope = async (userId: string) => {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { role: true, roles: true, harmonyGroupId: true, mutualLoveGroupId: true },
+  });
+  if (!user) return null;
+  const admin = [user.role, ...(user.roles || [])].includes(Role.ADMIN);
+  return {
+    admin,
+    harmonyGroupId: user.harmonyGroupId,
+    mutualLoveGroupId: user.mutualLoveGroupId,
+    where: admin
+      ? {}
+      : {
+          harmonyGroupId: user.harmonyGroupId || "__unassigned__",
+          mutualLoveGroupId: user.mutualLoveGroupId || "__unassigned__",
+          NOT: { OR: [{ role: Role.ADMIN }, { roles: { has: Role.ADMIN } }] },
+        },
+  };
+};
+const requirePeopleScope = async (q: Req, r: express.Response) => {
+  const scope = await peopleAccessScope(q.user!.id);
+  if (!scope) {
+    r.status(404).json({ error: "User not found" });
+    return null;
+  }
+  if (!scope.admin && (!scope.harmonyGroupId || !scope.mutualLoveGroupId)) {
+    r.status(403).json({ error: "Harmony and MutualLove assignments are required for People access" });
+    return null;
+  }
+  return scope;
+};
+const requirePersonInScope = async (q: Req, r: express.Response, userId: string) => {
+  const scope = await requirePeopleScope(q, r);
+  if (!scope) return null;
+  const user = await db.user.findFirst({ where: { id: userId, ...scope.where }, select: { id: true } });
+  if (!user) {
+    r.status(403).json({ error: "This account is outside your Harmony and MutualLove scope" });
+    return null;
+  }
+  return scope;
+};
+const areaOptionSelect = {
+  id: true,
+  name: true,
+  mutualLoveId: true,
+  mutualLove: { select: { id: true, name: true, harmony: { select: { id: true, name: true } } } },
+};
+app.get("/api/admin/accounts/options", auth([Role.ADMIN]), async (q: Req, r) => {
+  const scope = await requirePeopleScope(q, r);
+  if (!scope) return;
+  const profiles = await db.roleMenuAccess.findMany({ select: { role: true, roleKey: true } });
+  const structureWhere = scope.admin ? {} : { id: scope.harmonyGroupId! };
+  const mutualWhere = scope.admin ? {} : { mutualLoveId: scope.mutualLoveGroupId! };
+  const [departments, categories, structure, areas] = await Promise.all([
+    db.department.findMany({ orderBy: { name: "asc" } }),
+    db.category.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.harmonyGroup.findMany({
+      where: structureWhere,
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      include: {
+        mutualLoves: {
+          where: scope.admin ? {} : { id: scope.mutualLoveGroupId! },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          include: { cooperations: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
+        },
+      },
+    }),
+    db.area.findMany({ where: mutualWhere, select: areaOptionSelect, orderBy: { name: "asc" } }),
+  ]);
+  r.json({
+    departments,
+    categories,
+    structure,
+    areas,
+    roles: [...new Set([...(scope.admin ? Object.values(Role) : Object.values(Role).filter((role) => role !== Role.ADMIN)), ...profiles.map((profile) => profile.roleKey).filter(Boolean)])],
+    scope: { admin: scope.admin, harmonyGroupId: scope.harmonyGroupId, mutualLoveGroupId: scope.mutualLoveGroupId },
+  });
+});
+app.get("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
+  const scope = await requirePeopleScope(q, r);
+  if (!scope) return;
   r.json(
     await db.user.findMany({
+      where: scope.where,
       select: accountSelect,
       orderBy: { createdAt: "desc" },
     }),
-  ),
-);
+  );
+});
 app.post("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
+  const scope = await requirePeopleScope(q, r);
+  if (!scope) return;
   const x = accountInput.extend({ password: z.string().min(8) }).parse(q.body);
   if (await db.user.findUnique({ where: { email: x.email } }))
     return r.status(409).json({ error: "That email is already in use" });
   const { categoryIds = [], password, roles: selectedRoles, ...data } = x;
-  const roles = [...new Set(selectedRoles || [data.role])];
+  const selected = [...new Set(selectedRoles || (data.role ? [data.role] : [Role.DADE]))];
+  const roles = selected.filter((value): value is Role => Object.values(Role).includes(value as Role));
+  const customRoles = selected.filter((value) => !Object.values(Role).includes(value as Role));
+  if (!scope.admin && roles.includes(Role.ADMIN)) return r.status(403).json({ error: "Only administrators can assign the Administrator role" });
+  if (!scope.admin && ((data.harmonyGroupId !== undefined && data.harmonyGroupId !== scope.harmonyGroupId) || (data.mutualLoveGroupId !== undefined && data.mutualLoveGroupId !== scope.mutualLoveGroupId)))
+    return r.status(403).json({ error: "New accounts must remain in your Harmony and MutualLove scope" });
+  await validateCustomRoles(customRoles);
   const user = await db.user.create({
     data: {
       ...data,
       role: primaryRole(roles),
       roles,
+      customRoles,
+      harmonyGroupId: scope.admin ? data.harmonyGroupId : scope.harmonyGroupId,
+      mutualLoveGroupId: scope.admin ? data.mutualLoveGroupId : scope.mutualLoveGroupId,
       password: await bcrypt.hash(password, 12),
       assignedCategories: { connect: categoryIds.map((id) => ({ id })) },
     },
@@ -2704,6 +2814,8 @@ app.post("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
   r.status(201).json(user);
 });
 app.patch("/api/admin/accounts/:id", auth([Role.ADMIN]), async (q: Req, r) => {
+  const scope = await requirePersonInScope(q, r, q.params.id);
+  if (!scope) return;
   const x = accountInput
     .partial()
     .omit({ password: true, email: true })
@@ -2713,13 +2825,20 @@ app.patch("/api/admin/accounts/:id", auth([Role.ADMIN]), async (q: Req, r) => {
       .status(400)
       .json({ error: "You cannot deactivate your own account" });
   const { categoryIds, roles: selectedRoles, ...data } = x;
-  const roles = selectedRoles ? [...new Set(selectedRoles)] : undefined;
+  const selected = selectedRoles ? [...new Set(selectedRoles)] : undefined;
+  const roles = selected?.filter((value): value is Role => Object.values(Role).includes(value as Role));
+  const customRoles = selected?.filter((value) => !Object.values(Role).includes(value as Role));
+  if (!scope.admin && roles?.includes(Role.ADMIN)) return r.status(403).json({ error: "Only administrators can assign the Administrator role" });
+  if (!scope.admin && ((data.harmonyGroupId !== undefined && data.harmonyGroupId !== scope.harmonyGroupId) || (data.mutualLoveGroupId !== undefined && data.mutualLoveGroupId !== scope.mutualLoveGroupId)))
+    return r.status(403).json({ error: "Accounts must remain in your Harmony and MutualLove scope" });
+  await validateCustomRoles(customRoles || []);
   const user = await db.user.update({
     where: { id: q.params.id },
     data: {
       ...data,
-      role: roles ? primaryRole(roles) : data.role,
+      role: selected ? primaryRole(roles || []) : data.role,
       roles,
+      customRoles,
       assignedCategories: categoryIds
         ? { set: categoryIds.map((id) => ({ id })) }
         : undefined,
@@ -2773,6 +2892,8 @@ app.post(
   "/api/admin/accounts/import",
   auth([Role.ADMIN]),
   async (q: Req, r) => {
+    const scope = await requirePeopleScope(q, r);
+    if (!scope) return;
     const rows = z.array(importedAccount).min(1).max(1000).parse(q.body?.users),
       [departments, harmonies, mutualLoves, cooperations] = await Promise.all([
         db.department.findMany(),
@@ -2791,6 +2912,8 @@ app.post(
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
       try {
+        if (!scope.admin && row.role === Role.ADMIN)
+          throw new Error("Only administrators can assign the Administrator role");
         const generatedEmail = loginEmailForContact(row.contact),
           email = row.email || generatedEmail;
         let current = await db.user.findUnique({
@@ -2808,6 +2931,10 @@ app.post(
           if (matches.length > 1)
             throw new Error("Contact number belongs to multiple accounts");
           current = matches[0] || null;
+        }
+        if (current && !scope.admin) {
+          const scopedTarget = await db.user.findFirst({ where: { id: current.id, ...scope.where }, select: { id: true } });
+          if (!scopedTarget) throw new Error("Account is outside your Harmony and MutualLove scope");
         }
         const labels = [
             ...new Set(
@@ -2830,10 +2957,8 @@ app.post(
             departmentId: row.organization
               ? find(departments, row.organization)
               : null,
-            harmonyGroupId: row.harmony ? find(harmonies, row.harmony) : null,
-            mutualLoveGroupId: row.mutualLove
-              ? find(mutualLoves, row.mutualLove)
-              : null,
+            harmonyGroupId: scope.admin ? (row.harmony ? find(harmonies, row.harmony) : null) : scope.harmonyGroupId,
+            mutualLoveGroupId: scope.admin ? (row.mutualLove ? find(mutualLoves, row.mutualLove) : null) : scope.mutualLoveGroupId,
             cooperationUnitId: row.cooperation
               ? find(cooperations, row.cooperation)
               : null,
@@ -2943,6 +3068,46 @@ const openapi = {
 };
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapi));
 const dist = path.resolve("dist");
+app.get("/stories/:slug", async (q, r, next) => {
+  try {
+    const article = await db.article.findFirst({
+      where: {
+        slug: q.params.slug,
+        status: ArticleStatus.PUBLISHED,
+        isPublic: true,
+      },
+      select: {
+        title: true,
+        excerpt: true,
+        content: true,
+        imageUrl: true,
+        photos: {
+          select: { url: true },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        },
+      },
+    });
+    if (!article) return next();
+    const forwardedHost = q.get("x-forwarded-host")?.split(",")[0].trim();
+    const origin = `${q.protocol}://${forwardedHost || q.get("host")}`;
+    const storyUrl = absoluteWebUrl(`/stories/${encodeURIComponent(q.params.slug)}`, origin);
+    const photo = article.photos.find((item) => !isVideoUploadUrl(item.url))?.url || article.imageUrl;
+    const image = photo
+      ? absoluteWebUrl(photo, origin)
+      : youtubeThumbnailFromText(article.content);
+    const description = plainText(article.excerpt || article.content).slice(0, 240) || "Read this story on Local News.";
+    const html = await fs.readFile(path.join(dist, "index.html"), "utf8");
+    r.set("Cache-Control", "public, max-age=60, s-maxage=300");
+    r.type("html").send(injectSocialMeta(html, {
+      title: article.title,
+      description,
+      url: storyUrl,
+      image,
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
 app.use(express.static(dist));
 app.use((q, r, next) =>
   q.path.startsWith("/api/")
