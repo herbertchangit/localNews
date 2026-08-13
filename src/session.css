@@ -10,8 +10,8 @@
   .sessionHeaderShell+.doctorPageShell>.dash{
     display:block;
   }
-  .sessionHeaderShell+.dash>aside:not(.sessionMobileSidebarOpen),
-  .sessionHeaderShell+.doctorPageShell .dash>aside:not(.sessionMobileSidebarOpen){
+  .sessionHeaderShell+.dash>aside:not(.open):not(.sessionMobileSidebarOpen),
+  .sessionHeaderShell+.doctorPageShell .dash>aside:not(.open):not(.sessionMobileSidebarOpen){
     display:none;
   }
   .dash aside.sessionMobileSidebarOpen .sessionCommonSidebarButton,
