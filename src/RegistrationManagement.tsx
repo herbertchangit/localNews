@@ -385,10 +385,22 @@ export default function RegistrationManagement() {
           return {
             ...summary,
             registered: summary.registered + persons,
+            volunteers:
+              summary.volunteers +
+              (submission.identity === "VOLUNTEER" ? persons : 0),
+            nonVolunteers:
+              summary.nonVolunteers +
+              (submission.identity === "VOLUNTEER" ? 0 : persons),
             meals: summary.meals + (attendance.meal ? persons : 0),
           };
         },
-        { eventDate, registered: 0, meals: 0 },
+        {
+          eventDate,
+          registered: 0,
+          volunteers: 0,
+          nonVolunteers: 0,
+          meals: 0,
+        },
       ),
     ) || [];
   return (
@@ -930,9 +942,18 @@ export default function RegistrationManagement() {
                     )}
                   </strong>
                   <div>
-                    <span>
-                      Total Registered / 登记总人数<b>{summary.registered}</b>
-                    </span>
+                    <div className="registeredIdentitySummary">
+                      <span>
+                        Total Registered / 登记总人数
+                        <b>{summary.registered}</b>
+                      </span>
+                      <small>
+                        Volunteer / 志工 <b>{summary.volunteers}</b>
+                      </small>
+                      <small>
+                        Non-Volunteer / 非志工 <b>{summary.nonVolunteers}</b>
+                      </small>
+                    </div>
                     <span>
                       Total require Meal / 需要用餐总人数<b>{summary.meals}</b>
                     </span>
