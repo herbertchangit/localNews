@@ -426,6 +426,12 @@ Object.assign(zh, {
   "Loading comments…": "正在載入留言……",
   "No comments yet. Start the conversation.": "尚無留言，歡迎開始交流。",
 });
+Object.assign(zh, {
+  Share: "分享",
+  "Link copied": "連結已複製",
+  "Unable to share": "無法分享",
+});
+
 export const HEALTH_TERM_TRANSLATIONS = {
   "Talk With Doc": { "zh-cn": "医你有约", "zh-tw": "醫你有約" },
   "AUDIENCE / TALK WITH DOC": { "zh-cn": "读者 / 医你有约", "zh-tw": "讀者 / 醫你有約" },
@@ -483,6 +489,17 @@ Object.assign(zhTw, {
   "Import CSV": "匯入 CSV",
   "Export CSV": "匯出 CSV",
 });
+Object.assign(zh, {
+  Roles: "角色",
+  "Select one or more roles. Access from the selected roles is combined.": "选择一个或多个角色。系统将合并所选角色的访问权限。",
+  "Select at least one role": "请至少选择一个角色",
+});
+Object.assign(zhTw, {
+  Roles: "角色",
+  "Select one or more roles. Access from the selected roles is combined.": "選擇一個或多個角色。系統將合併所選角色的存取權限。",
+  "Select at least one role": "請至少選擇一個角色",
+});
+
 type Language = "en" | "zh-cn" | "zh-tw";
 export type TranslationMapping = { source: string; zhCn: string; zhTw: string };
 export const DEFAULT_TRANSLATION_MAPPINGS: TranslationMapping[] = Array.from(

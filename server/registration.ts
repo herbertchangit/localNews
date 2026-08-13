@@ -99,7 +99,7 @@ export function createRegistrationRouter(db: any, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       req.user = jwt.verify(token, secret);
-      const account = await db.user.findUnique({ where: { id: req.user.id }, select: { role: true, permissions: true, locked: true, suspended: true } });
+      const account = await db.user.findUnique({ where: { id: req.user.id }, select: { role: true, roles: true, permissions: true, locked: true, suspended: true } });
       if (!account || account.locked || account.suspended) return res.status(401).json({ error: "Inactive account" });
       req.registrationAccount = account;
       next();
@@ -107,7 +107,7 @@ export function createRegistrationRouter(db: any, secret: string) {
       return res.status(401).json({ error: "Invalid token" });
     }
   };
-  const canManage = (req: any) => req.registrationAccount?.role === Role.ADMIN || req.registrationAccount?.permissions?.includes(MANAGE_PERMISSION);
+  const canManage = (req: any) => Boolean(req.roleAuthorityConfigured) || [req.registrationAccount?.role, ...(req.registrationAccount?.roles || [])].includes(Role.ADMIN) || req.registrationAccount?.permissions?.includes(MANAGE_PERMISSION);
   const manage = (req: any, res: any, next: any) => canManage(req) ? next() : res.status(403).json({ error: "Registration management permission required" });
   const include = {
     creator: { select: { id: true, name: true } },

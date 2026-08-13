@@ -52,7 +52,9 @@ export default function EditorialDashboard() {
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState("");
-  const [previewArticle, setPreviewArticle] = useState<EditorialArticle | null>(null);
+  const [previewArticle, setPreviewArticle] = useState<EditorialArticle | null>(
+    null,
+  );
   const [notice, setNotice] = useState("");
   const isAdmin = current?.user.role === "ADMIN";
 
@@ -74,8 +76,10 @@ export default function EditorialDashboard() {
       ]);
       const queue = await queueResponse.json();
       const options = await optionResponse.json();
-      if (!queueResponse.ok) throw new Error(queue.error || "Could not load editorial queue");
-      if (!optionResponse.ok) throw new Error(options.error || "Could not load story options");
+      if (!queueResponse.ok)
+        throw new Error(queue.error || "Could not load editorial queue");
+      if (!optionResponse.ok)
+        throw new Error(options.error || "Could not load story options");
       setArticles(queue);
       setCanCreate(Boolean(options.canCreate));
     } catch (error: any) {
@@ -92,7 +96,8 @@ export default function EditorialDashboard() {
   useEffect(() => {
     if (!previewArticle) return;
     const previousOverflow = document.body.style.overflow;
-    const closePreview = (event: KeyboardEvent) => event.key === "Escape" && setPreviewArticle(null);
+    const closePreview = (event: KeyboardEvent) =>
+      event.key === "Escape" && setPreviewArticle(null);
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closePreview);
     return () => {
@@ -101,7 +106,10 @@ export default function EditorialDashboard() {
     };
   }, [previewArticle]);
 
-  const verify = async (article: EditorialArticle, status: "PUBLISHED" | "REVISION") => {
+  const verify = async (
+    article: EditorialArticle,
+    status: "PUBLISHED" | "REVISION",
+  ) => {
     setWorkingId(article.id);
     try {
       const response = await fetch(`/api/articles/${article.id}/status`, {
@@ -110,13 +118,16 @@ export default function EditorialDashboard() {
         body: JSON.stringify({ status }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not update story");
+      if (!response.ok)
+        throw new Error(result.error || "Could not update story");
       if (status === "PUBLISHED") {
         setArticles((items) => items.filter((item) => item.id !== article.id));
         setNotice("Story verified and published / 新聞已審核並發布");
       } else {
         setArticles((items) =>
-          items.map((item) => (item.id === article.id ? { ...item, status: "REVISION" } : item)),
+          items.map((item) =>
+            item.id === article.id ? { ...item, status: "REVISION" } : item,
+          ),
         );
         setNotice("Revision requested / 已要求修改");
       }
@@ -130,9 +141,13 @@ export default function EditorialDashboard() {
   const republish = async (article: EditorialArticle) => {
     setWorkingId(article.id);
     try {
-      const response = await fetch(`/api/articles/${article.id}/republish`, { method: "PATCH", headers });
+      const response = await fetch(`/api/articles/${article.id}/republish`, {
+        method: "PATCH",
+        headers,
+      });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not republish story");
+      if (!response.ok)
+        throw new Error(result.error || "Could not republish story");
       setArticles((items) => items.filter((item) => item.id !== article.id));
       setNotice("Story republished for another 7 days / 新聞已重新發布七天");
     } catch (error: any) {
@@ -142,9 +157,15 @@ export default function EditorialDashboard() {
     }
   };
 
-  const reviewCount = articles.filter((article) => article.status === "DRAFT" || article.status === "REVIEW").length;
-  const revisionCount = articles.filter((article) => article.status === "REVISION").length;
-  const expiredCount = articles.filter((article) => article.status === "ARCHIVED").length;
+  const reviewCount = articles.filter(
+    (article) => article.status === "DRAFT" || article.status === "REVIEW",
+  ).length;
+  const revisionCount = articles.filter(
+    (article) => article.status === "REVISION",
+  ).length;
+  const expiredCount = articles.filter(
+    (article) => article.status === "ARCHIVED",
+  ).length;
   const initials = current?.user.name
     .split(" ")
     .map((part) => part[0])
@@ -156,21 +177,63 @@ export default function EditorialDashboard() {
       <aside>
         <Link to="/" className="brand light">
           <span>LN</span>
-          <div>LOCAL NEWS<small>NEWSROOM OS</small></div>
+          <div>
+            LOCAL NEWS<small>NEWSROOM OS</small>
+          </div>
         </Link>
-        <div className="workspace"><small>WORKSPACE</small><b>Central News Desk</b></div>
-        <button className="active"><LayoutDashboard />Overview</button>
-        <button onClick={() => nav("/newsroom/stories")}><FileText />Stories<em>{articles.length}</em></button>
-        {isAdmin && <button><Users />People</button>}
+        <div className="workspace">
+          <small>WORKSPACE</small>
+          <b>Central News Desk</b>
+        </div>
+        <button className="active">
+          <LayoutDashboard />
+          Overview
+        </button>
+        <button onClick={() => nav("/newsroom/stories")}>
+          <FileText />
+          Stories<em>{articles.length}</em>
+        </button>
+        {isAdmin && (
+          <button>
+            <Users />
+            People
+          </button>
+        )}
         {isAdmin && <div className="healthNavLabel">Talk With Doc</div>}
-        {isAdmin && <button onClick={() => nav("/newsroom/health/events")}><CalendarDays />Events</button>}
-        {isAdmin && <button onClick={() => nav("/newsroom/health/appointments")}><ClipboardList />Appointments</button>}
-        {isAdmin && <button onClick={() => nav("/newsroom/health/doctors")}><Stethoscope />Doctors</button>}
-        {isAdmin && <button><BarChart3 />Analytics</button>}
-        <button onClick={() => !isAdmin && nav("/newsroom/settings")}><Settings />Settings</button>
+        {isAdmin && (
+          <button onClick={() => nav("/newsroom/health/events")}>
+            <CalendarDays />
+            Events
+          </button>
+        )}
+        {isAdmin && (
+          <button onClick={() => nav("/newsroom/health/appointments")}>
+            <ClipboardList />
+            Appointments
+          </button>
+        )}
+        {isAdmin && (
+          <button onClick={() => nav("/newsroom/health/doctors")}>
+            <Stethoscope />
+            Doctors
+          </button>
+        )}
+        {isAdmin && (
+          <button>
+            <BarChart3 />
+            Analytics
+          </button>
+        )}
+        <button onClick={() => !isAdmin && nav("/newsroom/settings")}>
+          <Settings />
+          Settings
+        </button>
         <div className="profile">
           <div>{initials}</div>
-          <span><b>{current?.user.name}</b><small>{isAdmin ? "Administrator" : "Editor"}</small></span>
+          <span>
+            <b>{current?.user.name}</b>
+            <small>{isAdmin ? "Administrator" : "Editor"}</small>
+          </span>
         </div>
       </aside>
       <section className="content editorialDashboard">
@@ -178,55 +241,196 @@ export default function EditorialDashboard() {
           <div>
             <small>EDITORIAL / VERIFICATION · 編輯 / 審核</small>
             <h1>News verification / 新聞審核</h1>
-            <p>Review and verify stories before publication. / 發布前審閱及核實新聞。</p>
+            <p>
+              Review and verify stories before publication. /
+              發布前審閱及核實新聞。
+            </p>
           </div>
           <div>
-            <button className="icon" aria-label="Notifications"><Bell /></button>
-            {canCreate && <button className="new" onClick={openStoryComposer}><Plus />New story</button>}
+            <button className="icon" aria-label="Notifications">
+              <Bell />
+            </button>
+            {canCreate && (
+              <button className="new" onClick={openStoryComposer}>
+                <Plus />
+                New story
+              </button>
+            )}
           </div>
         </div>
-        {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
+        {notice && (
+          <div className="toast">
+            {notice}
+            <button onClick={() => setNotice("")}>×</button>
+          </div>
+        )}
         <div className="stats editorialStats">
-          <div className="stat"><div><small>Editorial queue / 待審核</small><strong>{articles.length}</strong><span>Requires verification</span></div><FileCheck2 /></div>
-          <div className="stat"><div><small>Ready for review / 可供審閱</small><strong>{reviewCount}</strong><span>Draft or in review</span></div><CheckCircle2 /></div>
-          <div className="stat"><div><small>Revisions / 修改中</small><strong>{revisionCount}</strong><span>Returned to author</span></div><RefreshCw /></div>
-          <div className="stat"><div><small>Expired / 已到期</small><strong>{expiredCount}</strong><span>Available to republish</span></div><RefreshCw /></div>
+          <div className="stat">
+            <div>
+              <small>Editorial queue / 待審核</small>
+              <strong>{articles.length}</strong>
+              <span>Requires verification</span>
+            </div>
+            <FileCheck2 />
+          </div>
+          <div className="stat">
+            <div>
+              <small>Ready for review / 可供審閱</small>
+              <strong>{reviewCount}</strong>
+              <span>Draft or in review</span>
+            </div>
+            <CheckCircle2 />
+          </div>
+          <div className="stat">
+            <div>
+              <small>Revisions / 修改中</small>
+              <strong>{revisionCount}</strong>
+              <span>Returned to author</span>
+            </div>
+            <RefreshCw />
+          </div>
+          <div className="stat">
+            <div>
+              <small>Expired / 已到期</small>
+              <strong>{expiredCount}</strong>
+              <span>Available to republish</span>
+            </div>
+            <RefreshCw />
+          </div>
         </div>
         <div className="panel">
           <div className="panelHead">
-            <div><h2>Editorial queue / 編輯審核隊列</h2><p>Admin and Editor can verify and publish</p></div>
+            <div>
+              <h2>Editorial queue / 編輯審核隊列</h2>
+              <p>Admin and Editor can verify and publish</p>
+            </div>
             <button onClick={load}>Refresh / 重新整理</button>
           </div>
           <div className="table">
-            {loading && <div className="editorialEmpty">Loading editorial queue… / 正在載入審核隊列…</div>}
-            {!loading && !articles.length && <div className="editorialEmpty">No stories waiting for verification. / 暫無待審核新聞。</div>}
-            {!loading && articles.map((article) => {
-              const contentUrl = firstHttpUrl(article.content);
-              const contentThumbnail = contentUrl ? previewImageForUrl(contentUrl) : null;
-              const thumbnail = article.imageUrl || contentThumbnail;
-              return (
-              <div className="row" key={article.id}>
-                <div className="story"><div className={`mini ${thumbnail ? "hasImage" : ""}`} style={thumbnail ? { backgroundImage: `url(${thumbnail})` } : undefined} /><span><b>{article.title}</b><small>{article.author.name} · {article.category.name}</small></span></div>
-                <span className={`status ${article.status.toLowerCase()}`}>{article.status === "ARCHIVED" ? "EXPIRED" : article.status.replace("_", " ")}</span>
-                <span className="time">{new Date(article.updatedAt).toLocaleDateString()}</span>
-                <div className="rowActions">
-                  <button className="editorialPreviewButton" type="button" title="Preview story / 預覽新聞" aria-label={`Preview ${article.title}`} onClick={() => setPreviewArticle(article)}><Eye /></button>
-                  {article.status === "ARCHIVED" ? <button className="editorialRepublishButton" disabled={workingId === article.id} title="Republish for 7 days / 重新發布七天" onClick={() => republish(article)}><RefreshCw /></button> : <>
-                    <button disabled={workingId === article.id} title="Verify and publish / 審核並發布" onClick={() => verify(article, "PUBLISHED")}><CheckCircle2 /></button>
-                    <button disabled={workingId === article.id || article.status === "REVISION"} title="Request revision / 要求修改" onClick={() => verify(article, "REVISION")}><XCircle /></button>
-                  </>}
-                </div>
+            {loading && (
+              <div className="editorialEmpty">
+                Loading editorial queue… / 正在載入審核隊列…
               </div>
-            )})}
+            )}
+            {!loading && !articles.length && (
+              <div className="editorialEmpty">
+                No stories waiting for verification. / 暫無待審核新聞。
+              </div>
+            )}
+            {!loading &&
+              articles.map((article) => {
+                const contentUrl = firstHttpUrl(article.content);
+                const contentThumbnail = contentUrl
+                  ? previewImageForUrl(contentUrl)
+                  : null;
+                const thumbnail = article.imageUrl || contentThumbnail;
+                return (
+                  <div className="row" key={article.id}>
+                    <div className="story">
+                      <div
+                        className={`mini ${thumbnail ? "hasImage" : ""}`}
+                        style={
+                          thumbnail
+                            ? { backgroundImage: `url(${thumbnail})` }
+                            : undefined
+                        }
+                      />
+                      <span>
+                        <b>{article.title}</b>
+                        <small>
+                          {article.author.name} · {article.category.name}
+                        </small>
+                      </span>
+                    </div>
+                    <span className={`status ${article.status.toLowerCase()}`}>
+                      {article.status === "ARCHIVED"
+                        ? "EXPIRED"
+                        : article.status.replace("_", " ")}
+                    </span>
+                    <span className="time">
+                      {new Date(article.updatedAt).toLocaleDateString()}
+                    </span>
+                    <div className="rowActions">
+                      <button
+                        className="editorialPreviewButton"
+                        type="button"
+                        title="Preview story / 預覽新聞"
+                        aria-label={`Preview ${article.title}`}
+                        onClick={() => setPreviewArticle(article)}
+                      >
+                        <Eye />
+                      </button>
+                      {article.status === "ARCHIVED" ? (
+                        <button
+                          className="editorialRepublishButton"
+                          disabled={workingId === article.id}
+                          title="Republish for 7 days / 重新發布七天"
+                          onClick={() => republish(article)}
+                        >
+                          <RefreshCw />
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            disabled={workingId === article.id}
+                            title="Verify and publish / 審核並發布"
+                            onClick={() => verify(article, "PUBLISHED")}
+                          >
+                            <CheckCircle2 />
+                          </button>
+                          <button
+                            disabled={
+                              workingId === article.id ||
+                              article.status === "REVISION"
+                            }
+                            title="Request revision / 要求修改"
+                            onClick={() => verify(article, "REVISION")}
+                          >
+                            <XCircle />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </section>
-      {previewArticle && <div className="editorialPreviewBackdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setPreviewArticle(null)}>
-        <section className="editorialPreviewDialog" role="dialog" aria-modal="true" aria-label={`Preview ${previewArticle.title}`}>
-          <header><div><small>STORY PREVIEW / 新聞預覽</small><b>{previewArticle.title}</b></div><button type="button" onClick={() => setPreviewArticle(null)} aria-label="Close preview"><X /></button></header>
-          <iframe src={`/newsroom/stories/${previewArticle.id}/preview`} title={`Preview ${previewArticle.title}`} />
-        </section>
-      </div>}
+      {previewArticle && (
+        <div
+          className="editorialPreviewBackdrop"
+          role="presentation"
+          onMouseDown={(event) =>
+            event.target === event.currentTarget && setPreviewArticle(null)
+          }
+        >
+          <section
+            className="editorialPreviewDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Preview ${previewArticle.title}`}
+          >
+            <header>
+              <div>
+                <small>STORY PREVIEW / 新聞預覽</small>
+                <b>{previewArticle.title}</b>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewArticle(null)}
+                aria-label="Close preview"
+              >
+                <X />
+              </button>
+            </header>
+            <iframe
+              src={`/newsroom/stories/${previewArticle.id}/preview`}
+              title={`Preview ${previewArticle.title}`}
+            />
+          </section>
+        </div>
+      )}
     </div>
   );
 }

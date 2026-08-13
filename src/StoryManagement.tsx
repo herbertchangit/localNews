@@ -28,12 +28,29 @@ import RichTextEditor from "./RichTextEditor";
 import "./story-url-preview.css";
 import "./story-media.css";
 import "./story-preview.css";
-import { firstHttpUrl, isVideoUrl, linkifyRichText, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
+import {
+  firstHttpUrl,
+  isVideoUrl,
+  linkifyRichText,
+  previewImageForUrl,
+  richTextToPlainText,
+} from "./richTextUtils";
 import { openStoryComposer } from "./StoryComposer";
+import { useAuthorities } from "./menuAccess";
 
 type Category = { id: string; name: string };
-type StoryPhoto = { id: string; url: string; caption: string | null; sortOrder: number; mediaType?: "IMAGE" | "VIDEO" };
-type EditablePhoto = StoryPhoto & { dataUrl?: string; removed?: boolean; originalCaption?: string };
+type StoryPhoto = {
+  id: string;
+  url: string;
+  caption: string | null;
+  sortOrder: number;
+  mediaType?: "IMAGE" | "VIDEO";
+};
+type EditablePhoto = StoryPhoto & {
+  dataUrl?: string;
+  removed?: boolean;
+  originalCaption?: string;
+};
 type Story = {
   id: string;
   title: string;
@@ -53,18 +70,23 @@ type Story = {
 type Session = { token: string; user: { name: string; role: string } };
 
 const session = (): Session | null => {
-  try { return JSON.parse(localStorage.getItem("ln_session") || "null"); }
-  catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem("ln_session") || "null");
+  } catch {
+    return null;
+  }
 };
 
-const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result));
-  reader.onerror = () => reject(new Error("Could not read photo"));
-  reader.readAsDataURL(file);
-});
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.readAsDataURL(file);
+  });
 
 export default function StoryManagement() {
+  const allowed = useAuthorities("stories");
   const nav = useNavigate();
   const current = session();
   const isAdmin = current?.user.role === "ADMIN";
@@ -86,10 +108,19 @@ export default function StoryManagement() {
   const [notice, setNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const editingRef = useRef<Story | null>(null);
-  const headers = useMemo(() => ({ "Content-Type": "application/json", Authorization: `Bearer ${current?.token || ""}` }), [current?.token]);
+  const headers = useMemo(
+    () => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${current?.token || ""}`,
+    }),
+    [current?.token],
+  );
 
   const api = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
+    const response = await fetch(url, {
+      ...options,
+      headers: { ...headers, ...options.headers },
+    });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.error || "Request failed");
     return data;
@@ -98,12 +129,18 @@ export default function StoryManagement() {
   const load = async () => {
     setBusy(true);
     try {
-      const [items, options] = await Promise.all([api("/api/newsroom/articles"), api("/api/story-options")]);
+      const [items, options] = await Promise.all([
+        api("/api/newsroom/articles"),
+        api("/api/story-options"),
+      ]);
       setStories(items);
       setCategories(options.categories);
       setCanCreate(Boolean(options.canCreate));
-    } catch (error: any) { setNotice(error.message); }
-    finally { setBusy(false); }
+    } catch (error: any) {
+      setNotice(error.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -116,7 +153,8 @@ export default function StoryManagement() {
   useEffect(() => {
     if (!previewStory) return;
     const previousOverflow = document.body.style.overflow;
-    const closePreview = (event: KeyboardEvent) => event.key === "Escape" && setPreviewStory(null);
+    const closePreview = (event: KeyboardEvent) =>
+      event.key === "Escape" && setPreviewStory(null);
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closePreview);
     return () => {
@@ -126,9 +164,17 @@ export default function StoryManagement() {
   }, [previewStory]);
 
   const open = (story: Story) => {
-    editingRef.current = { ...story, storyDate: story.storyDate?.slice(0, 10) || null };
+    editingRef.current = {
+      ...story,
+      storyDate: story.storyDate?.slice(0, 10) || null,
+    };
     setEditing(editingRef.current);
-    setPhotos((story.photos || []).map((photo) => ({ ...photo, originalCaption: photo.caption || "" })));
+    setPhotos(
+      (story.photos || []).map((photo) => ({
+        ...photo,
+        originalCaption: photo.caption || "",
+      })),
+    );
   };
 
   const updateEditing = (changes: Partial<Story>) => {
@@ -146,23 +192,39 @@ export default function StoryManagement() {
     if (!files?.length) return;
     const incoming = Array.from(files);
     const activeCount = photos.filter((photo) => !photo.removed).length;
-    if (activeCount + incoming.length > maxMediaItems) return setNotice(`A story can have up to ${maxMediaItems} photos or videos / 每篇新聞最多可有 ${maxMediaItems} 個照片或影片`);
+    if (activeCount + incoming.length > maxMediaItems)
+      return setNotice(
+        `A story can have up to ${maxMediaItems} photos or videos / 每篇新聞最多可有 ${maxMediaItems} 個照片或影片`,
+      );
     for (const file of incoming) {
       const isImage = /^image\/(png|jpeg|webp)$/.test(file.type);
       const isVideo = /^video\/(mp4|webm|quicktime)$/.test(file.type);
-      if (!isImage && !isVideo) return setNotice("Use PNG, JPEG, WebP, MP4, WebM or MOV files / 請使用支援的照片或影片格式");
-      if (isImage && file.size > 5 * 1024 * 1024) return setNotice("Each photo must be 5 MB or smaller / 每張照片不得超過 5 MB");
-      if (isVideo && file.size > 25 * 1024 * 1024) return setNotice("Each video must be 25 MB or smaller / 每個影片不得超過 25 MB");
+      if (!isImage && !isVideo)
+        return setNotice(
+          "Use PNG, JPEG, WebP, MP4, WebM or MOV files / 請使用支援的照片或影片格式",
+        );
+      if (isImage && file.size > 5 * 1024 * 1024)
+        return setNotice(
+          "Each photo must be 5 MB or smaller / 每張照片不得超過 5 MB",
+        );
+      if (isVideo && file.size > 25 * 1024 * 1024)
+        return setNotice(
+          "Each video must be 25 MB or smaller / 每個影片不得超過 25 MB",
+        );
     }
-    const additions = await Promise.all(incoming.map(async (file, index): Promise<EditablePhoto> => ({
-      id: `new-${crypto.randomUUID()}`,
-      url: "",
-      dataUrl: await fileToDataUrl(file),
-      caption: "",
-      sortOrder: activeCount + index,
-      originalCaption: "",
-      mediaType: file.type.startsWith("video/") ? "VIDEO" : "IMAGE",
-    })));
+    const additions = await Promise.all(
+      incoming.map(
+        async (file, index): Promise<EditablePhoto> => ({
+          id: `new-${crypto.randomUUID()}`,
+          url: "",
+          dataUrl: await fileToDataUrl(file),
+          caption: "",
+          sortOrder: activeCount + index,
+          originalCaption: "",
+          mediaType: file.type.startsWith("video/") ? "VIDEO" : "IMAGE",
+        }),
+      ),
+    );
     setPhotos((items) => [...items, ...additions]);
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -173,53 +235,127 @@ export default function StoryManagement() {
     if (!draft) return;
     const form = event.currentTarget as HTMLFormElement;
     const currentEditorHtml = (fieldName: string, fallback: string) =>
-      form.querySelector<HTMLElement>(`[data-rich-text-field="${fieldName}"]`)?.innerHTML || fallback;
-    const excerpt = linkifyRichText(currentEditorHtml("excerpt", draft.excerpt));
-    const content = linkifyRichText(currentEditorHtml("content", draft.content));
-    if (richTextToPlainText(excerpt).length < 10) return setNotice("Summary must contain at least 10 characters.");
-    if (richTextToPlainText(excerpt).length > 600) return setNotice("Summary must contain no more than 600 characters.");
-    if (richTextToPlainText(content).length < 20) return setNotice("Story content must contain at least 20 characters.");
+      form.querySelector<HTMLElement>(`[data-rich-text-field="${fieldName}"]`)
+        ?.innerHTML || fallback;
+    const excerpt = linkifyRichText(
+      currentEditorHtml("excerpt", draft.excerpt),
+    );
+    const content = linkifyRichText(
+      currentEditorHtml("content", draft.content),
+    );
+    if (richTextToPlainText(excerpt).length < 10)
+      return setNotice("Summary must contain at least 10 characters.");
+    if (richTextToPlainText(excerpt).length > 600)
+      return setNotice("Summary must contain no more than 600 characters.");
+    if (richTextToPlainText(content).length < 20)
+      return setNotice("Story content must contain at least 20 characters.");
     setSaving(true);
     try {
       let updated = await api(`/api/newsroom/articles/${draft.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ title: draft.title, excerpt, content, categoryId: draft.categoryId, storyDate: draft.storyDate || null, ...(canManageVisibility ? { isPublic: draft.isPublic } : {}) }),
+        body: JSON.stringify({
+          title: draft.title,
+          excerpt,
+          content,
+          categoryId: draft.categoryId,
+          storyDate: draft.storyDate || null,
+          ...(canManageVisibility ? { isPublic: draft.isPublic } : {}),
+        }),
       });
       for (const photo of photos) {
         if (photo.id.startsWith("new-") && !photo.removed) {
-          updated = await api(`/api/newsroom/articles/${draft.id}/photos`, { method: "POST", body: JSON.stringify({ dataUrl: photo.dataUrl, caption: photo.caption || "" }) });
+          updated = await api(`/api/newsroom/articles/${draft.id}/photos`, {
+            method: "POST",
+            body: JSON.stringify({
+              dataUrl: photo.dataUrl,
+              caption: photo.caption || "",
+            }),
+          });
         } else if (photo.removed && !photo.id.startsWith("new-")) {
-          updated = await api(`/api/newsroom/articles/${draft.id}/photos/${photo.id}`, { method: "DELETE" });
-        } else if (!photo.removed && (photo.caption || "") !== (photo.originalCaption || "")) {
-          updated = await api(`/api/newsroom/articles/${draft.id}/photos/${photo.id}`, { method: "PATCH", body: JSON.stringify({ caption: photo.caption || "" }) });
+          updated = await api(
+            `/api/newsroom/articles/${draft.id}/photos/${photo.id}`,
+            { method: "DELETE" },
+          );
+        } else if (
+          !photo.removed &&
+          (photo.caption || "") !== (photo.originalCaption || "")
+        ) {
+          updated = await api(
+            `/api/newsroom/articles/${draft.id}/photos/${photo.id}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ caption: photo.caption || "" }),
+            },
+          );
         }
       }
-      setStories((items) => items.map((item) => item.id === updated.id ? updated : item));
+      setStories((items) =>
+        items.map((item) => (item.id === updated.id ? updated : item)),
+      );
       closeEditor();
-      setNotice(isAdmin || isEditor ? "Story and photo gallery updated / 新聞及相簿已更新" : "Story updated and returned for review / 新聞已更新並送交審核");
-    } catch (error: any) { setNotice(error.message); }
-    finally { setSaving(false); }
+      setNotice(
+        isAdmin || isEditor
+          ? "Story and photo gallery updated / 新聞及相簿已更新"
+          : "Story updated and returned for review / 新聞已更新並送交審核",
+      );
+    } catch (error: any) {
+      setNotice(error.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleHeadline = async (story: Story) => {
     setHeadlineBusy(story.id);
     try {
-      const updated = await api(`/api/articles/${story.id}/headline`, { method: "PATCH", body: JSON.stringify({ isHeadline: !story.isHeadline }) });
-      setStories((items) => items.map((item) => item.id === updated.id ? updated : updated.isHeadline ? { ...item, isHeadline: false } : item));
-      setNotice(updated.isHeadline ? "Story selected as headline / 新聞已設為頭條" : "Story removed from headline / 新聞已從頭條移除");
-    } catch (error: any) { setNotice(error.message); }
-    finally { setHeadlineBusy(""); }
+      const updated = await api(`/api/articles/${story.id}/headline`, {
+        method: "PATCH",
+        body: JSON.stringify({ isHeadline: !story.isHeadline }),
+      });
+      setStories((items) =>
+        items.map((item) =>
+          item.id === updated.id
+            ? updated
+            : updated.isHeadline
+              ? { ...item, isHeadline: false }
+              : item,
+        ),
+      );
+      setNotice(
+        updated.isHeadline
+          ? "Story selected as headline / 新聞已設為頭條"
+          : "Story removed from headline / 新聞已從頭條移除",
+      );
+    } catch (error: any) {
+      setNotice(error.message);
+    } finally {
+      setHeadlineBusy("");
+    }
   };
 
   const unpublish = async (story: Story) => {
-    if (!window.confirm("Unpublish this story? It will be removed from public news. / 取消發布此新聞？它將從公開新聞中移除。")) return;
+    if (
+      !window.confirm(
+        "Unpublish this story? It will be removed from public news. / 取消發布此新聞？它將從公開新聞中移除。",
+      )
+    )
+      return;
     setUnpublishBusy(story.id);
     try {
-      const updated = await api(`/api/articles/${story.id}/unpublish`, { method: "PATCH" });
-      setStories((items) => items.map((item) => item.id === updated.id ? updated : item));
-      setNotice("Story unpublished and returned to draft / 新聞已取消發布並轉回草稿");
-    } catch (error: any) { setNotice(error.message); }
-    finally { setUnpublishBusy(""); }
+      const updated = await api(`/api/articles/${story.id}/unpublish`, {
+        method: "PATCH",
+      });
+      setStories((items) =>
+        items.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setNotice(
+        "Story unpublished and returned to draft / 新聞已取消發布並轉回草稿",
+      );
+    } catch (error: any) {
+      setNotice(error.message);
+    } finally {
+      setUnpublishBusy("");
+    }
   };
 
   const verify = async (story: Story, status: "PUBLISHED" | "REVISION") => {
@@ -229,10 +365,16 @@ export default function StoryManagement() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
-      setStories((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
-      setNotice(status === "PUBLISHED"
-        ? "Story verified and published / 新聞已審核並發布"
-        : "Revision requested / 已要求修改");
+      setStories((items) =>
+        items.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item,
+        ),
+      );
+      setNotice(
+        status === "PUBLISHED"
+          ? "Story verified and published / 新聞已審核並發布"
+          : "Revision requested / 已要求修改",
+      );
     } catch (error: any) {
       setNotice(error.message || "Could not update story");
     } finally {
@@ -243,8 +385,14 @@ export default function StoryManagement() {
   const republish = async (story: Story) => {
     setVerificationBusy(story.id);
     try {
-      const updated = await api(`/api/articles/${story.id}/republish`, { method: "PATCH" });
-      setStories((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+      const updated = await api(`/api/articles/${story.id}/republish`, {
+        method: "PATCH",
+      });
+      setStories((items) =>
+        items.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item,
+        ),
+      );
       setNotice("Story republished for another 7 days / 新聞已重新發布七天");
     } catch (error: any) {
       setNotice(error.message || "Could not republish story");
@@ -254,89 +402,566 @@ export default function StoryManagement() {
   };
 
   const deleteStory = async (story: Story) => {
-    if (!window.confirm(`Delete "${story.title}" permanently? This cannot be undone. / 永久刪除此新聞？此操作無法復原。`)) return;
+    if (
+      !window.confirm(
+        `Delete "${story.title}" permanently? This cannot be undone. / 永久刪除此新聞？此操作無法復原。`,
+      )
+    )
+      return;
     setDeletingId(story.id);
     try {
       await api(`/api/newsroom/articles/${story.id}`, { method: "DELETE" });
       setStories((items) => items.filter((item) => item.id !== story.id));
       if (previewStory?.id === story.id) setPreviewStory(null);
       setNotice("Story deleted permanently / 新聞已永久刪除");
-    } catch (error: any) { setNotice(error.message); }
-    finally { setDeletingId(""); }
+    } catch (error: any) {
+      setNotice(error.message);
+    } finally {
+      setDeletingId("");
+    }
   };
 
-  const roleLabel = current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
-  const initials = current?.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
+  const roleLabel =
+    current?.user.role === "VOLUNTEER" ? "Reporter / 記者" : current?.user.role;
+  const initials = current?.user.name
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("");
   const activePhotos = photos.filter((photo) => !photo.removed);
   const editingContentUrl = editing ? firstHttpUrl(editing.content) : null;
-  const editingContentPreviewUrl = editingContentUrl ? previewImageForUrl(editingContentUrl) : null;
+  const editingContentPreviewUrl = editingContentUrl
+    ? previewImageForUrl(editingContentUrl)
+    : null;
 
-  return <div className="dash">
-    <aside>
-      <Link to="/" className="brand light"><span>LN</span><div>LOCAL NEWS<small>NEWSROOM OS</small></div></Link>
-      <div className="workspace"><small>WORKSPACE</small><b>Central News Desk</b></div>
-      <button onClick={() => nav("/newsroom")}><LayoutDashboard />Overview</button>
-      <button className="active"><FileText />Stories<em>{stories.length}</em></button>
-      {isAdmin && <button><Users />People</button>}
-      {isAdmin && <button><BarChart3 />Analytics</button>}
-      <button onClick={() => !isAdmin && nav("/newsroom/settings")}><Settings />Settings</button>
-      <div className="profile"><div>{initials}</div><span><b>{current?.user.name}</b><small>{roleLabel}</small></span></div>
-    </aside>
-    <section className="content storyManagement">
-      <div className="top"><div><small>NEWSROOM / STORIES · 新聞中心 / 新聞</small><h1>Stories and verification / 新聞管理及審核</h1><p>Manage, preview, verify and publish newsroom stories in one place. / 在同一頁面管理、預覽、審核及發布新聞。</p></div>{canCreate && <button className="new" onClick={openStoryComposer}><Plus />New story</button>}</div>
-      {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}>×</button></div>}
-      <div className="panel storyManagerPanel">
-        <div className="storyManagerHeader"><span>Photos / 照片</span><span>Story / 新聞</span><span>Status / 狀態</span><span>Updated / 更新</span><span>Action / 操作</span></div>
-        {busy && <div className="editorialEmpty">Loading stories… / 正在載入新聞…</div>}
-        {!busy && !stories.length && <div className="editorialEmpty">No editable stories. / 暫無可編輯新聞。</div>}
-        {!busy && stories.map((story) => {
-          const contentUrl = firstHttpUrl(story.content);
-          const contentPreviewUrl = contentUrl ? previewImageForUrl(contentUrl) : null;
-          const galleryImage = story.photos?.find((media) => !isVideoUrl(media.url))?.url;
-          const hasVideo = story.photos?.some((media) => isVideoUrl(media.url));
-          const lead = galleryImage || story.imageUrl || contentPreviewUrl;
-          const usesContentUrl = Boolean(contentPreviewUrl && !galleryImage && !story.imageUrl);
-          return <div className="storyManagerRow" key={story.id}>
-            <div className={`storyPhoto ${lead ? "hasPhoto" : ""} ${usesContentUrl ? "contentUrlPhoto" : ""}`} style={lead ? { backgroundImage: `url(${lead})` } : undefined} title={usesContentUrl ? "Preview from the first URL in story content" : hasVideo && !lead ? "Story contains video" : undefined}>{!lead && (hasVideo ? <Video /> : <Camera />)}{usesContentUrl && <Link2 />}<span>{story.photos?.length || 0}</span></div>
-            <div className="storyManagerTitle"><b>{story.title}</b><small>{story.author.name} · {story.category.name}{story.storyDate ? ` · ${new Date(story.storyDate).toLocaleDateString()}` : ""}</small></div>
-            <div className="storyStatus"><span className={`status ${story.status.toLowerCase()}`}>{story.status === "ARCHIVED" ? "EXPIRED" : story.status}</span><span className={`storyVisibilityBadge ${story.isPublic ? "public" : "private"}`}>{story.isPublic ? <Globe2 /> : <LockKeyhole />}{story.isPublic ? "Public" : "Private"}</span>{story.isHeadline && <span className="headlineBadge"><Star />Headline / 頭條</span>}</div>
-            <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
-            <div className="storyActions"><button type="button" className="storyPreviewButton" title="Preview" aria-label={`Preview ${story.title}`} onClick={() => setPreviewStory(story)}><Eye /><span>Preview</span></button><button className="storyEditButton" title="Edit" aria-label={`Edit ${story.title}`} onClick={() => open(story)}><Pencil /><span>Edit</span></button>{(isAdmin || isEditor) && story.status === "ARCHIVED" && <button className="storyVerifyButton" title="Republish for 7 days" aria-label={`Republish ${story.title}`} disabled={verificationBusy === story.id} onClick={() => republish(story)}><RefreshCw /><span>Republish</span></button>}{(isAdmin || isEditor) && story.status !== "PUBLISHED" && story.status !== "ARCHIVED" && <><button className="storyVerifyButton" title="Verify and publish" aria-label={`Verify and publish ${story.title}`} disabled={verificationBusy === story.id} onClick={() => verify(story, "PUBLISHED")}><CheckCircle2 /><span>Verify & publish</span></button><button className="storyRevisionButton" title="Request revision" aria-label={`Request revision for ${story.title}`} disabled={verificationBusy === story.id || story.status === "REVISION"} onClick={() => verify(story, "REVISION")}><XCircle /><span>Request revision</span></button></>}{(isAdmin || isEditor) && story.status === "PUBLISHED" && (story.isPublic || story.isHeadline) && <button className={`headlineButton ${story.isHeadline ? "active" : ""}`} title={story.isHeadline ? "Remove headline" : "Set as headline"} aria-label={`${story.isHeadline ? "Remove headline from" : "Set as headline"} ${story.title}`} disabled={headlineBusy === story.id} onClick={() => toggleHeadline(story)}><Star /><span>{story.isHeadline ? "Remove headline" : "Set as headline"}</span></button>}{story.status === "PUBLISHED" && <button className="unpublishButton" title="Unpublish" aria-label={`Unpublish ${story.title}`} disabled={unpublishBusy === story.id} onClick={() => unpublish(story)}><EyeOff /><span>Unpublish</span></button>}{(isAdmin || isEditor) && <button type="button" className="deleteStoryButton" title="Delete" aria-label={`Delete ${story.title}`} disabled={deletingId === story.id} onClick={() => deleteStory(story)}><Trash2 /><span>{deletingId === story.id ? "Deleting…" : "Delete"}</span></button>}</div>
-          </div>;
-        })}
-      </div>
-    </section>
-    {previewStory && <div className="storyManagementPreviewBackdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setPreviewStory(null)}>
-      <section className="storyManagementPreviewDialog" role="dialog" aria-modal="true" aria-label={`Preview ${previewStory.title}`}>
-        <header><div><small>STORY PREVIEW / 新聞預覽</small><b>{previewStory.title}</b></div><button type="button" onClick={() => setPreviewStory(null)} aria-label="Close preview"><X /></button></header>
-        <iframe src={`/newsroom/stories/${previewStory.id}/preview`} title={`Preview ${previewStory.title}`} />
+  return (
+    <div className="dash">
+      <aside>
+        <Link to="/" className="brand light">
+          <span>LN</span>
+          <div>
+            LOCAL NEWS<small>NEWSROOM OS</small>
+          </div>
+        </Link>
+        <div className="workspace">
+          <small>WORKSPACE</small>
+          <b>Central News Desk</b>
+        </div>
+        <button onClick={() => nav("/newsroom")}>
+          <LayoutDashboard />
+          Overview
+        </button>
+        <button className="active">
+          <FileText />
+          Stories<em>{stories.length}</em>
+        </button>
+        {isAdmin && (
+          <button>
+            <Users />
+            People
+          </button>
+        )}
+        {isAdmin && (
+          <button>
+            <BarChart3 />
+            Analytics
+          </button>
+        )}
+        <button onClick={() => !isAdmin && nav("/newsroom/settings")}>
+          <Settings />
+          Settings
+        </button>
+        <div className="profile">
+          <div>{initials}</div>
+          <span>
+            <b>{current?.user.name}</b>
+            <small>{roleLabel}</small>
+          </span>
+        </div>
+      </aside>
+      <section className="content storyManagement">
+        <div className="top">
+          <div>
+            <small>NEWSROOM / STORIES · 新聞中心 / 新聞</small>
+            <h1>Stories and verification / 新聞管理及審核</h1>
+            <p>
+              Manage, preview, verify and publish newsroom stories in one place.
+              / 在同一頁面管理、預覽、審核及發布新聞。
+            </p>
+          </div>
+          {canCreate && allowed("new") && (
+            <button className="new" onClick={openStoryComposer}>
+              <Plus />
+              New story
+            </button>
+          )}
+        </div>
+        {notice && (
+          <div className="toast">
+            {notice}
+            <button onClick={() => setNotice("")}>×</button>
+          </div>
+        )}
+        <div className="panel storyManagerPanel">
+          <div className="storyManagerHeader">
+            <span>Photos / 照片</span>
+            <span>Story / 新聞</span>
+            <span>Status / 狀態</span>
+            <span>Updated / 更新</span>
+            <span>Action / 操作</span>
+          </div>
+          {busy && (
+            <div className="editorialEmpty">
+              Loading stories… / 正在載入新聞…
+            </div>
+          )}
+          {!busy && !stories.length && (
+            <div className="editorialEmpty">
+              No editable stories. / 暫無可編輯新聞。
+            </div>
+          )}
+          {!busy &&
+            stories.map((story) => {
+              const contentUrl = firstHttpUrl(story.content);
+              const contentPreviewUrl = contentUrl
+                ? previewImageForUrl(contentUrl)
+                : null;
+              const galleryImage = story.photos?.find(
+                (media) => !isVideoUrl(media.url),
+              )?.url;
+              const hasVideo = story.photos?.some((media) =>
+                isVideoUrl(media.url),
+              );
+              const lead = galleryImage || story.imageUrl || contentPreviewUrl;
+              const usesContentUrl = Boolean(
+                contentPreviewUrl && !galleryImage && !story.imageUrl,
+              );
+              return (
+                <div className="storyManagerRow" key={story.id}>
+                  <div
+                    className={`storyPhoto ${lead ? "hasPhoto" : ""} ${usesContentUrl ? "contentUrlPhoto" : ""}`}
+                    style={
+                      lead ? { backgroundImage: `url(${lead})` } : undefined
+                    }
+                    title={
+                      usesContentUrl
+                        ? "Preview from the first URL in story content"
+                        : hasVideo && !lead
+                          ? "Story contains video"
+                          : undefined
+                    }
+                  >
+                    {!lead && (hasVideo ? <Video /> : <Camera />)}
+                    {usesContentUrl && <Link2 />}
+                    <span>{story.photos?.length || 0}</span>
+                  </div>
+                  <div className="storyManagerTitle">
+                    <b>{story.title}</b>
+                    <small>
+                      {story.author.name} · {story.category.name}
+                      {story.storyDate
+                        ? ` · ${new Date(story.storyDate).toLocaleDateString()}`
+                        : ""}
+                    </small>
+                  </div>
+                  <div className="storyStatus">
+                    <span className={`status ${story.status.toLowerCase()}`}>
+                      {story.status === "ARCHIVED" ? "EXPIRED" : story.status}
+                    </span>
+                    <span
+                      className={`storyVisibilityBadge ${story.isPublic ? "public" : "private"}`}
+                    >
+                      {story.isPublic ? <Globe2 /> : <LockKeyhole />}
+                      {story.isPublic ? "Public" : "Private"}
+                    </span>
+                    {story.isHeadline && (
+                      <span className="headlineBadge">
+                        <Star />
+                        Headline / 頭條
+                      </span>
+                    )}
+                  </div>
+                  <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
+                  <div className="storyActions">
+                    {allowed("view") && <button
+                      type="button"
+                      className="storyPreviewButton"
+                      title="Preview"
+                      aria-label={`Preview ${story.title}`}
+                      onClick={() => setPreviewStory(story)}
+                    >
+                      <Eye />
+                      <span>Preview</span>
+                    </button>}
+                    {allowed("edit") && <button
+                      className="storyEditButton"
+                      title="Edit"
+                      aria-label={`Edit ${story.title}`}
+                      onClick={() => open(story)}
+                    >
+                      <Pencil />
+                      <span>Edit</span>
+                    </button>}
+                    {allowed("publish") && story.status === "ARCHIVED" && (
+                      <button
+                        className="storyVerifyButton"
+                        title="Republish for 7 days"
+                        aria-label={`Republish ${story.title}`}
+                        disabled={verificationBusy === story.id}
+                        onClick={() => republish(story)}
+                      >
+                        <RefreshCw />
+                        <span>Republish</span>
+                      </button>
+                    )}
+                    {allowed("publish") &&
+                      story.status !== "PUBLISHED" &&
+                      story.status !== "ARCHIVED" && (
+                        <>
+                          {allowed("publish") && <button
+                            className="storyVerifyButton"
+                            title="Verify and publish"
+                            aria-label={`Verify and publish ${story.title}`}
+                            disabled={verificationBusy === story.id}
+                            onClick={() => verify(story, "PUBLISHED")}
+                          >
+                            <CheckCircle2 />
+                            <span>Verify & publish</span>
+                          </button>}
+                          {allowed("edit") && <button
+                            className="storyRevisionButton"
+                            title="Request revision"
+                            aria-label={`Request revision for ${story.title}`}
+                            disabled={
+                              verificationBusy === story.id ||
+                              story.status === "REVISION"
+                            }
+                            onClick={() => verify(story, "REVISION")}
+                          >
+                            <XCircle />
+                            <span>Request revision</span>
+                          </button>}
+                        </>
+                      )}
+                    {allowed("publish") &&
+                      story.status === "PUBLISHED" &&
+                      (story.isPublic || story.isHeadline) && (
+                        <button
+                          className={`headlineButton ${story.isHeadline ? "active" : ""}`}
+                          title={
+                            story.isHeadline
+                              ? "Remove headline"
+                              : "Set as headline"
+                          }
+                          aria-label={`${story.isHeadline ? "Remove headline from" : "Set as headline"} ${story.title}`}
+                          disabled={headlineBusy === story.id}
+                          onClick={() => toggleHeadline(story)}
+                        >
+                          <Star />
+                          <span>
+                            {story.isHeadline
+                              ? "Remove headline"
+                              : "Set as headline"}
+                          </span>
+                        </button>
+                      )}
+                    {allowed("unpublish") && story.status === "PUBLISHED" && (
+                      <button
+                        className="unpublishButton"
+                        title="Unpublish"
+                        aria-label={`Unpublish ${story.title}`}
+                        disabled={unpublishBusy === story.id}
+                        onClick={() => unpublish(story)}
+                      >
+                        <EyeOff />
+                        <span>Unpublish</span>
+                      </button>
+                    )}
+                    {allowed("delete") && (
+                      <button
+                        type="button"
+                        className="deleteStoryButton"
+                        title="Delete"
+                        aria-label={`Delete ${story.title}`}
+                        disabled={deletingId === story.id}
+                        onClick={() => deleteStory(story)}
+                      >
+                        <Trash2 />
+                        <span>
+                          {deletingId === story.id ? "Deleting…" : "Delete"}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
       </section>
-    </div>}
-    {editing && <div className="modalBackdrop" onMouseDown={closeEditor}>
-      <form className="userModal storyEditorModal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
-        <div className="modalHead"><div><small>EDIT STORY · 編輯新聞</small><h2>{editing.title}</h2></div><button type="button" onClick={closeEditor}><X /></button></div>
-        <section className="storyGalleryEditor">
-          <div className="storyGalleryHeading"><div><b>Story photos, videos and captions / 新聞照片、影片及說明</b><p>Up to {maxMediaItems} items · photos 5 MB · videos 25 MB</p></div><button type="button" onClick={() => fileRef.current?.click()}><ImagePlus />Add media / 新增媒體</button></div>
-          <input ref={fileRef} hidden multiple type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime,.mov" onChange={(event) => selectPhotos(event.target.files)} />
-          {!activePhotos.length && editingContentUrl && <div className="contentUrlPreview">
-            <div className={editingContentPreviewUrl ? "hasPreviewImage" : ""} style={editingContentPreviewUrl ? { backgroundImage: `url(${editingContentPreviewUrl})` } : undefined}><Link2 /></div>
-            <span><b>Preview from story content / 內容連結預覽</b><a href={editingContentUrl} target="_blank" rel="noopener noreferrer">{editingContentUrl}</a></span>
-          </div>}
-          {!activePhotos.length && !editingContentUrl && <div className="emptyPhotoGallery"><ImagePlus /><span>No photos or videos yet / 尚未有照片或影片</span></div>}
-          <div className="storyGalleryGrid">{activePhotos.map((photo, index) => <div className="storyGalleryItem" key={photo.id}>
-            {photo.mediaType === "VIDEO" || isVideoUrl(photo.url) ? <div className="storyVideoPreview"><video src={photo.dataUrl || photo.url} controls preload="metadata" /><span>{index + 1}</span><Video /></div> : <div style={{ backgroundImage: `url(${photo.dataUrl || photo.url})` }}><span>{index + 1}</span></div>}
-            <label>Caption / 媒體說明<textarea maxLength={240} rows={2} placeholder="Describe this photo or video / 說明這個照片或影片" value={photo.caption || ""} onChange={(event) => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, caption: event.target.value } : item))} /></label>
-            <button type="button" onClick={() => setPhotos((items) => items.map((item) => item.id === photo.id ? { ...item, removed: true } : item))}><Trash2 />Remove / 移除</button>
-          </div>)}</div>
-        </section>
-        <label>Story title / 新聞標題<input required minLength={8} maxLength={180} value={editing.title} onChange={(event) => updateEditing({ title: event.target.value })} /></label>
-        <label>News category / 新聞類別<select value={editing.categoryId} onChange={(event) => updateEditing({ categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-        <label>Story / event date / 新聞或活動日期<input type="date" value={editing.storyDate || ""} onChange={(event) => updateEditing({ storyDate: event.target.value || null })} /></label>
-        {canManageVisibility && <div className="storyVisibilityControl"><div><Globe2 /><span><b>Public</b><small>Visible to DADE readers and on the public story board</small></span></div><label><input type="checkbox" role="switch" aria-label="Public story" checked={editing.isPublic} onChange={(event) => updateEditing({ isPublic: event.target.checked })} /><i /></label></div>}
-        <div className="storyRichTextField"><span>Summary / 摘要</span><RichTextEditor compact fieldName="excerpt" label="Summary / 摘要" placeholder="Write a short story summary…" minLength={10} maxLength={600} value={editing.excerpt} onChange={(excerpt) => updateEditing({ excerpt })} /></div>
-        <div className="storyRichTextField"><span>Story content / 新聞內容</span><RichTextEditor fieldName="content" label="Story content / 新聞內容" placeholder="Write the full story…" minLength={20} value={editing.content} onChange={(content) => updateEditing({ content })} /></div>
-        <div className="modalActions"><button type="button" onClick={closeEditor}>Cancel / 取消</button><button className="new" disabled={saving}><Save />{saving ? "Saving…" : "Save changes / 儲存變更"}</button></div>
-      </form>
-    </div>}
-  </div>;
+      {previewStory && (
+        <div
+          className="storyManagementPreviewBackdrop"
+          role="presentation"
+          onMouseDown={(event) =>
+            event.target === event.currentTarget && setPreviewStory(null)
+          }
+        >
+          <section
+            className="storyManagementPreviewDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Preview ${previewStory.title}`}
+          >
+            <header>
+              <div>
+                <small>STORY PREVIEW / 新聞預覽</small>
+                <b>{previewStory.title}</b>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewStory(null)}
+                aria-label="Close preview"
+              >
+                <X />
+              </button>
+            </header>
+            <iframe
+              src={`/newsroom/stories/${previewStory.id}/preview`}
+              title={`Preview ${previewStory.title}`}
+            />
+          </section>
+        </div>
+      )}
+      {editing && (
+        <div className="modalBackdrop" onMouseDown={closeEditor}>
+          <form
+            className="userModal storyEditorModal"
+            onSubmit={save}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modalHead">
+              <div>
+                <small>EDIT STORY · 編輯新聞</small>
+                <h2>{editing.title}</h2>
+              </div>
+              <button type="button" onClick={closeEditor}>
+                <X />
+              </button>
+            </div>
+            <section className="storyGalleryEditor">
+              <div className="storyGalleryHeading">
+                <div>
+                  <b>
+                    Story photos, videos and captions / 新聞照片、影片及說明
+                  </b>
+                  <p>
+                    Up to {maxMediaItems} items · photos 5 MB · videos 25 MB
+                  </p>
+                </div>
+                <button type="button" onClick={() => fileRef.current?.click()}>
+                  <ImagePlus />
+                  Add media / 新增媒體
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                hidden
+                multiple
+                type="file"
+                accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime,.mov"
+                onChange={(event) => selectPhotos(event.target.files)}
+              />
+              {!activePhotos.length && editingContentUrl && (
+                <div className="contentUrlPreview">
+                  <div
+                    className={
+                      editingContentPreviewUrl ? "hasPreviewImage" : ""
+                    }
+                    style={
+                      editingContentPreviewUrl
+                        ? {
+                            backgroundImage: `url(${editingContentPreviewUrl})`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <Link2 />
+                  </div>
+                  <span>
+                    <b>Preview from story content / 內容連結預覽</b>
+                    <a
+                      href={editingContentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {editingContentUrl}
+                    </a>
+                  </span>
+                </div>
+              )}
+              {!activePhotos.length && !editingContentUrl && (
+                <div className="emptyPhotoGallery">
+                  <ImagePlus />
+                  <span>No photos or videos yet / 尚未有照片或影片</span>
+                </div>
+              )}
+              <div className="storyGalleryGrid">
+                {activePhotos.map((photo, index) => (
+                  <div className="storyGalleryItem" key={photo.id}>
+                    {photo.mediaType === "VIDEO" || isVideoUrl(photo.url) ? (
+                      <div className="storyVideoPreview">
+                        <video
+                          src={photo.dataUrl || photo.url}
+                          controls
+                          preload="metadata"
+                        />
+                        <span>{index + 1}</span>
+                        <Video />
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          backgroundImage: `url(${photo.dataUrl || photo.url})`,
+                        }}
+                      >
+                        <span>{index + 1}</span>
+                      </div>
+                    )}
+                    <label>
+                      Caption / 媒體說明
+                      <textarea
+                        maxLength={240}
+                        rows={2}
+                        placeholder="Describe this photo or video / 說明這個照片或影片"
+                        value={photo.caption || ""}
+                        onChange={(event) =>
+                          setPhotos((items) =>
+                            items.map((item) =>
+                              item.id === photo.id
+                                ? { ...item, caption: event.target.value }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPhotos((items) =>
+                          items.map((item) =>
+                            item.id === photo.id
+                              ? { ...item, removed: true }
+                              : item,
+                          ),
+                        )
+                      }
+                    >
+                      <Trash2 />
+                      Remove / 移除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <label>
+              Story title / 新聞標題
+              <input
+                required
+                minLength={8}
+                maxLength={180}
+                value={editing.title}
+                onChange={(event) =>
+                  updateEditing({ title: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              News category / 新聞類別
+              <select
+                value={editing.categoryId}
+                onChange={(event) =>
+                  updateEditing({ categoryId: event.target.value })
+                }
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Story / event date / 新聞或活動日期
+              <input
+                type="date"
+                value={editing.storyDate || ""}
+                onChange={(event) =>
+                  updateEditing({ storyDate: event.target.value || null })
+                }
+              />
+            </label>
+            {canManageVisibility && (
+              <div className="storyVisibilityControl">
+                <div>
+                  <Globe2 />
+                  <span>
+                    <b>Public</b>
+                    <small>
+                      Visible to DADE readers and on the public story board
+                    </small>
+                  </span>
+                </div>
+                <label>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label="Public story"
+                    checked={editing.isPublic}
+                    onChange={(event) =>
+                      updateEditing({ isPublic: event.target.checked })
+                    }
+                  />
+                  <i />
+                </label>
+              </div>
+            )}
+            <div className="storyRichTextField">
+              <span>Summary / 摘要</span>
+              <RichTextEditor
+                compact
+                fieldName="excerpt"
+                label="Summary / 摘要"
+                placeholder="Write a short story summary…"
+                minLength={10}
+                maxLength={600}
+                value={editing.excerpt}
+                onChange={(excerpt) => updateEditing({ excerpt })}
+              />
+            </div>
+            <div className="storyRichTextField">
+              <span>Story content / 新聞內容</span>
+              <RichTextEditor
+                fieldName="content"
+                label="Story content / 新聞內容"
+                placeholder="Write the full story…"
+                minLength={20}
+                value={editing.content}
+                onChange={(content) => updateEditing({ content })}
+              />
+            </div>
+            <div className="modalActions">
+              <button type="button" onClick={closeEditor}>
+                Cancel / 取消
+              </button>
+              <button className="new" disabled={saving}>
+                <Save />
+                {saving ? "Saving…" : "Save changes / 儲存變更"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 }
