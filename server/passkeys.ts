@@ -211,16 +211,23 @@ export function createPasskeyRouter(
       if (!verification.verified) {
         return res.status(401).json({ error: "Face verification failed" });
       }
-      await db.passkeyCredential.update({
-        where: { id: stored.id },
-        data: {
-          counter: BigInt(verification.authenticationInfo.newCounter),
-          lastUsedAt: new Date(),
-        },
-      });
-      await db.auditLog.create({
-        data: { action: "PASSKEY_LOGIN", actorId: stored.user.id },
-      });
+      const loginAt = new Date();
+      await db.$transaction([
+        db.passkeyCredential.update({
+          where: { id: stored.id },
+          data: {
+            counter: BigInt(verification.authenticationInfo.newCounter),
+            lastUsedAt: loginAt,
+          },
+        }),
+        db.user.update({
+          where: { id: stored.user.id },
+          data: { lastLoginAt: loginAt },
+        }),
+        db.auditLog.create({
+          data: { action: "PASSKEY_LOGIN", actorId: stored.user.id },
+        }),
+      ]);
       const token = jwt.sign(
         { id: stored.user.id, role: stored.user.role as Role },
         secret,

@@ -14,4 +14,16 @@ describe("role menu request routing", () => {
     expect(routeMenu("/api/articles", "POST")).toBe("stories");
     expect(routeMenu("/api/articles/story-id/status", "PATCH")).toBe("stories");
   });
+
+  it("authorizes a user's registration appointment changes through Appointments", () => {
+    expect(routeMenu("/api/registrations/mine/attendance-id", "PATCH")).toBe(
+      "appointments",
+    );
+    expect(routeMenu("/api/registrations/mine/attendance-id", "DELETE")).toBe(
+      "appointments",
+    );
+    expect(routeMenu("/api/registrations/admin/forms", "GET")).toBe(
+      "registrations",
+    );
+  });
 });

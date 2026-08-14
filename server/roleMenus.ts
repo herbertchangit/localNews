@@ -125,6 +125,7 @@ export const routeMenu = (path: string, method = "GET") => {
   if (/^\/api\/(?:admin\/)?(?:accounts|users)|^\/api\/people\//.test(path)) return "people";
   if (method === "GET" && (/^\/api\/articles(?:\/[^/]+)?\/?$/.test(path) || /^\/api\/articles\/[^/]+\/discussion\/?$/.test(path))) return "overview";
   if (/^\/api\/(?:newsroom\/)?articles|^\/api\/editor\/articles/.test(path)) return "stories";
+  if (/^\/api\/registrations\/mine(?:\/|$)/.test(path)) return "appointments";
   if (/^\/api\/registrations/.test(path)) return "registrations";
   if (/^\/api\/admin\/health\/events/.test(path)) return "health_events";
   if (/^\/api\/(?:admin|doctor)\/health\/appointments|^\/api\/health-events\/appointments/.test(path)) return "appointments";

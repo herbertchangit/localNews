@@ -51,6 +51,7 @@ type Story = {
   category: { name: string };
   author: { name: string };
 };
+type NewsCategory = { id: string; name: string; slug: string };
 type Me = {
   id: string;
   name: string;
@@ -238,20 +239,6 @@ export function AudienceSidebar({
           <small>MY ACCOUNT</small>
           <b>{u?.name || "Audience Reader"}</b>
           <span>{roleLabel}</span>
-          <div className="accountHierarchyRows">
-            <span>
-              <i>Harmony</i>
-              <strong>{account?.harmonyGroup?.name || "Unassigned"}</strong>
-            </span>
-            <span>
-              <i>MutualLove</i>
-              <strong>{account?.mutualLoveGroup?.name || "Unassigned"}</strong>
-            </span>
-            <span>
-              <i>Cooperation</i>
-              <strong>{account?.cooperationUnit?.name || "Unassigned"}</strong>
-            </span>
-          </div>
         </div>
         {visible("overview") && <Link
           className={`audienceSidebarLink${active === "overview" ? " active" : ""}`}
@@ -1171,19 +1158,46 @@ export function AudienceSettings() {
 }
 export function AudienceHomepageDashboard() {
   const [stories, setStories] = useState<Story[]>([]),
+    [categories, setCategories] = useState<NewsCategory[]>([]),
+    [selectedCategory, setSelectedCategory] = useState<string | null>(null),
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
   useEffect(() => {
-    fetch("/api/articles", { headers: { Authorization: `Bearer ${token()}` } })
+    fetch("/api/categories")
+      .then(async (response) => {
+        const data = await response.json().catch(() => []);
+        if (!response.ok || !Array.isArray(data))
+          throw new Error("Could not load news categories");
+        setCategories(data);
+      })
+      .catch(() => setCategories([]));
+  }, []);
+  useEffect(() => {
+    let current = true;
+    setBusy(true);
+    setError("");
+    const query = selectedCategory
+      ? `?categoryId=${encodeURIComponent(selectedCategory)}`
+      : "";
+    fetch(`/api/articles${query}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
       .then(async (response) => {
         const data = await response.json().catch(() => null);
         if (!response.ok) throw new Error(data?.error || "Could not load Daily Brief");
         if (!Array.isArray(data)) throw new Error("Could not load Daily Brief");
-        setStories(data);
+        if (current) setStories(data);
       })
-      .catch((reason) => setError(reason.message || "Could not load Daily Brief"))
-      .finally(() => setBusy(false));
-  }, []);
+      .catch((reason) => {
+        if (current) setError(reason.message || "Could not load Daily Brief");
+      })
+      .finally(() => {
+        if (current) setBusy(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [selectedCategory]);
   return (
     <div className="dash audienceDash">
       <AudienceSidebar active="overview" />
@@ -1195,10 +1209,33 @@ export function AudienceHomepageDashboard() {
             <p>Published reporting from across the community.</p>
           </div>
         </div>
+        <nav className="categoryNav audienceCategoryNav" aria-label="News categories">
+          <button
+            className={!selectedCategory ? "active" : ""}
+            aria-pressed={!selectedCategory}
+            onClick={() => setSelectedCategory(null)}
+          >
+            All
+          </button>
+          {categories.map((category) => (
+            <button
+              className={selectedCategory === category.id ? "active" : ""}
+              aria-pressed={selectedCategory === category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              key={category.id}
+            >
+              {category.name}
+            </button>
+          ))}
+        </nav>
         {busy ? (
           <div className="panel emptyState">Loading stories…</div>
         ) : error ? (
           <div className="panel emptyState">{error}</div>
+        ) : !stories.length ? (
+          <div className="panel emptyState">
+            No published stories in this category.
+          </div>
         ) : (
           <section className="latest dailyBrief audienceDailyBrief">
             <div className="sectionTitle">

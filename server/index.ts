@@ -30,6 +30,7 @@ import {
   normalizeLoginContact,
 } from "./loginIdentifier.js";
 import { DEFAULT_PASSWORD, passwordChangeError } from "./passwordPolicy.js";
+import { registeredNameMatches } from "./passwordRecovery.js";
 import { createRegistrationRouter } from "./registration.js";
 import { createReaderProfileRouter } from "./readerProfile.js";
 import { createAreaRouter } from "./areas.js";
@@ -294,6 +295,7 @@ const loginUserSelect = {
     password: true,
     locked: true,
     suspended: true,
+    updatedAt: true,
   },
   sessionFor = (user: any) => ({
     token: jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user), customRoles: user.customRoles || [] }, secret, {
@@ -309,16 +311,7 @@ const loginUserSelect = {
       avatarUrl: user.avatarUrl,
     },
   });
-app.post("/api/auth/login", async (q, r) => {
-  const body = z
-      .object({
-        identifier: z.string().trim().min(3).max(254).optional(),
-        email: z.string().trim().optional(),
-        password: z.string().default(""),
-      })
-      .refine((value) => Boolean(value.identifier || value.email))
-      .parse(q.body),
-    identifier = (body.identifier || body.email || "").trim();
+const findLoginUser = async (identifier: string) => {
   let user = identifier.includes("@")
     ? await db.user.findUnique({
         where: { email: identifier.toLowerCase() },
@@ -335,6 +328,19 @@ app.post("/api/auth/login", async (q, r) => {
       );
     if (matches.length === 1) user = matches[0];
   }
+  return user;
+};
+app.post("/api/auth/login", async (q, r) => {
+  const body = z
+      .object({
+        identifier: z.string().trim().min(3).max(254).optional(),
+        email: z.string().trim().optional(),
+        password: z.string().default(""),
+      })
+      .refine((value) => Boolean(value.identifier || value.email))
+      .parse(q.body),
+    identifier = (body.identifier || body.email || "").trim();
+  const user = await findLoginUser(identifier);
   if (!user || user.locked || user.suspended)
     return r
       .status(401)
@@ -353,7 +359,110 @@ app.post("/api/auth/login", async (q, r) => {
     return r
       .status(401)
       .json({ error: "Invalid credentials or inactive account" });
+  await db.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
   r.json(sessionFor(user));
+});
+const passwordRecoveryAttempts = new Map<
+  string,
+  { count: number; resetAt: number }
+>();
+app.post("/api/auth/forgot-password/verify", async (q, r) => {
+  const body = z
+      .object({
+        identifier: z.string().trim().min(3).max(254),
+        fullName: z.string().trim().min(2).max(80),
+      })
+      .parse(q.body),
+    attemptKey = `${q.ip}:${body.identifier.toLowerCase()}`,
+    now = Date.now(),
+    previous = passwordRecoveryAttempts.get(attemptKey);
+  if (previous && previous.resetAt > now && previous.count >= 5)
+    return r.status(429).json({
+      error: "Too many recovery attempts. Please wait 15 minutes and try again.",
+    });
+  if (!previous || previous.resetAt <= now)
+    passwordRecoveryAttempts.set(attemptKey, {
+      count: 0,
+      resetAt: now + 15 * 60 * 1000,
+    });
+  const user = await findLoginUser(body.identifier),
+    valid =
+      user &&
+      !user.locked &&
+      !user.suspended &&
+      registeredNameMatches(body.fullName, user.name);
+  if (!valid) {
+    const attempt = passwordRecoveryAttempts.get(attemptKey)!;
+    attempt.count += 1;
+    return r.status(401).json({
+      error: "The registered credential and full name could not be verified.",
+    });
+  }
+  passwordRecoveryAttempts.delete(attemptKey);
+  r.json({
+    passwordResetToken: jwt.sign(
+      {
+        id: user.id,
+        scope: "password-reset",
+        accountVersion: user.updatedAt.getTime(),
+      },
+      secret,
+      { expiresIn: "10m" },
+    ),
+    user: { name: user.name },
+  });
+});
+app.post("/api/auth/forgot-password/reset", async (q, r) => {
+  try {
+    const body = z
+        .object({
+          passwordResetToken: z.string().min(1),
+          newPassword: z.string(),
+          confirmPassword: z.string(),
+        })
+        .parse(q.body),
+      payload = jwt.verify(body.passwordResetToken, secret) as {
+        id: string;
+        scope?: string;
+        accountVersion?: number;
+      };
+    if (payload.scope !== "password-reset")
+      return r.status(401).json({ error: "Invalid password reset request" });
+    const policyError = passwordChangeError(
+      body.newPassword,
+      body.confirmPassword,
+    );
+    if (policyError) return r.status(400).json({ error: policyError });
+    const user = await db.user.findUnique({
+      where: { id: payload.id },
+      select: loginUserSelect,
+    });
+    if (
+      !user ||
+      user.locked ||
+      user.suspended ||
+      user.updatedAt.getTime() !== payload.accountVersion
+    )
+      return r.status(401).json({ error: "Password reset request has expired" });
+    await db.user.update({
+      where: { id: user.id },
+      data: { password: await bcrypt.hash(body.newPassword, 12) },
+    });
+    await db.auditLog.create({
+      data: { action: "PASSWORD_SELF_RESET", actorId: user.id },
+    });
+    r.json({ message: "Password reset successful" });
+  } catch (error: any) {
+    r.status(error?.name === "ZodError" ? 400 : 401).json({
+      error:
+        error?.name === "ZodError"
+          ? "Invalid request"
+          : "Password reset request has expired",
+    });
+  }
 });
 app.post("/api/auth/change-default-password", async (q, r) => {
   try {
@@ -390,7 +499,10 @@ app.post("/api/auth/change-default-password", async (q, r) => {
         .json({ error: "Password change request has expired" });
     await db.user.update({
       where: { id: user.id },
-      data: { password: await bcrypt.hash(body.newPassword, 12) },
+      data: {
+        password: await bcrypt.hash(body.newPassword, 12),
+        lastLoginAt: new Date(),
+      },
     });
     await db.auditLog.create({
       data: { action: "DEFAULT_PASSWORD_CHANGED", actorId: user.id },
@@ -449,6 +561,7 @@ app.post("/api/auth/register", async (q, r) => {
       password: await bcrypt.hash(body.password, 12),
       role: Role.DADE,
       roles: [Role.DADE],
+      lastLoginAt: new Date(),
     },
     select: { id: true, name: true, email: true, role: true, roles: true, avatarUrl: true },
   });
@@ -2002,6 +2115,7 @@ const adminUserSelect = {
   locked: true,
   suspended: true,
   permissions: true,
+  lastLoginAt: true,
   createdAt: true,
   department: true,
   assignedCategories: { select: { id: true, name: true } },
@@ -2643,6 +2757,7 @@ const accountSelect = {
   locked: true,
   suspended: true,
   permissions: true,
+  lastLoginAt: true,
   createdAt: true,
   department: true,
   harmonyGroup: true,

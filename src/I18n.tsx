@@ -490,12 +490,48 @@ Object.assign(zhTw, {
   "Export CSV": "匯出 CSV",
 });
 Object.assign(zh, {
+  "ACCOUNT RECOVERY": "账户恢复",
+  "Reset your password": "重置密码",
+  "Enter your registered email or contact and exact registered full name.":
+    "请输入已登记的电子邮箱或联系电话，以及完全相符的登记姓名。",
+  "Registered full name": "登记姓名",
+  "Verify registered credential": "验证登记资料",
+  "Verifying…": "正在验证…",
+  "Reset password": "重置密码",
+  "Resetting password…": "正在重置密码…",
+  "Back to sign in": "返回登录",
+  "Password reset successful. Sign in with your new password.":
+    "密码已重置。请使用新密码登录。",
+  "The registered credential and full name could not be verified.":
+    "无法验证登记资料和姓名。",
+});
+Object.assign(zhTw, {
+  "ACCOUNT RECOVERY": "帳戶恢復",
+  "Reset your password": "重設密碼",
+  "Enter your registered email or contact and exact registered full name.":
+    "請輸入已登記的電子郵箱或聯絡電話，以及完全相符的登記姓名。",
+  "Registered full name": "登記姓名",
+  "Verify registered credential": "驗證登記資料",
+  "Verifying…": "正在驗證…",
+  "Reset password": "重設密碼",
+  "Resetting password…": "正在重設密碼…",
+  "Back to sign in": "返回登入",
+  "Password reset successful. Sign in with your new password.":
+    "密碼已重設。請使用新密碼登入。",
+  "The registered credential and full name could not be verified.":
+    "無法驗證登記資料和姓名。",
+});
+Object.assign(zh, {
   Roles: "角色",
+  "Last login": "最后登录",
+  Never: "从未登录",
   "Select one or more roles. Access from the selected roles is combined.": "选择一个或多个角色。系统将合并所选角色的访问权限。",
   "Select at least one role": "请至少选择一个角色",
 });
 Object.assign(zhTw, {
   Roles: "角色",
+  "Last login": "最後登入",
+  Never: "從未登入",
   "Select one or more roles. Access from the selected roles is combined.": "選擇一個或多個角色。系統將合併所選角色的存取權限。",
   "Select at least one role": "請至少選擇一個角色",
 });

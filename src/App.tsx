@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Route,
@@ -1311,6 +1311,10 @@ function Login() {
     [accountName, setAccountName] = useState(""),
     [newPassword, setNewPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
+    [recovering, setRecovering] = useState(false),
+    [recoveryName, setRecoveryName] = useState(""),
+    [resetToken, setResetToken] = useState(""),
+    [success, setSuccess] = useState(""),
     [signingUp, setSigningUp] = useState(false);
   useEffect(() => {
     if (getSession()) nav("/newsroom", { replace: true });
@@ -1323,26 +1327,56 @@ function Login() {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const changing = Boolean(changeToken),
-        r = await fetch(
-          changing ? "/api/auth/change-default-password" : "/api/auth/login",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(
-              changing
-                ? {
-                    passwordChangeToken: changeToken,
-                    newPassword,
-                    confirmPassword,
-                  }
-                : { identifier, password },
-            ),
-          },
-        ),
+        resetting = Boolean(resetToken),
+        verifyingRecovery = recovering && !resetting,
+        endpoint = changing
+          ? "/api/auth/change-default-password"
+          : resetting
+            ? "/api/auth/forgot-password/reset"
+            : verifyingRecovery
+              ? "/api/auth/forgot-password/verify"
+              : "/api/auth/login",
+        requestBody = changing
+          ? {
+              passwordChangeToken: changeToken,
+              newPassword,
+              confirmPassword,
+            }
+          : resetting
+            ? {
+                passwordResetToken: resetToken,
+                newPassword,
+                confirmPassword,
+              }
+            : verifyingRecovery
+              ? { identifier, fullName: recoveryName }
+              : { identifier, password },
+        r = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        }),
         data = await r.json();
       if (!r.ok) throw new Error(data.error || "Sign in failed");
+      if (verifyingRecovery) {
+        setResetToken(data.passwordResetToken);
+        setAccountName(data.user?.name || recoveryName);
+        setNewPassword("");
+        setConfirmPassword("");
+        return;
+      }
+      if (resetting) {
+        setRecovering(false);
+        setResetToken("");
+        setRecoveryName("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setSuccess("Password reset successful. Sign in with your new password.");
+        return;
+      }
       if (data.requiresPasswordChange) {
         setChangeToken(data.passwordChangeToken);
         setAccountName(data.user?.name || "");
@@ -1355,6 +1389,15 @@ function Login() {
     } finally {
       setBusy(false);
     }
+  };
+  const passwordForm = Boolean(changeToken || resetToken);
+  const cancelRecovery = () => {
+    setRecovering(false);
+    setResetToken("");
+    setRecoveryName("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
   };
   return (
     <div className="loginPage">
@@ -1384,23 +1427,50 @@ function Login() {
         ) : (
           <form onSubmit={submit}>
             <div className="loginTitle">
-              <small>
-                {changeToken ? "SECURITY REQUIRED" : "WELCOME BACK"}
-              </small>
-              <h2>
+              <small
+                key={
+                  changeToken ? "security" : recovering ? "recovery" : "welcome"
+                }
+              >
                 {changeToken
+                  ? "SECURITY REQUIRED"
+                  : recovering
+                    ? "ACCOUNT RECOVERY"
+                    : "WELCOME BACK"}
+              </small>
+              <h2
+                key={passwordForm ? "new-password" : recovering ? "reset" : "sign-in"}
+              >
+                {passwordForm
                   ? "Create a new password"
+                  : recovering
+                    ? "Reset your password"
                   : "Sign in to the newsroom"}
               </h2>
-              <p>
+              <p
+                key={
+                  changeToken
+                    ? "default-password-copy"
+                    : resetToken
+                      ? "reset-password-copy"
+                      : recovering
+                        ? "recovery-copy"
+                        : "login-copy"
+                }
+              >
                 {changeToken
                   ? `${accountName}, you must replace the default password before continuing.`
+                  : resetToken
+                    ? `${accountName}, enter and confirm your new password.`
+                    : recovering
+                      ? "Enter your registered email or contact and exact registered full name."
                   : "First-time users can enter only their email or contact, then select Sign in."}
               </p>
             </div>
             {error && <div className="loginError">{error}</div>}
-            {changeToken ? (
-              <>
+            {success && <div className="loginSuccess">{success}</div>}
+            {passwordForm ? (
+              <Fragment key={changeToken ? "default-password" : "password-reset"}>
                 <label>
                   New password
                   <div className="loginInput">
@@ -1440,12 +1510,70 @@ function Login() {
                   </div>
                 </label>
                 <button className="loginSubmit" disabled={busy}>
-                  {busy ? "Updating password…" : "Save password and continue"}
+                  {busy
+                    ? resetToken
+                      ? "Resetting password…"
+                      : "Updating password…"
+                    : resetToken
+                      ? "Reset password"
+                      : "Save password and continue"}
                   <ArrowUpRight />
                 </button>
-              </>
+                {resetToken && (
+                  <button
+                    className="loginRecoveryBack"
+                    type="button"
+                    onClick={cancelRecovery}
+                  >
+                    Back to sign in
+                  </button>
+                )}
+              </Fragment>
+            ) : recovering ? (
+              <Fragment key="recovery-verification">
+                <label>
+                  Email or contact
+                  <div className="loginInput">
+                    <Mail />
+                    <input
+                      autoFocus
+                      required
+                      type="text"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      autoComplete="username"
+                    />
+                  </div>
+                </label>
+                <label>
+                  Registered full name
+                  <div className="loginInput">
+                    <Users />
+                    <input
+                      required
+                      minLength={2}
+                      maxLength={80}
+                      type="text"
+                      value={recoveryName}
+                      onChange={(e) => setRecoveryName(e.target.value)}
+                      autoComplete="name"
+                    />
+                  </div>
+                </label>
+                <button className="loginSubmit" disabled={busy}>
+                  {busy ? "Verifying…" : "Verify registered credential"}
+                  <ArrowUpRight />
+                </button>
+                <button
+                  className="loginRecoveryBack"
+                  type="button"
+                  onClick={cancelRecovery}
+                >
+                  Back to sign in
+                </button>
+              </Fragment>
             ) : (
-              <>
+              <Fragment key="login">
                 <label>
                   Email or contact
                   <div className="loginInput">
@@ -1483,7 +1611,17 @@ function Login() {
                   <label>
                     <input type="checkbox" defaultChecked /> Keep me signed in
                   </label>
-                  <button type="button">Forgot password?</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecovering(true);
+                      setError("");
+                      setSuccess("");
+                      setPassword("");
+                    }}
+                  >
+                    Forgot password?
+                  </button>
                 </div>
                 <button className="loginSubmit" disabled={busy}>
                   {busy ? "Signing in…" : "Sign in"}
@@ -1500,12 +1638,13 @@ function Login() {
                     onClick={() => {
                       setSigningUp(true);
                       setError("");
+                      setSuccess("");
                     }}
                   >
                     Sign up for an account
                   </button>
                 </div>
-              </>
+              </Fragment>
             )}
             <Link className="backHome" to="/">
               ← Return to Local News

@@ -80,6 +80,7 @@ model User {
   patientAppointments       HealthAppointment[] @relation("PatientAppointments")
   passkeys                  PasskeyCredential[]
   passkeyChallenges         WebAuthnChallenge[]
+  lastLoginAt               DateTime?
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt
 }

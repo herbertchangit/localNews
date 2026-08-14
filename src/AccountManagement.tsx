@@ -47,6 +47,7 @@ type User = {
   role: string;
   roles: string[];
   customRoles: string[];
+  lastLoginAt: string | null;
   locked: boolean;
   suspended: boolean;
   permissions: string[];
@@ -787,6 +788,20 @@ export default function AccountManagement() {
                       {[u.phone, u.stayArea].filter(Boolean).join(" · ")}
                     </small>
                   )}
+                  <small className="accountLastLogin">
+                    <b>Last login</b>
+                    <time>
+                      {u.lastLoginAt
+                        ? new Date(u.lastLoginAt).toLocaleString(undefined, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })
+                        : "Never"}
+                    </time>
+                  </small>
                   {!!u.registeredEvents?.length && (
                     <span className="accountRegisteredEvents">
                       {u.registeredEvents.map((event) => (
