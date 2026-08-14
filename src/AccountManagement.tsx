@@ -25,6 +25,7 @@ import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 import { pageCount, paginate } from "./pagination";
 import { useAuthorities } from "./menuAccess";
 import { whatsappEventInvitationUrl, whatsappPhone } from "./whatsappInvite";
+import { nextHierarchyAssignment, type HierarchyLevel } from "./accountHierarchy";
 import "./account-roles.css";
 type Cat = { id: string; name: string };
 type Group = { id: string; name: string };
@@ -109,6 +110,7 @@ export default function AccountManagement() {
     [cooperationFilter, setCooperationFilter] = useState(""),
     [reset, setReset] = useState<User | null>(null),
     [selected, setSelected] = useState<Set<string>>(new Set()),
+    [hierarchySavingId, setHierarchySavingId] = useState(""),
     [page, setPage] = useState(1);
   const headers = {
     "Content-Type": "application/json",
@@ -453,6 +455,37 @@ export default function AccountManagement() {
       flash(e.message);
     }
   };
+  const updateHierarchy = async (
+    user: User,
+    level: HierarchyLevel,
+    value: string,
+  ) => {
+    if (hierarchySavingId) return;
+    const hierarchy = nextHierarchyAssignment({
+      harmonyGroupId: user.harmonyGroup?.id || null,
+      mutualLoveGroupId: user.mutualLoveGroup?.id || null,
+      cooperationUnitId: user.cooperationUnit?.id || null,
+    }, level, value);
+    setHierarchySavingId(user.id);
+    try {
+      const saved = await api(`/api/admin/accounts/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(hierarchy),
+      });
+      setUsers((current) =>
+        current.map((item) =>
+          item.id === saved.id
+            ? { ...item, ...saved, registeredEvents: item.registeredEvents }
+            : item,
+        ),
+      );
+      flash("Organization assignment updated");
+    } catch (error: any) {
+      flash(error.message || "Could not update organization assignment");
+    } finally {
+      setHierarchySavingId("");
+    }
+  };
   const remove = async (u: User) => {
     if (!confirm(`Delete ${u.name}?`)) return;
     try {
@@ -506,6 +539,11 @@ export default function AccountManagement() {
       flash(e.message);
     }
   };
+  const canInlineEditHierarchy =
+    allowed("edit") &&
+    [activeSession?.user?.role, ...(activeSession?.user?.roles || [])].includes(
+      "ADMIN",
+    );
   return (
     <div className="dash">
       <aside>
@@ -710,8 +748,16 @@ export default function AccountManagement() {
             <span>Status</span>
             <span>Actions</span>
           </div>
-          {pageUsers.map((u) => (
-            <div className="accountRow" key={u.id}>
+          {pageUsers.map((u) => {
+            const rowMutualLoves =
+                structure.find((harmony) => harmony.id === u.harmonyGroup?.id)
+                  ?.mutualLoves || [],
+              rowCooperations =
+                rowMutualLoves.find(
+                  (mutualLove) => mutualLove.id === u.mutualLoveGroup?.id,
+                )?.cooperations || [],
+              hierarchySaving = hierarchySavingId === u.id;
+            return <div className="accountRow" key={u.id}>
               <div className="person accountSelectable">
                 <input
                   type="checkbox"
@@ -771,11 +817,28 @@ export default function AccountManagement() {
                     </>
                   )}
                 </small>
-                <span>{u.harmonyGroup?.name || "—"}</span>
-                <b>›</b>
-                <span>{u.mutualLoveGroup?.name || "—"}</span>
-                <b>›</b>
-                <span>{u.cooperationUnit?.name || "—"}</span>
+                {canInlineEditHierarchy ? <>
+                  <select aria-label={`Harmony for ${u.name}`} value={u.harmonyGroup?.id || ""} disabled={hierarchySaving} onChange={(event) => updateHierarchy(u, "harmony", event.target.value)}>
+                    <option value="">—</option>
+                    {structure.map((harmony) => <option value={harmony.id} key={harmony.id}>{harmony.name}</option>)}
+                  </select>
+                  <b>›</b>
+                  <select aria-label={`MutualLove for ${u.name}`} value={u.mutualLoveGroup?.id || ""} disabled={hierarchySaving || !u.harmonyGroup} onChange={(event) => updateHierarchy(u, "mutualLove", event.target.value)}>
+                    <option value="">—</option>
+                    {rowMutualLoves.map((mutualLove) => <option value={mutualLove.id} key={mutualLove.id}>{mutualLove.name}</option>)}
+                  </select>
+                  <b>›</b>
+                  <select aria-label={`Cooperation for ${u.name}`} value={u.cooperationUnit?.id || ""} disabled={hierarchySaving || !u.mutualLoveGroup} onChange={(event) => updateHierarchy(u, "cooperation", event.target.value)}>
+                    <option value="">—</option>
+                    {rowCooperations.map((cooperation) => <option value={cooperation.id} key={cooperation.id}>{cooperation.name}</option>)}
+                  </select>
+                </> : <>
+                  <span>{u.harmonyGroup?.name || "—"}</span>
+                  <b>›</b>
+                  <span>{u.mutualLoveGroup?.name || "—"}</span>
+                  <b>›</b>
+                  <span>{u.cooperationUnit?.name || "—"}</span>
+                </>}
               </div>
               <span className={"rolePill " + u.role.toLowerCase()}>
                 {[...new Set([...(u.roles || []), u.role, ...(u.customRoles || [])])].map(roleLabel).join(", ")}
@@ -825,8 +888,8 @@ export default function AccountManagement() {
                   </button>
                 )}
               </div>
-            </div>
-          ))}
+            </div>;
+          })}
           {!pageUsers.length && (
             <div className="emptyState">
               No users match the selected filters.
