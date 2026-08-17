@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ClipboardList,
   Copy,
+  Download,
   Eye,
   FileText,
   ImagePlus,
@@ -17,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuthorities } from "./menuAccess";
+import { registrationCsv, registrationCsvFilename } from "./registrationCsv";
 
 type EventDate = { id: string; eventDate: string };
 type Viewer = { id: string; name: string; email: string; role?: string };
@@ -249,6 +251,31 @@ export default function RegistrationManagement() {
       setDetail(
         await api(`/api/registrations/admin/forms/${form.id}/submissions`),
       );
+    } catch (error: any) {
+      flash(error.message);
+    }
+  };
+  const exportResponses = async (
+    form: RegistrationForm,
+    loadedDetail?: Detail,
+  ) => {
+    if (!canManage) return;
+    try {
+      const exportDetail =
+        loadedDetail ||
+        (await api(`/api/registrations/admin/forms/${form.id}/submissions`));
+      const blob = new Blob([registrationCsv(exportDetail)], {
+        type: "text/csv;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = registrationCsvFilename(exportDetail.eventName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      flash("Registration CSV exported");
     } catch (error: any) {
       flash(error.message);
     }
@@ -546,6 +573,14 @@ export default function RegistrationManagement() {
                     title="View registrations"
                   >
                     <Eye />
+                  </button>
+                )}
+                {canManage && (
+                  <button
+                    onClick={() => exportResponses(form)}
+                    title="Export all fields to CSV"
+                  >
+                    <Download />
                   </button>
                 )}
                 {allowed("copy_link") && (
@@ -912,6 +947,15 @@ export default function RegistrationManagement() {
                 <X />
               </button>
             </div>
+            {canManage && (
+              <button
+                className="registrationExportButton"
+                onClick={() => exportResponses(detail, detail)}
+              >
+                <Download />
+                Export all fields / 导出全部字段
+              </button>
+            )}
             <div className="responseTotal">
               <span>Total persons registered / 已登记总人数</span>
               <strong>{registeredPersons}</strong>
