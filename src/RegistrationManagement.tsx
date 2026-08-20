@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import QRCode from "qrcode";
 import {
   CalendarDays,
   ClipboardList,
@@ -11,6 +12,7 @@ import {
   LayoutDashboard,
   Pencil,
   Plus,
+  QrCode,
   Search,
   Settings,
   Trash2,
@@ -19,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuthorities } from "./menuAccess";
 import { registrationCsv, registrationCsvFilename } from "./registrationCsv";
+import { buildAttendanceQrUrl } from "./attendanceQr";
 
 type EventDate = { id: string; eventDate: string };
 type Viewer = { id: string; name: string; email: string; role?: string };
@@ -62,10 +65,16 @@ type Submission = {
     id: string;
     totalPersons: number;
     meal: boolean;
+    checkedInAt?: string | null;
     eventDate: EventDate;
   }[];
 };
 type Detail = RegistrationForm & { submissions: Submission[] };
+type AttendanceCodes = {
+  id: string;
+  eventName: string;
+  eventDates: (EventDate & { token: string })[];
+};
 const empty = {
   eventName: "",
   description: "",
@@ -80,6 +89,33 @@ const empty = {
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const day = (value: string) => value.slice(0, 10);
 
+function AttendanceQrImage({ token, label }: { token: string; label: string }) {
+  const [source, setSource] = useState("");
+  useEffect(() => {
+    let current = true;
+    QRCode.toDataURL(buildAttendanceQrUrl(token, window.location.origin), {
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: { dark: "#143f31", light: "#ffffff" },
+    }).then((value) => current && setSource(value));
+    return () => {
+      current = false;
+    };
+  }, [token]);
+  return source ? (
+    <>
+      <img src={source} alt={`Attendance QR for ${label}`} />
+      <a href={source} download={`${label.replace(/[^a-z0-9-]+/gi, "-")}-attendance-qr.png`}>
+        <Download />
+        Download QR
+      </a>
+    </>
+  ) : (
+    <span className="registrationQrLoading">Generating QR…</span>
+  );
+}
+
 export default function RegistrationManagement() {
   const allowed = useAuthorities("registrations");
   const nav = useNavigate(),
@@ -87,7 +123,8 @@ export default function RegistrationManagement() {
     token = current?.token;
   const [forms, setForms] = useState<RegistrationForm[]>([]),
     [editor, setEditor] = useState<any>(null),
-    [detail, setDetail] = useState<Detail | null>(null);
+    [detail, setDetail] = useState<Detail | null>(null),
+    [attendanceCodes, setAttendanceCodes] = useState<AttendanceCodes | null>(null);
   const [notice, setNotice] = useState(""),
     [loading, setLoading] = useState(true);
   const [canManage, setCanManage] = useState(false),
@@ -276,6 +313,16 @@ export default function RegistrationManagement() {
       link.remove();
       URL.revokeObjectURL(url);
       flash("Registration CSV exported");
+    } catch (error: any) {
+      flash(error.message);
+    }
+  };
+  const showAttendanceCodes = async (form: RegistrationForm) => {
+    if (!canManage) return;
+    try {
+      setAttendanceCodes(
+        await api(`/api/registrations/admin/forms/${form.id}/attendance-codes`),
+      );
     } catch (error: any) {
       flash(error.message);
     }
@@ -581,6 +628,14 @@ export default function RegistrationManagement() {
                     title="Export all fields to CSV"
                   >
                     <Download />
+                  </button>
+                )}
+                {canManage && (
+                  <button
+                    onClick={() => showAttendanceCodes(form)}
+                    title="Attendance QR codes"
+                  >
+                    <QrCode />
                   </button>
                 )}
                 {allowed("copy_link") && (
@@ -1063,6 +1118,12 @@ export default function RegistrationManagement() {
                           {new Date(
                             attendance.eventDate.eventDate,
                           ).toLocaleDateString()}
+                          {attendance.checkedInAt && (
+                            <small className="responseCheckedIn">
+                              Checked in / 已签到
+                              {new Date(attendance.checkedInAt).toLocaleString()}
+                            </small>
+                          )}
                         </strong>
                         <label>
                           Persons / 人数
@@ -1130,6 +1191,48 @@ export default function RegistrationManagement() {
                   )}
                 </article>
               ))}
+            </div>
+          </section>
+        </div>
+      )}
+      {attendanceCodes && (
+        <div
+          className="modalBackdrop"
+          onMouseDown={() => setAttendanceCodes(null)}
+        >
+          <section
+            className="registrationQrModal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modalHead">
+              <div>
+                <small>ATTENDANCE QR / 出席二维码</small>
+                <h2>{attendanceCodes.eventName}</h2>
+              </div>
+              <button onClick={() => setAttendanceCodes(null)}>
+                <X />
+              </button>
+            </div>
+            <p>
+              Display the matching event-date code for registered users to scan
+              from Your Appointments.
+            </p>
+            <div className="registrationQrGrid">
+              {attendanceCodes.eventDates.map((eventDate) => {
+                const label = day(eventDate.eventDate);
+                return (
+                  <article key={eventDate.id}>
+                    <strong>
+                      {new Date(eventDate.eventDate).toLocaleDateString(
+                        undefined,
+                        { weekday: "long", year: "numeric", month: "long", day: "numeric" },
+                      )}
+                    </strong>
+                    <AttendanceQrImage token={eventDate.token} label={label} />
+                    <small>Scan to mark attendance / 扫码签到</small>
+                  </article>
+                );
+              })}
             </div>
           </section>
         </div>

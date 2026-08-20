@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import type { IScannerControls } from "@zxing/browser";
 import {
   ArrowUpRight,
   CalendarCheck2,
   CalendarHeart,
   CalendarX2,
+  Camera,
+  CircleCheckBig,
   ClipboardList,
   Clock,
   Eye,
@@ -17,6 +20,7 @@ import {
   Phone,
   RefreshCw,
   Save,
+  ScanLine,
   Settings,
   ShieldCheck,
   Stethoscope,
@@ -36,6 +40,7 @@ import {
 import { firstHttpUrl, isVideoUrl, previewImageForUrl } from "./richTextUtils";
 import { useMenuAccess } from "./menuAccess";
 import ShareStoryButton from "./ShareStoryButton";
+import { attendanceTokenFromQr } from "./attendanceQr";
 type Story = {
   id: string;
   title: string;
@@ -72,6 +77,7 @@ type Appointment = {
     submissionId: string;
     totalPersons: number;
     meal: boolean;
+    checkedInAt?: string | null;
   };
   event: { name: string; eventDate: string; location: string; address: string };
   doctor: {
@@ -442,6 +448,15 @@ export function AudienceAppointments() {
   const [savingRegistration, setSavingRegistration] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Appointment | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scanStatus, setScanStatus] = useState<{
+    kind: "ready" | "checking" | "success" | "error";
+    message: string;
+  }>({ kind: "ready", message: "Point the camera at an event attendance QR code." });
+  const scannerVideo = useRef<HTMLVideoElement>(null);
+  const scannerControls = useRef<IScannerControls | null>(null);
+  const scanProcessing = useRef(false);
   useEffect(() => {
     fetch("/api/health-events/appointments/mine", {
       headers: { Authorization: `Bearer ${token()}` },
@@ -468,6 +483,120 @@ export function AudienceAppointments() {
       window.removeEventListener("keydown", close);
     };
   }, [selected]);
+  const submitAttendanceToken = async (attendanceToken: string) => {
+    if (scanProcessing.current) return;
+    scanProcessing.current = true;
+    setCameraActive(false);
+    scannerControls.current?.stop();
+    setScanStatus({ kind: "checking", message: "Checking your registration…" });
+    try {
+      const response = await fetch("/api/registrations/mine/check-in", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ token: attendanceToken }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.error || "Could not mark attendance");
+      const checkedInAt = String(data.checkedInAt);
+      const applyCheckIn = (item: Appointment) =>
+        item.registration?.attendanceId === data.attendanceId
+          ? {
+              ...item,
+              registration: { ...item.registration, checkedInAt },
+            }
+          : item;
+      setAppointments((current) => current.map(applyCheckIn));
+      setSelected((current) => (current ? applyCheckIn(current) : current));
+      const message = data.alreadyCheckedIn
+        ? `Attendance was already marked for ${data.eventName}.`
+        : `Attendance marked for ${data.eventName}.`;
+      setScanStatus({ kind: "success", message });
+      setNotice(message);
+    } catch (error: any) {
+      setScanStatus({ kind: "error", message: error.message });
+    } finally {
+      scanProcessing.current = false;
+    }
+  };
+  useEffect(() => {
+    const attendanceToken = new URLSearchParams(window.location.search).get(
+      "attendance",
+    );
+    if (!attendanceToken) return;
+    setScannerOpen(true);
+    setCameraActive(false);
+    void submitAttendanceToken(attendanceToken);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("attendance");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+  useEffect(() => {
+    if (!scannerOpen || !cameraActive || !scannerVideo.current) return;
+    let disposed = false;
+    const video = scannerVideo.current;
+    import("@zxing/browser")
+      .then(({ BrowserQRCodeReader }) => {
+        if (disposed) return null;
+        const reader = new BrowserQRCodeReader(undefined, {
+          delayBetweenScanAttempts: 250,
+        });
+        return reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: "environment" } }, audio: false },
+        video,
+        (result, _error, controls) => {
+          if (!result || disposed || scanProcessing.current) return;
+          const attendanceToken = attendanceTokenFromQr(
+            result.getText(),
+            window.location.origin,
+          );
+          if (!attendanceToken) {
+            setScanStatus({
+              kind: "error",
+              message: "This is not a Local News attendance QR code.",
+            });
+            return;
+          }
+          controls.stop();
+          void submitAttendanceToken(attendanceToken);
+        },
+        );
+      })
+      .then((controls) => {
+        if (!controls) return;
+        if (disposed) controls.stop();
+        else scannerControls.current = controls;
+      })
+      .catch((error) => {
+        if (disposed) return;
+        setCameraActive(false);
+        setScanStatus({
+          kind: "error",
+          message:
+            error?.name === "NotAllowedError"
+              ? "Camera permission is required to scan attendance QR codes."
+              : "The camera could not be started on this device.",
+        });
+      });
+    return () => {
+      disposed = true;
+      scannerControls.current?.stop();
+      scannerControls.current = null;
+    };
+  }, [scannerOpen, cameraActive]);
+  const openScanner = () => {
+    setScannerOpen(true);
+    setScanStatus({
+      kind: "ready",
+      message: "Point the camera at an event attendance QR code.",
+    });
+    setCameraActive(true);
+  };
+  const closeScanner = () => {
+    setCameraActive(false);
+    scannerControls.current?.stop();
+    setScannerOpen(false);
+  };
   const cancelAppointment = async (item: Appointment) => {
     if (
       !confirm(
@@ -607,10 +736,14 @@ export function AudienceAppointments() {
               Review your upcoming and previous health-service appointments.
             </p>
           </div>
+          <button className="new appointmentScanButton" onClick={openScanner}>
+            <ScanLine />
+            Scan attendance QR
+          </button>
         </div>
         {notice && (
           <div
-            className={`doctorSlotNotice${notice.startsWith("Appointment cancelled") ? "" : " error"}`}
+            className={`doctorSlotNotice${/^(Appointment cancelled|Attendance|Registration appointment)/.test(notice) ? "" : " error"}`}
           >
             {notice}
           </div>
@@ -692,6 +825,7 @@ export function AudienceAppointments() {
                         Persons / 人数
                         <input
                           aria-label="Total persons"
+                          disabled={Boolean(item.registration.checkedInAt)}
                           type="number"
                           min={1}
                           max={999}
@@ -710,6 +844,7 @@ export function AudienceAppointments() {
                         Meal / 用餐
                         <select
                           aria-label="Meal required"
+                          disabled={Boolean(item.registration.checkedInAt)}
                           value={item.registration.meal ? "yes" : "no"}
                           onChange={(event) =>
                             editRegistration(item.id, {
@@ -724,7 +859,10 @@ export function AudienceAppointments() {
                       <div>
                         <button
                           type="button"
-                          disabled={savingRegistration === item.id}
+                          disabled={
+                            savingRegistration === item.id ||
+                            Boolean(item.registration.checkedInAt)
+                          }
                           onClick={() => saveRegistration(item)}
                         >
                           <Save />
@@ -733,13 +871,22 @@ export function AudienceAppointments() {
                         <button
                           className="danger"
                           type="button"
-                          disabled={savingRegistration === item.id}
+                          disabled={
+                            savingRegistration === item.id ||
+                            Boolean(item.registration.checkedInAt)
+                          }
                           onClick={() => unregisterRegistration(item)}
                         >
                           <CalendarX2 />
                           Un-register
                         </button>
                       </div>
+                      {item.registration.checkedInAt && (
+                        <span className="attendanceCheckedIn">
+                          <CircleCheckBig />
+                          Attended {new Date(item.registration.checkedInAt).toLocaleString()}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="audienceAppointmentControls">
@@ -923,6 +1070,35 @@ export function AudienceAppointments() {
                     : "Cancel appointment"}
                 </button>
               )}
+            </footer>
+          </section>
+        </div>
+      )}
+      {scannerOpen && (
+        <div className="attendanceScannerBackdrop" onMouseDown={(event) => event.target === event.currentTarget && closeScanner()}>
+          <section className="attendanceScannerModal" role="dialog" aria-modal="true" aria-labelledby="attendance-scanner-title">
+            <header>
+              <div>
+                <small>EVENT ATTENDANCE / 活动签到</small>
+                <h2 id="attendance-scanner-title">Scan attendance QR</h2>
+              </div>
+              <button type="button" aria-label="Close scanner" onClick={closeScanner}><X /></button>
+            </header>
+            <div className="attendanceScannerCamera">
+              <video ref={scannerVideo} muted playsInline />
+              {cameraActive && <span><ScanLine /></span>}
+              {!cameraActive && scanStatus.kind === "ready" && <Camera />}
+            </div>
+            <div className={`attendanceScannerStatus ${scanStatus.kind}`} role="status">
+              {scanStatus.kind === "success" && <CircleCheckBig />}
+              {scanStatus.kind === "ready" && <Camera />}
+              <p>{scanStatus.message}</p>
+            </div>
+            <footer>
+              {scanStatus.kind === "error" && (
+                <button type="button" onClick={openScanner}><Camera />Try camera again</button>
+              )}
+              <button type="button" onClick={closeScanner}>Close</button>
             </footer>
           </section>
         </div>

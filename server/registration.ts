@@ -9,6 +9,7 @@ import path from "node:path";
 import { DEFAULT_PASSWORD } from "./passwordPolicy.js";
 import { isContactMatch, loginEmailForContact } from "./loginIdentifier.js";
 import { findRegistrationConflicts } from "./registrationDuplicate.js";
+import { attendanceDateError } from "./attendanceDate.js";
 
 const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
@@ -56,6 +57,7 @@ const attendanceUpdateInput = z.object({
   totalPersons: z.coerce.number().int().min(1).max(999),
   meal: z.boolean(),
 });
+const attendanceCheckInInput = z.object({ token: z.string().min(1).max(4000) });
 
 const dateAtUtcMidnight = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
@@ -148,10 +150,92 @@ export function createRegistrationRouter(db: any, secret: string) {
         eventDate: attendance.eventDate.eventDate,
         totalPersons: attendance.totalPersons,
         meal: attendance.meal,
+        checkedInAt: attendance.checkedInAt,
         origin: submission.origin,
         status: "REGISTERED",
         createdAt: submission.createdAt,
       }))));
+  });
+  router.post("/mine/check-in", authenticate, async (req: any, res) => {
+    const { token } = attendanceCheckInInput.parse(req.body);
+    let code: any;
+    try {
+      code = jwt.verify(token, secret);
+    } catch {
+      return res.status(400).json({ error: "This attendance QR code is invalid" });
+    }
+    if (
+      code?.scope !== "registration-attendance" ||
+      typeof code.formId !== "string" ||
+      typeof code.eventDateId !== "string"
+    )
+      return res.status(400).json({ error: "This attendance QR code is invalid" });
+    const account = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true },
+    });
+    if (!account?.phone)
+      return res.status(409).json({
+        error: "Add your registered contact number in Account Settings before checking in",
+      });
+    const eventDate = await db.registrationEventDate.findFirst({
+      where: { id: code.eventDateId, formId: code.formId },
+      include: {
+        form: { select: { id: true, eventName: true } },
+        attendances: {
+          include: {
+            submission: {
+              select: { id: true, contact: true, unregisteredAt: true },
+            },
+          },
+        },
+      },
+    });
+    if (!eventDate)
+      return res.status(404).json({ error: "This attendance event date was not found" });
+    const dateError = attendanceDateError(eventDate.eventDate);
+    if (dateError) return res.status(409).json({ error: dateError });
+    const attendance = eventDate.attendances.find(
+      (item: any) =>
+        !item.submission.unregisteredAt &&
+        isContactMatch(account.phone, item.submission.contact),
+    );
+    if (!attendance)
+      return res.status(409).json({
+        error: `No active registration for ${eventDate.form.eventName} on ${isoDate(eventDate.eventDate)} matches your account`,
+      });
+    if (attendance.checkedInAt)
+      return res.json({
+        attendanceId: attendance.id,
+        eventName: eventDate.form.eventName,
+        eventDate: eventDate.eventDate,
+        checkedInAt: attendance.checkedInAt,
+        alreadyCheckedIn: true,
+      });
+    const checkedInAt = new Date();
+    await db.registrationAttendance.update({
+      where: { id: attendance.id },
+      data: { checkedInAt },
+    });
+    await db.auditLog.create({
+      data: {
+        action: "REGISTRATION_ATTENDANCE_CHECKED_IN",
+        actorId: req.user.id,
+        metadata: {
+          formId: eventDate.form.id,
+          eventDateId: eventDate.id,
+          submissionId: attendance.submission.id,
+          attendanceId: attendance.id,
+        },
+      },
+    });
+    res.json({
+      attendanceId: attendance.id,
+      eventName: eventDate.form.eventName,
+      eventDate: eventDate.eventDate,
+      checkedInAt,
+      alreadyCheckedIn: false,
+    });
   });
   router.patch("/mine/:attendanceId", authenticate, async (req: any, res) => {
     const data = attendanceUpdateInput.parse(req.body);
@@ -163,6 +247,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     });
     if (!attendance || !isContactMatch(account.phone, attendance.submission.contact)) return res.status(404).json({ error: "Registration appointment not found" });
     if (attendance.submission.unregisteredAt) return res.status(409).json({ error: "This registration is already un-registered" });
+    if (attendance.checkedInAt) return res.status(409).json({ error: "Attended registrations can no longer be changed" });
     const updated = await db.registrationAttendance.update({ where: { id: attendance.id }, data, include: { eventDate: true } });
     await db.auditLog.create({ data: { action: "REGISTRATION_ATTENDANCE_UPDATED", actorId: req.user.id, metadata: { formId: attendance.submission.formId, submissionId: attendance.submission.id, attendanceId: attendance.id } } });
     res.json(updated);
@@ -176,6 +261,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     });
     if (!attendance || !isContactMatch(account.phone, attendance.submission.contact)) return res.status(404).json({ error: "Registration appointment not found" });
     if (attendance.submission.unregisteredAt) return res.status(409).json({ error: "This registration is already un-registered" });
+    if (attendance.checkedInAt) return res.status(409).json({ error: "Attended registrations can no longer be un-registered" });
     if (attendance.submission.attendances.length === 1) {
       await db.registrationSubmission.update({ where: { id: attendance.submission.id }, data: { unregisteredAt: new Date() } });
     } else {
@@ -268,6 +354,32 @@ export function createRegistrationRouter(db: any, secret: string) {
       },
     });
     form ? res.json(form) : res.status(404).json({ error: "Registration form not found" });
+  });
+  router.get("/admin/forms/:id/attendance-codes", authenticate, manage, async (req: any, res) => {
+    const form = await db.registrationForm.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        eventName: true,
+        eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } },
+      },
+    });
+    if (!form) return res.status(404).json({ error: "Registration form not found" });
+    res.json({
+      id: form.id,
+      eventName: form.eventName,
+      eventDates: form.eventDates.map((eventDate: any) => ({
+        ...eventDate,
+        token: jwt.sign(
+          {
+            scope: "registration-attendance",
+            formId: form.id,
+            eventDateId: eventDate.id,
+          },
+          secret,
+        ),
+      })),
+    });
   });
   router.patch("/admin/submissions/:id", authenticate, manage, async (req: any, res) => {
     const data = submissionUpdateInput.parse(req.body);

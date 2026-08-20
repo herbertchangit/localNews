@@ -16,6 +16,7 @@ type RegistrationExportForm = {
     attendances: {
       totalPersons: number;
       meal: boolean;
+      checkedInAt?: string | null;
       eventDate: { id: string; eventDate: string };
     }[];
   }[];
@@ -44,6 +45,7 @@ export const registrationCsvTable = (form: RegistrationExportForm) => {
     ...eventDates.flatMap((eventDate) => [
       `${dateOnly(eventDate.eventDate)} Persons / 人数`,
       `${dateOnly(eventDate.eventDate)} Meal / 用餐`,
+      `${dateOnly(eventDate.eventDate)} Checked in at / 签到时间`,
     ]),
     "Status / 状态",
     "Registered at / 登记时间",
@@ -66,8 +68,12 @@ export const registrationCsvTable = (form: RegistrationExportForm) => {
         (item) => item.eventDate.id === eventDate.id,
       );
       return attendance
-        ? [attendance.totalPersons, attendance.meal ? "Yes / 是" : "No / 否"]
-        : ["", ""];
+        ? [
+            attendance.totalPersons,
+            attendance.meal ? "Yes / 是" : "No / 否",
+            attendance.checkedInAt || "",
+          ]
+        : ["", "", ""];
     }),
     submission.unregisteredAt
       ? "Un-registered / 已取消登记"

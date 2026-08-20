@@ -170,6 +170,7 @@ model RegistrationAttendance {
   eventDate    RegistrationEventDate  @relation(fields: [eventDateId], references: [id], onDelete: Cascade)
   totalPersons Int
   meal         Boolean
+  checkedInAt  DateTime?
 
   @@unique([submissionId, eventDateId])
   @@index([eventDateId])

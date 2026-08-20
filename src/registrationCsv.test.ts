@@ -29,6 +29,7 @@ const form = {
         {
           totalPersons: 2,
           meal: true,
+          checkedInAt: "2026-08-21T08:15:00.000Z",
           eventDate: {
             id: "date-1",
             eventDate: "2026-08-21T00:00:00.000Z",
@@ -46,10 +47,12 @@ describe("registration CSV export", () => {
     expect(headers).toContain("Transport");
     expect(headers).toContain("2026-08-21 Persons / 人数");
     expect(headers).toContain("2026-08-22 Meal / 用餐");
+    expect(headers).toContain("2026-08-21 Checked in at / 签到时间");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toContain("Food, First aid");
     expect(rows[0]).toContain(2);
     expect(rows[0]).toContain("Yes / 是");
+    expect(rows[0]).toContain("2026-08-21T08:15:00.000Z");
     expect(rows[0].slice(-3)).toEqual([
       "Registered / 已登记",
       "2026-08-18T09:30:00.000Z",
