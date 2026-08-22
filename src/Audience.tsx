@@ -37,7 +37,7 @@ import {
   CHECK_APP_UPDATE_EVENT,
   type AppUpdateResult,
 } from "./pwaEvents";
-import { firstHttpUrl, isVideoUrl, previewImageForUrl } from "./richTextUtils";
+import { firstHttpUrl, firstPhotoUrl, isVideoUrl, previewImageForUrl } from "./richTextUtils";
 import { useMenuAccess } from "./menuAccess";
 import ShareStoryButton from "./ShareStoryButton";
 import { attendanceTokenFromQr } from "./attendanceQr";
@@ -360,7 +360,9 @@ export function AudienceDashboard() {
         ) : (
           <div className="audienceStories">
             {stories.map((s, i) => {
-              const photo = s.photos?.[0]?.url || s.imageUrl;
+              const photo =
+                firstPhotoUrl(s.photos) ||
+                s.imageUrl;
               return (
                 <article
                   key={s.id}
@@ -1429,12 +1431,8 @@ export function AudienceHomepageDashboard() {
                   contentPreview = contentUrl
                     ? previewImageForUrl(contentUrl)
                     : null,
-                  video = story.photos?.find((media) =>
-                    isVideoUrl(media.url),
-                  )?.url,
                   photo =
-                    story.photos?.find((media) => !isVideoUrl(media.url))
-                      ?.url ||
+                    firstPhotoUrl(story.photos) ||
                     story.imageUrl ||
                     contentPreview,
                   dateValue = story.storyDate || story.publishedAt,
@@ -1447,37 +1445,18 @@ export function AudienceHomepageDashboard() {
                     : "Date not set";
                 return (
                   <article key={story.id}>
-                    {video ? (
-                      <div className="dailyBriefThumbLink isVideo">
-                        <div className={`thumb t${index % 3} hasVideo`}>
-                          <video
-                            src={video}
-                            controls
-                            playsInline
-                            preload="metadata"
-                            aria-label={`Video preview for ${story.title}`}
-                          />
-                          <span>{story.category.name}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <Link
-                        className="dailyBriefThumbLink"
-                        to={`/stories/${story.slug}`}
-                        aria-label={`Read ${story.title}`}
+                    <Link
+                      className="dailyBriefThumbLink"
+                      to={`/stories/${story.slug}`}
+                      aria-label={`Read ${story.title}`}
+                    >
+                      <div
+                        className={`thumb t${index % 3}${photo ? " hasImage" : ""}`}
+                        style={photo ? { backgroundImage: `url(${photo})` } : undefined}
                       >
-                        <div
-                          className={`thumb t${index % 3}${photo ? " hasImage" : ""}`}
-                          style={
-                            photo
-                              ? { backgroundImage: `url(${photo})` }
-                              : undefined
-                          }
-                        >
-                          <span>{story.category.name}</span>
-                        </div>
-                      </Link>
-                    )}
+                        <span>{story.category.name}</span>
+                      </div>
+                    </Link>
                     <div className="dailyBriefStoryBody">
                       <div className="dailyBriefStoryMeta">
                         <span>STORY DATE · {storyDateLabel}</span>
@@ -1502,7 +1481,7 @@ export function AudienceHomepageDashboard() {
                           >
                             Read Story <ArrowUpRight />
                           </Link>
-                          <ShareStoryButton title={story.title} slug={story.slug} previewImage={video || photo} />
+                          <ShareStoryButton title={story.title} slug={story.slug} previewImage={photo} />
                         </div>
                         <div className="articleFoot">
                           <b>{story.author.name}</b>

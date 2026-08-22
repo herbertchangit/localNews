@@ -84,7 +84,7 @@ import SignUpForm from "./SignUpForm";
 import RoleManagement from "./RoleManagement";
 import { useMenuAccess } from "./menuAccess";
 import "./homepage-categories.css";
-import { firstHttpUrl, isVideoUrl, previewImageForUrl } from "./richTextUtils";
+import { firstHttpUrl, firstPhotoUrl, previewImageForUrl } from "./richTextUtils";
 import ShareStoryButton from "./ShareStoryButton";
 type NewsCategory = { id: string; name: string; slug: string };
 type Article = {
@@ -209,9 +209,8 @@ function DailyBrief({ articles }: { articles: Article[] }) {
         {articles.map((x, i) => {
           const contentUrl = firstHttpUrl(x.content),
             contentPreview = contentUrl ? previewImageForUrl(contentUrl) : null,
-            video = x.photos?.find((media) => isVideoUrl(media.url))?.url,
             photo =
-              x.photos?.find((media) => !isVideoUrl(media.url))?.url ||
+              firstPhotoUrl(x.photos) ||
               x.imageUrl ||
               contentPreview,
             dateValue = x.storyDate || x.publishedAt,
@@ -224,36 +223,19 @@ function DailyBrief({ articles }: { articles: Article[] }) {
               : "Date not set";
           return (
             <article key={x.id}>
-              {video ? (
-                <div className="dailyBriefThumbLink isVideo">
-                  <div className={"thumb t" + (i % 3) + " hasVideo"}>
-                    <video
-                      src={video}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      aria-label={`Video preview for ${x.title}`}
-                    />
-                    <span>{x.category.name}</span>
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  className="dailyBriefThumbLink"
-                  to={`/stories/${x.slug}`}
-                  aria-label={`Read ${x.title}`}
-                  onClick={rememberHomeScrollPosition}
+              <Link
+                className="dailyBriefThumbLink"
+                to={`/stories/${x.slug}`}
+                aria-label={`Read ${x.title}`}
+                onClick={rememberHomeScrollPosition}
+              >
+                <div
+                  className={"thumb t" + (i % 3) + (photo ? " hasImage" : "")}
+                  style={photo ? { backgroundImage: `url(${photo})` } : undefined}
                 >
-                  <div
-                    className={"thumb t" + (i % 3) + (photo ? " hasImage" : "")}
-                    style={
-                      photo ? { backgroundImage: `url(${photo})` } : undefined
-                    }
-                  >
-                    <span>{x.category.name}</span>
-                  </div>
-                </Link>
-              )}
+                  <span>{x.category.name}</span>
+                </div>
+              </Link>
               <div className="dailyBriefStoryBody">
                 <div className="dailyBriefStoryMeta">
                   <span>STORY DATE · {storyDateLabel}</span>
@@ -280,7 +262,7 @@ function DailyBrief({ articles }: { articles: Article[] }) {
                     >
                       Read Story <ArrowUpRight />
                     </Link>
-                    <ShareStoryButton title={x.title} slug={x.slug} previewImage={video || photo} />
+                    <ShareStoryButton title={x.title} slug={x.slug} previewImage={photo} />
                   </div>
                   <div className="articleFoot">
                     <b>{x.author.name}</b>

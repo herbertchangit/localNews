@@ -141,6 +141,10 @@ export function isVideoUrl(value: string) {
   }
 }
 
+export function firstPhotoUrl(media: Array<{ url: string }> | null | undefined) {
+  return media?.find((item) => !isVideoUrl(item.url))?.url || null;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")

@@ -819,7 +819,7 @@ const canViewPrivateStories = (role?: Role) =>
   !!role && role !== Role.DADE && role !== Role.AUDIENCE;
 const publishedVisibility = (q: Req) =>
   canViewPrivateStories(q.user?.role) ? {} : { isPublic: true };
-const storyMediaLimit = (role: Role) => (hasFullStoryAccess(role) ? 50 : 12);
+const storyMediaLimit = (role: Role) => (hasFullStoryAccess(role) ? 100 : 12);
 const canEditArticle = (q: Req, article: { authorId: string }) =>
   hasConfiguredStoryAccess(q) || hasFullStoryAccess(q.user!.role) || article.authorId === q.user!.id;
 const articleInclude = {
@@ -905,6 +905,14 @@ const storyMediaBody = z.object({
   caption: z.string().trim().max(240).optional().default(""),
 });
 const storyPhotoUpdate = z.object({ caption: z.string().trim().max(240) });
+const storyPhotoOrderBody = z.object({
+  photoIds: z
+    .array(z.string())
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "Media order cannot contain duplicate items",
+    }),
+});
 const reviewChanges = (q: Req, status: ArticleStatus) =>
   !hasConfiguredStoryAccess(q) && !hasFullStoryAccess(q.user!.role) && status === ArticleStatus.PUBLISHED;
 const expirePublishedArticles = async (now = new Date()) => {
@@ -1110,6 +1118,64 @@ app.post(
         error: e?.message || "Could not upload story media",
       });
     }
+  },
+);
+app.put(
+  "/api/newsroom/articles/:id/photos",
+  auth(newsroomRoles),
+  async (q: Req, r) => {
+    const current = await db.article.findUnique({
+      where: { id: q.params.id },
+      select: {
+        id: true,
+        authorId: true,
+        status: true,
+        photos: { select: { id: true, url: true } },
+      },
+    });
+    if (!current) return r.status(404).json({ error: "Story not found" });
+    if (!canEditArticle(q, current))
+      return r.status(403).json({ error: "You can only edit your own stories" });
+    const { photoIds } = storyPhotoOrderBody.parse(q.body);
+    const currentIds = new Set(current.photos.map((photo) => photo.id));
+    if (
+      photoIds.length !== current.photos.length ||
+      photoIds.some((id) => !currentIds.has(id))
+    )
+      return r.status(400).json({
+        error: "Media order must include every story photo and video",
+      });
+    const byId = new Map(current.photos.map((photo) => [photo.id, photo]));
+    const firstImage = photoIds
+      .map((id) => byId.get(id))
+      .find((photo) => photo && !isVideoUploadUrl(photo.url));
+    const requiresReview = reviewChanges(q, current.status);
+    await db.$transaction([
+      ...photoIds.map((id, sortOrder) =>
+        db.articlePhoto.update({ where: { id }, data: { sortOrder } }),
+      ),
+      db.article.update({
+        where: { id: current.id },
+        data: {
+          imageUrl: firstImage?.url || null,
+          status: requiresReview ? ArticleStatus.REVIEW : undefined,
+          publishedAt: requiresReview ? null : undefined,
+          isHeadline: requiresReview ? false : undefined,
+        },
+      }),
+    ]);
+    const article = await db.article.findUnique({
+      where: { id: current.id },
+      include: articleInclude,
+    });
+    await db.auditLog.create({
+      data: {
+        action: "ARTICLE_MEDIA_REORDERED",
+        actorId: q.user!.id,
+        metadata: { articleId: current.id, photoIds, requiresReview },
+      },
+    });
+    r.json(article);
   },
 );
 app.patch(

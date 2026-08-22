@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   FileText,
   Globe2,
+  GripVertical,
   Eye,
   EyeOff,
   ImagePlus,
@@ -23,6 +24,8 @@ import {
   Video,
   X,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import "./story-url-preview.css";
@@ -30,6 +33,7 @@ import "./story-media.css";
 import "./story-preview.css";
 import {
   firstHttpUrl,
+  firstPhotoUrl,
   isVideoUrl,
   linkifyRichText,
   previewImageForUrl,
@@ -92,12 +96,13 @@ export default function StoryManagement() {
   const isAdmin = current?.user.role === "ADMIN";
   const isEditor = current?.user.role === "EDITOR";
   const canManageVisibility = isAdmin || isEditor;
-  const maxMediaItems = isAdmin || isEditor ? 50 : 12;
+  const maxMediaItems = isAdmin || isEditor ? 100 : 12;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [editing, setEditing] = useState<Story | null>(null);
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
+  const [draggedPhotoId, setDraggedPhotoId] = useState("");
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
@@ -229,6 +234,27 @@ export default function StoryManagement() {
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const reorderMedia = (sourceId: string, targetId: string) => {
+    if (!sourceId || sourceId === targetId) return;
+    setPhotos((items) => {
+      const active = items.filter((item) => !item.removed);
+      const sourceIndex = active.findIndex((item) => item.id === sourceId);
+      const targetIndex = active.findIndex((item) => item.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return items;
+      const [moved] = active.splice(sourceIndex, 1);
+      active.splice(targetIndex, 0, moved);
+      const queue = [...active];
+      return items.map((item) => (item.removed ? item : queue.shift()!));
+    });
+  };
+
+  const moveMedia = (id: string, direction: -1 | 1) => {
+    const active = photos.filter((item) => !item.removed);
+    const index = active.findIndex((item) => item.id === id);
+    const target = active[index + direction];
+    if (target) reorderMedia(id, target.id);
+  };
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     const draft = editingRef.current;
@@ -262,22 +288,21 @@ export default function StoryManagement() {
           ...(canManageVisibility ? { isPublic: draft.isPublic } : {}),
         }),
       });
+      const activeMedia = photos.filter((photo) => !photo.removed);
+      const savedIds = new Map(
+        photos
+          .filter((photo) => !photo.id.startsWith("new-"))
+          .map((photo) => [photo.id, photo.id]),
+      );
       for (const photo of photos) {
-        if (photo.id.startsWith("new-") && !photo.removed) {
-          updated = await api(`/api/newsroom/articles/${draft.id}/photos`, {
-            method: "POST",
-            body: JSON.stringify({
-              dataUrl: photo.dataUrl,
-              caption: photo.caption || "",
-            }),
-          });
-        } else if (photo.removed && !photo.id.startsWith("new-")) {
+        if (photo.removed && !photo.id.startsWith("new-")) {
           updated = await api(
             `/api/newsroom/articles/${draft.id}/photos/${photo.id}`,
             { method: "DELETE" },
           );
         } else if (
           !photo.removed &&
+          !photo.id.startsWith("new-") &&
           (photo.caption || "") !== (photo.originalCaption || "")
         ) {
           updated = await api(
@@ -289,6 +314,32 @@ export default function StoryManagement() {
           );
         }
       }
+      for (const photo of activeMedia) {
+        if (photo.id.startsWith("new-")) {
+          const previousIds = new Set(
+            (updated.photos || []).map((item: StoryPhoto) => item.id),
+          );
+          updated = await api(`/api/newsroom/articles/${draft.id}/photos`, {
+            method: "POST",
+            body: JSON.stringify({
+              dataUrl: photo.dataUrl,
+              caption: photo.caption || "",
+            }),
+          });
+          const created = (updated.photos || []).find(
+            (item: StoryPhoto) => !previousIds.has(item.id),
+          );
+          if (!created) throw new Error("Could not identify uploaded story media");
+          savedIds.set(photo.id, created.id);
+        }
+      }
+      const photoIds = activeMedia.map((photo) => savedIds.get(photo.id));
+      if (photoIds.some((id) => !id))
+        throw new Error("Could not save the story media sequence");
+      updated = await api(`/api/newsroom/articles/${draft.id}/photos`, {
+        method: "PUT",
+        body: JSON.stringify({ photoIds }),
+      });
       setStories((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -526,12 +577,7 @@ export default function StoryManagement() {
               const contentPreviewUrl = contentUrl
                 ? previewImageForUrl(contentUrl)
                 : null;
-              const galleryImage = story.photos?.find(
-                (media) => !isVideoUrl(media.url),
-              )?.url;
-              const hasVideo = story.photos?.some((media) =>
-                isVideoUrl(media.url),
-              );
+              const galleryImage = firstPhotoUrl(story.photos);
               const lead = galleryImage || story.imageUrl || contentPreviewUrl;
               const usesContentUrl = Boolean(
                 contentPreviewUrl && !galleryImage && !story.imageUrl,
@@ -546,12 +592,10 @@ export default function StoryManagement() {
                     title={
                       usesContentUrl
                         ? "Preview from the first URL in story content"
-                        : hasVideo && !lead
-                          ? "Story contains video"
-                          : undefined
+                        : undefined
                     }
                   >
-                    {!lead && (hasVideo ? <Video /> : <Camera />)}
+                    {!lead && <Camera />}
                     {usesContentUrl && <Link2 />}
                     <span>{story.photos?.length || 0}</span>
                   </div>
@@ -757,6 +801,9 @@ export default function StoryManagement() {
                   <p>
                     Up to {maxMediaItems} items · photos 5 MB · videos 25 MB
                   </p>
+                  <p className="storyMediaOrderHint">
+                    <GripVertical /> Drag media to change its sequence. The first photo is used as the story-board thumbnail.
+                  </p>
                 </div>
                 <button type="button" onClick={() => fileRef.current?.click()}>
                   <ImagePlus />
@@ -807,7 +854,58 @@ export default function StoryManagement() {
               )}
               <div className="storyGalleryGrid">
                 {activePhotos.map((photo, index) => (
-                  <div className="storyGalleryItem" key={photo.id}>
+                  <div
+                    className={`storyGalleryItem ${draggedPhotoId === photo.id ? "dragging" : ""}`}
+                    key={photo.id}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      reorderMedia(
+                        event.dataTransfer.getData("text/plain") || draggedPhotoId,
+                        photo.id,
+                      );
+                      setDraggedPhotoId("");
+                    }}
+                  >
+                    <div className="storyMediaOrderControls">
+                      <button
+                        type="button"
+                        className="storyMediaDragHandle"
+                        draggable={!saving}
+                        title="Drag to reorder"
+                        aria-label={`Drag item ${index + 1} to change its sequence`}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", photo.id);
+                          setDraggedPhotoId(photo.id);
+                        }}
+                        onDragEnd={() => setDraggedPhotoId("")}
+                      >
+                        <GripVertical />
+                        Drag
+                      </button>
+                      <span>
+                        <button
+                          type="button"
+                          disabled={index === 0 || saving}
+                          onClick={() => moveMedia(photo.id, -1)}
+                          aria-label={`Move item ${index + 1} earlier`}
+                        >
+                          <ChevronLeft />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === activePhotos.length - 1 || saving}
+                          onClick={() => moveMedia(photo.id, 1)}
+                          aria-label={`Move item ${index + 1} later`}
+                        >
+                          <ChevronRight />
+                        </button>
+                      </span>
+                    </div>
                     {photo.mediaType === "VIDEO" || isVideoUrl(photo.url) ? (
                       <div className="storyVideoPreview">
                         <video

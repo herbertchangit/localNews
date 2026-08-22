@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstHttpUrl, isFacebookUrl, isVideoUrl, linkifyRichText, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
+import { firstHttpUrl, firstPhotoUrl, isFacebookUrl, isVideoUrl, linkifyRichText, previewImageForUrl, richTextToPlainText, sanitizeRichText, toRichTextHtml } from "./richTextUtils";
 
 describe("rich text utilities", () => {
   it("keeps supported formatting", () => {
@@ -71,6 +71,15 @@ describe("rich text utilities", () => {
     expect(isVideoUrl("/uploads/story-video.mp4")).toBe(true);
     expect(isVideoUrl("https://media.example/story.webm?version=2")).toBe(true);
     expect(isVideoUrl("/uploads/story-photo.webp")).toBe(false);
+  });
+
+  it("uses the first photo for a story-board thumbnail and skips videos", () => {
+    expect(firstPhotoUrl([
+      { url: "/uploads/opening.mp4" },
+      { url: "/uploads/first-photo.jpg" },
+      { url: "/uploads/second-photo.jpg" },
+    ])).toBe("/uploads/first-photo.jpg");
+    expect(firstPhotoUrl([{ url: "/uploads/video-only.webm" }])).toBeNull();
   });
 
   it("recognizes Facebook story links", () => {
