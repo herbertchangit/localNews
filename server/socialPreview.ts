@@ -67,6 +67,7 @@ type SocialMeta = {
   description: string;
   url: string;
   image?: string;
+  video?: string;
 };
 
 export const socialImageType = (value: string) => {
@@ -79,12 +80,24 @@ export const socialImageType = (value: string) => {
   return "";
 };
 
+export const socialVideoType = (value: string) => {
+  try {
+    const extension = new URL(value).pathname.split(".").pop()?.toLowerCase();
+    if (extension === "mp4") return "video/mp4";
+    if (extension === "webm") return "video/webm";
+    if (extension === "mov") return "video/quicktime";
+  } catch {}
+  return "";
+};
+
 export const injectSocialMeta = (html: string, meta: SocialMeta) => {
   const title = escapeMeta(meta.title);
   const description = escapeMeta(meta.description);
   const url = escapeMeta(meta.url);
   const image = meta.image ? escapeMeta(meta.image) : "";
   const imageType = meta.image ? socialImageType(meta.image) : "";
+  const video = meta.video ? escapeMeta(meta.video) : "";
+  const videoType = meta.video ? socialVideoType(meta.video) : "";
   const tags = [
     `<meta property="og:type" content="article" />`,
     `<meta property="og:site_name" content="Local News" />`,
@@ -98,6 +111,9 @@ export const injectSocialMeta = (html: string, meta: SocialMeta) => {
     image ? `<meta property="og:image:secure_url" content="${image}" />` : "",
     imageType ? `<meta property="og:image:type" content="${imageType}" />` : "",
     image ? `<meta property="og:image:alt" content="${title}" />` : "",
+    video ? `<meta property="og:video" content="${video}" />` : "",
+    video ? `<meta property="og:video:secure_url" content="${video}" />` : "",
+    videoType ? `<meta property="og:video:type" content="${videoType}" />` : "",
     image ? `<meta name="twitter:image" content="${image}" />` : "",
     `<link rel="canonical" href="${url}" />`,
   ].filter(Boolean).join("\n    ");

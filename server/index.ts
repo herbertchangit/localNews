@@ -3314,6 +3314,8 @@ app.get("/stories/:slug", async (q, r, next) => {
     const image = photo
       ? absoluteWebUrl(photo, origin)
       : youtubeThumbnailFromText(article.content);
+    const videoUpload = article.photos.find((item) => isVideoUploadUrl(item.url))?.url;
+    const video = videoUpload ? absoluteWebUrl(videoUpload, origin) : "";
     const description = plainText(article.excerpt || article.content).slice(0, 240) || "Read this story on Local News.";
     const html = await fs.readFile(path.join(dist, "index.html"), "utf8");
     r.set("Cache-Control", "public, max-age=60, s-maxage=300");
@@ -3322,6 +3324,7 @@ app.get("/stories/:slug", async (q, r, next) => {
       description,
       url: storyUrl,
       image,
+      video,
     }));
   } catch (error) {
     next(error);

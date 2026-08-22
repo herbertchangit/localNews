@@ -1502,7 +1502,7 @@ export function AudienceHomepageDashboard() {
                           >
                             Read Story <ArrowUpRight />
                           </Link>
-                          <ShareStoryButton title={story.title} slug={story.slug} previewImage={photo} />
+                          <ShareStoryButton title={story.title} slug={story.slug} previewImage={video || photo} />
                         </div>
                         <div className="articleFoot">
                           <b>{story.author.name}</b>

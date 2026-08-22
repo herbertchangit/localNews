@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { absoluteWebUrl, injectSocialMeta, plainText, socialImageType, storySocialUrl, youtubeThumbnailFromText } from "../server/socialPreview";
+import { absoluteWebUrl, injectSocialMeta, plainText, socialImageType, socialVideoType, storySocialUrl, youtubeThumbnailFromText } from "../server/socialPreview";
 
 describe("story social previews", () => {
   it("turns rich text into a concise description", () => {
@@ -38,5 +38,18 @@ describe("story social previews", () => {
   it("reports supported social image MIME types", () => {
     expect(socialImageType("https://news.example/photo.png?v=2")).toBe("image/png");
     expect(socialImageType("https://news.example/photo.webp")).toBe("image/webp");
+  });
+
+  it("injects an uploaded video preview with its MIME type", () => {
+    const result = injectSocialMeta("<head><title>Local News</title><meta name=\"description\" content=\"Default\" /></head>", {
+      title: "Video report",
+      description: "Watch the report",
+      url: "https://news.example/stories/video-report",
+      video: "https://news.example/uploads/report.mp4",
+    });
+    expect(result).toContain('property="og:video" content="https://news.example/uploads/report.mp4"');
+    expect(result).toContain('property="og:video:secure_url" content="https://news.example/uploads/report.mp4"');
+    expect(result).toContain('property="og:video:type" content="video/mp4"');
+    expect(socialVideoType("https://news.example/uploads/report.webm?v=2")).toBe("video/webm");
   });
 });
