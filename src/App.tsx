@@ -280,7 +280,7 @@ function DailyBrief({ articles }: { articles: Article[] }) {
                     >
                       Read Story <ArrowUpRight />
                     </Link>
-                    <ShareStoryButton title={x.title} slug={x.slug} />
+                    <ShareStoryButton title={x.title} slug={x.slug} previewImage={photo} />
                   </div>
                   <div className="articleFoot">
                     <b>{x.author.name}</b>

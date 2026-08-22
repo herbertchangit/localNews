@@ -5,7 +5,23 @@ import "./story-share.css";
 type ShareStoryButtonProps = {
   title: string;
   slug: string;
+  previewImage?: string | null;
   className?: string;
+};
+
+export const storySharePreviewVersion = (value: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+export const storyShareUrl = (origin: string, slug: string, previewImage?: string | null) => {
+  const url = new URL(`/stories/${encodeURIComponent(slug)}`, origin);
+  url.searchParams.set("preview", storySharePreviewVersion(previewImage || slug));
+  return url.href;
 };
 
 const copyLink = async (url: string) => {
@@ -29,6 +45,7 @@ const copyLink = async (url: string) => {
 export default function ShareStoryButton({
   title,
   slug,
+  previewImage,
   className = "",
 }: ShareStoryButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
@@ -47,7 +64,9 @@ export default function ShareStoryButton({
   };
 
   const share = async () => {
-    const url = new URL(`/stories/${encodeURIComponent(slug)}`, window.location.origin).href;
+    // The stable image fingerprint makes WhatsApp fetch fresh Open Graph data
+    // after a story photo changes instead of reusing its cached no-photo card.
+    const url = storyShareUrl(window.location.origin, slug, previewImage);
     const prefersNativeShare =
       typeof navigator.share === "function" &&
       window.matchMedia("(pointer: coarse)").matches;

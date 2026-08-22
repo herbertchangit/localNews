@@ -30,6 +30,15 @@ export const absoluteWebUrl = (value: string, origin: string) => {
   }
 };
 
+export const storySocialUrl = (slug: string, origin: string, preview?: unknown) => {
+  const url = absoluteWebUrl(`/stories/${encodeURIComponent(slug)}`, origin);
+  if (!url) return "";
+  const result = new URL(url);
+  if (typeof preview === "string" && /^[a-z0-9]+$/i.test(preview))
+    result.searchParams.set("preview", preview);
+  return result.href;
+};
+
 export const youtubeThumbnailFromText = (value: string) => {
   const match = value.match(/https?:\/\/[^\s<>'"]+/i);
   if (!match) return "";
@@ -60,11 +69,22 @@ type SocialMeta = {
   image?: string;
 };
 
+export const socialImageType = (value: string) => {
+  try {
+    const extension = new URL(value).pathname.split(".").pop()?.toLowerCase();
+    if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+    if (extension === "png") return "image/png";
+    if (extension === "webp") return "image/webp";
+  } catch {}
+  return "";
+};
+
 export const injectSocialMeta = (html: string, meta: SocialMeta) => {
   const title = escapeMeta(meta.title);
   const description = escapeMeta(meta.description);
   const url = escapeMeta(meta.url);
   const image = meta.image ? escapeMeta(meta.image) : "";
+  const imageType = meta.image ? socialImageType(meta.image) : "";
   const tags = [
     `<meta property="og:type" content="article" />`,
     `<meta property="og:site_name" content="Local News" />`,
@@ -76,6 +96,8 @@ export const injectSocialMeta = (html: string, meta: SocialMeta) => {
     `<meta name="twitter:description" content="${description}" />`,
     image ? `<meta property="og:image" content="${image}" />` : "",
     image ? `<meta property="og:image:secure_url" content="${image}" />` : "",
+    imageType ? `<meta property="og:image:type" content="${imageType}" />` : "",
+    image ? `<meta property="og:image:alt" content="${title}" />` : "",
     image ? `<meta name="twitter:image" content="${image}" />` : "",
     `<link rel="canonical" href="${url}" />`,
   ].filter(Boolean).join("\n    ");

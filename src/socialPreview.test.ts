@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { absoluteWebUrl, injectSocialMeta, plainText, youtubeThumbnailFromText } from "../server/socialPreview";
+import { absoluteWebUrl, injectSocialMeta, plainText, socialImageType, storySocialUrl, youtubeThumbnailFromText } from "../server/socialPreview";
 
 describe("story social previews", () => {
   it("turns rich text into a concise description", () => {
@@ -8,6 +8,13 @@ describe("story social previews", () => {
 
   it("creates an absolute URL for uploaded images", () => {
     expect(absoluteWebUrl("/uploads/story.jpg", "https://news.example")).toBe("https://news.example/uploads/story.jpg");
+  });
+
+  it("keeps a safe preview fingerprint in the social canonical URL", () => {
+    expect(storySocialUrl("city update", "https://news.example", "photo123"))
+      .toBe("https://news.example/stories/city%20update?preview=photo123");
+    expect(storySocialUrl("city-update", "https://news.example", "bad/value"))
+      .toBe("https://news.example/stories/city-update");
   });
 
   it("uses a YouTube thumbnail when a story only contains a video link", () => {
@@ -23,6 +30,13 @@ describe("story social previews", () => {
     });
     expect(result).toContain('property="og:title" content="City &quot;Update&quot;"');
     expect(result).toContain('property="og:image" content="https://news.example/uploads/update.jpg"');
+    expect(result).toContain('property="og:image:type" content="image/jpeg"');
+    expect(result).toContain('property="og:image:alt" content="City &quot;Update&quot;"');
     expect(result).toContain('name="twitter:card" content="summary_large_image"');
+  });
+
+  it("reports supported social image MIME types", () => {
+    expect(socialImageType("https://news.example/photo.png?v=2")).toBe("image/png");
+    expect(socialImageType("https://news.example/photo.webp")).toBe("image/webp");
   });
 });

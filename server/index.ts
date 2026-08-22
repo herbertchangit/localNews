@@ -43,6 +43,7 @@ import {
   absoluteWebUrl,
   injectSocialMeta,
   plainText,
+  storySocialUrl,
   youtubeThumbnailFromText,
 } from "./socialPreview.js";
 const app = express(),
@@ -3308,7 +3309,7 @@ app.get("/stories/:slug", async (q, r, next) => {
     if (!article) return next();
     const forwardedHost = q.get("x-forwarded-host")?.split(",")[0].trim();
     const origin = `${q.protocol}://${forwardedHost || q.get("host")}`;
-    const storyUrl = absoluteWebUrl(`/stories/${encodeURIComponent(q.params.slug)}`, origin);
+    const storyUrl = storySocialUrl(q.params.slug, origin, q.query.preview);
     const photo = article.photos.find((item) => !isVideoUploadUrl(item.url))?.url || article.imageUrl;
     const image = photo
       ? absoluteWebUrl(photo, origin)

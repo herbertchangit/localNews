@@ -398,7 +398,7 @@ export function AudienceDashboard() {
                     >
                       Read Story <ArrowUpRight />
                     </Link>
-                    <ShareStoryButton title={s.title} slug={s.slug} />
+                    <ShareStoryButton title={s.title} slug={s.slug} previewImage={photo} />
                     <div>
                       <span>By {s.author.name}</span>
                       <span>
@@ -1502,7 +1502,7 @@ export function AudienceHomepageDashboard() {
                           >
                             Read Story <ArrowUpRight />
                           </Link>
-                          <ShareStoryButton title={story.title} slug={story.slug} />
+                          <ShareStoryButton title={story.title} slug={story.slug} previewImage={photo} />
                         </div>
                         <div className="articleFoot">
                           <b>{story.author.name}</b>
