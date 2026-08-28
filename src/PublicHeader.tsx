@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { LogOut, Menu, Search } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { LanguageDropdown } from "./I18n";
 
 type HeaderSession = { user: { name: string } };
 
@@ -53,6 +54,6 @@ export default function PublicHeader({
     <Link to="/" className="brand"><span>LN</span><div>LOCAL NEWS<small>THE CITY, CLEARLY</small></div></Link>
     <div className="headerJingSiMarquee" aria-hidden={!tickerHidden}><div className="headerJingSiTrack"><b>{jingSiLabel}</b><span>{jingSiMessage}</span></div></div>
     {children}
-    <div className="actions headerActions"><button className="headerSearch" aria-label="Search"><Search /></button>{!hideSessionActions&&(session ? <><Link className="headerUserName" to="/newsroom" title={`Open ${session.user.name}'s workspace`}>{session.user.name}</Link><button className="headerLogout" onClick={logout}><LogOut />Logout</button></> : !hideLoginWhenSignedOut && <Link className="studio headerLogin" to="/login" state={{ from: location.pathname }}>Login</Link>)}<button className="mobile headerMenu" aria-label="Menu" onClick={onMenu}><Menu /></button></div>
+    <div className="actions headerActions"><button className="headerSearch" aria-label="Search"><Search /></button>{!hideSessionActions&&(session ? <><Link className="headerUserName" to="/newsroom" title={`Open ${session.user.name}'s workspace`}>{session.user.name}</Link><button className="headerLogout" onClick={logout}><LogOut />Logout</button></> : !hideLoginWhenSignedOut && <><LanguageDropdown className="headerLanguageDropdown" /><Link className="studio headerLogin" to="/login" state={{ from: location.pathname }}>Login</Link></>)}<button className="mobile headerMenu" aria-label="Menu" onClick={onMenu}><Menu /></button></div>
   </header></div></>;
 }

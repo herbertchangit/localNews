@@ -537,6 +537,53 @@ Object.assign(zhTw, {
 });
 
 type Language = "en" | "zh-cn" | "zh-tw";
+const LANGUAGE_CHANGE_EVENT = "localnews:language-change";
+
+function readLanguage(): Language {
+  const stored = localStorage.getItem("ln_lang");
+  return stored === "zh"
+    ? "zh-cn"
+    : stored === "zh-cn" || stored === "zh-tw"
+      ? stored
+      : "en";
+}
+
+function useLanguageSelection() {
+  const [lang, setLang] = useState<Language>(readLanguage);
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const requested = (event as CustomEvent<Language>).detail;
+      setLang(requested || readLanguage());
+    };
+    window.addEventListener(LANGUAGE_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(LANGUAGE_CHANGE_EVENT, sync);
+  }, []);
+  const change = (next: Language) => {
+    localStorage.setItem("ln_lang", next);
+    window.dispatchEvent(
+      new CustomEvent<Language>(LANGUAGE_CHANGE_EVENT, { detail: next }),
+    );
+  };
+  return { lang, change };
+}
+
+export function LanguageDropdown({ className = "" }: { className?: string }) {
+  const { lang, change } = useLanguageSelection();
+  return (
+    <label className={`languageDropdown ${className}`.trim()}>
+      <Languages aria-hidden="true" />
+      <select
+        aria-label="Language"
+        value={lang}
+        onChange={(event) => change(event.target.value as Language)}
+      >
+        <option value="en">EN</option>
+        <option value="zh-cn">简</option>
+        <option value="zh-tw">繁</option>
+      </select>
+    </label>
+  );
+}
 export type TranslationMapping = { source: string; zhCn: string; zhTw: string };
 export const DEFAULT_TRANSLATION_MAPPINGS: TranslationMapping[] = Array.from(
   new Set([...Object.keys(zh), ...Object.keys(zhTw)]),
@@ -669,10 +716,7 @@ function translate(root: ParentNode, lang: Language) {
   }
 }
 export default function I18n() {
-  const [lang, setLang] = useState<Language>(() => {
-    const stored = localStorage.getItem("ln_lang");
-    return stored === "zh" ? "zh-cn" : stored === "zh-cn" || stored === "zh-tw" ? stored : "en";
-  });
+  const { lang, change } = useLanguageSelection();
   const [mappingRevision, setMappingRevision] = useState(0);
   useEffect(() => {
     let active = true;
@@ -701,10 +745,6 @@ export default function I18n() {
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [lang, mappingRevision]);
-  const change = (next: Language) => {
-    localStorage.setItem("ln_lang", next);
-    setLang(next);
-  };
   return (
     <div className="languageSwitch" role="group" aria-label="Language">
       <Languages />

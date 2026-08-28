@@ -83,6 +83,7 @@ import PublicRegistration from "./PublicRegistration";
 import SignUpForm from "./SignUpForm";
 import RoleManagement from "./RoleManagement";
 import { useMenuAccess } from "./menuAccess";
+import { LanguageDropdown } from "./I18n";
 import "./homepage-categories.css";
 import { firstHttpUrl, firstPhotoUrl, previewImageForUrl } from "./richTextUtils";
 import ShareStoryButton from "./ShareStoryButton";
@@ -669,6 +670,7 @@ function SessionSidebarMenu({ current }: { current: Session }) {
     : "/newsroom/people";
   return (
     <>
+      <LanguageDropdown className="sidebarLanguageDropdown" />
       {visible("overview") && (
         <button
           className={
@@ -935,6 +937,7 @@ function AdminSidebarMenu({ current }: { current: Session }) {
         <b>{current.user.name}</b>
         <span>{medicalOnly ? "Admin Medical" : "Administrator"}</span>
       </div>
+      <LanguageDropdown className="sidebarLanguageDropdown" />
       {!medicalOnly && (
         <>
           {visible("overview") && (
@@ -1605,10 +1608,13 @@ function Login() {
                     Forgot password?
                   </button>
                 </div>
-                <button className="loginSubmit" disabled={busy}>
-                  {busy ? "Signing in…" : "Sign in"}
-                  <ArrowUpRight />
-                </button>
+                <div className="loginSubmitRow">
+                  <LanguageDropdown className="loginLanguageDropdown" />
+                  <button className="loginSubmit" disabled={busy}>
+                    {busy ? "Signing in…" : "Sign in"}
+                    <ArrowUpRight />
+                  </button>
+                </div>
                 <PasskeyLoginButton
                   onAuthenticated={completeLogin}
                   onError={setError}
