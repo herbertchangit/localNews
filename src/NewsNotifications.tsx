@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Bell, CheckCheck, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { syncAndroidStoryNotifications } from "./androidNotificationBadge";
 
 type NotificationStory = {
   id: string;
@@ -34,7 +35,23 @@ export default function NewsNotifications() {
   const navigate = useNavigate();
   const [unread, setUnread] = useState<NotificationStory[]>([]);
   const [dismissedStoryId, setDismissedStoryId] = useState("");
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission>(() =>
+      typeof Notification === "undefined" ? "denied" : Notification.permission,
+    );
+  const [notificationRevision, setNotificationRevision] = useState(0);
   const publicPage = !location.pathname.startsWith("/newsroom") && location.pathname !== "/login";
+  const androidDevice = /Android/i.test(navigator.userAgent);
+  const installedApp = window.matchMedia("(display-mode: standalone)").matches;
+
+  useEffect(() => {
+    const refreshPermission = () => {
+      if (typeof Notification !== "undefined")
+        setNotificationPermission(Notification.permission);
+    };
+    window.addEventListener("focus", refreshPermission);
+    return () => window.removeEventListener("focus", refreshPermission);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -52,6 +69,7 @@ export default function NewsNotifications() {
           saveReadStoryIds(readIds);
         }
         setUnread(stories.filter((story) => !readIds.has(story.id)));
+        setNotificationRevision((value) => value + 1);
       } catch {
         // Notifications should never interrupt reading when the news feed is unavailable.
       }
@@ -75,6 +93,27 @@ export default function NewsNotifications() {
     updateBadge?.catch(() => undefined);
   }, [unread.length]);
 
+  useEffect(() => {
+    if (
+      !androidDevice ||
+      !installedApp ||
+      notificationPermission !== "granted" ||
+      !("serviceWorker" in navigator)
+    )
+      return;
+    navigator.serviceWorker.ready
+      .then((registration) =>
+        syncAndroidStoryNotifications(registration, unread),
+      )
+      .catch(() => undefined);
+  }, [notificationPermission, notificationRevision, unread]);
+
+  const enableIconCount = async () => {
+    if (typeof Notification === "undefined") return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
+
   const markRead = (storyIds: string[]) => {
     const readIds = readStoryIds();
     storyIds.forEach((id) => readIds.add(id));
@@ -94,6 +133,13 @@ export default function NewsNotifications() {
   };
   const notificationVisible = publicPage && latest && dismissedStoryId !== latest.id;
   const unreadBadgeVisible = Boolean(latest && location.pathname !== "/login" && (!publicPage || !notificationVisible));
+  const enableIconCountVisible = Boolean(
+    latest &&
+      location.pathname !== "/login" &&
+      androidDevice &&
+      installedApp &&
+      notificationPermission === "default",
+  );
 
   useEffect(() => {
     document.body.classList.toggle("newsUnreadBadgeVisible", unreadBadgeVisible);
@@ -109,5 +155,6 @@ export default function NewsNotifications() {
       <button className="newsNotificationClose" type="button" aria-label="Dismiss news notification" onClick={() => setDismissedStoryId(latest.id)}><X /></button>
     </aside>}
     {unreadBadgeVisible && <button className="newsUnreadBadge" type="button" aria-label={`${unread.length} unread news stories`} title={`${unread.length} unread news stories`} onClick={() => publicPage ? setDismissedStoryId("") : openLatest()}><Bell /><span aria-hidden="true">{unread.length > 99 ? "99+" : unread.length}</span></button>}
+    {enableIconCountVisible && <button className="newsBadgePermission" type="button" onClick={enableIconCount}><Bell />Enable icon count</button>}
   </>;
 }

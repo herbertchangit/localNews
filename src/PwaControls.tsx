@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Download, RefreshCw, WifiOff } from "lucide-react";
+import { Download, RefreshCw, Share2, WifiOff, X } from "lucide-react";
 import { registerSW } from "virtual:pwa-register";
 import {
   APP_UPDATE_RESULT_EVENT,
   CHECK_APP_UPDATE_EVENT,
   type AppUpdateResult,
 } from "./pwaEvents";
+import { shouldShowIosInstall } from "./pwaInstall";
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -17,6 +18,15 @@ export default function PwaControls() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [offline, setOffline] = useState(() => !navigator.onLine);
   const [updateSW, setUpdateSW] = useState<null | ((reloadPage?: boolean) => Promise<void>)>(null);
+  const [showIosHelp, setShowIosHelp] = useState(false);
+  const iosInstallAvailable = shouldShowIosInstall({
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints,
+    displayModeStandalone: window.matchMedia("(display-mode: standalone)").matches,
+    navigatorStandalone: Boolean(
+      (navigator as Navigator & { standalone?: boolean }).standalone,
+    ),
+  });
 
   useEffect(() => {
     const install = (event: Event) => {
@@ -92,9 +102,11 @@ export default function PwaControls() {
     setInstallPrompt(null);
   };
 
-  if (!installPrompt && !updateAvailable && !offline) return null;
+  if (!installPrompt && !iosInstallAvailable && !updateAvailable && !offline)
+    return null;
 
   return (
+    <>
     <div className="pwaControls" role="status" aria-live="polite">
       {offline && (
         <span className="pwaOffline">
@@ -106,11 +118,34 @@ export default function PwaControls() {
           <Download /> Install app / 安裝應用程式
         </button>
       )}
+      {!installPrompt && iosInstallAvailable && (
+        <button type="button" onClick={() => setShowIosHelp(true)}>
+          <Download /> Install app / 安裝應用程式
+        </button>
+      )}
       {updateAvailable && updateSW && (
         <button type="button" onClick={() => updateSW(true)}>
           <RefreshCw /> Update app / 更新應用程式
         </button>
       )}
     </div>
+    {showIosHelp && (
+      <div className="iosInstallBackdrop" role="presentation" onClick={() => setShowIosHelp(false)}>
+        <section className="iosInstallGuide" role="dialog" aria-modal="true" aria-labelledby="ios-install-title" onClick={(event) => event.stopPropagation()}>
+          <button className="iosInstallClose" type="button" aria-label="Close install instructions" onClick={() => setShowIosHelp(false)}><X /></button>
+          <span className="iosInstallIcon"><Share2 /></span>
+          <small>IPHONE / IPAD</small>
+          <h2 id="ios-install-title">Install Local News on iPhone</h2>
+          <ol>
+            <li>Open this page in Safari.</li>
+            <li>Tap the Share button.</li>
+            <li>Select Add to Home Screen.</li>
+            <li>Turn on Open as Web App, then tap Add.</li>
+          </ol>
+          <button className="iosInstallDone" type="button" onClick={() => setShowIosHelp(false)}>Got it</button>
+        </section>
+      </div>
+    )}
+    </>
   );
 }

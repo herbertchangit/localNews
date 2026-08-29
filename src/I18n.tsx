@@ -527,6 +527,14 @@ Object.assign(zh, {
   Never: "从未登录",
   "Select one or more roles. Access from the selected roles is combined.": "选择一个或多个角色。系统将合并所选角色的访问权限。",
   "Select at least one role": "请至少选择一个角色",
+  "Enable icon count": "启用图标数字",
+  "Install Local News on iPhone": "在 iPhone 上安装本地新闻",
+  "Open this page in Safari.": "在 Safari 中打开此页面。",
+  "Tap the Share button.": "点击分享按钮。",
+  "Select Add to Home Screen.": "选择添加到主屏幕。",
+  "Turn on Open as Web App, then tap Add.": "开启作为网页 App 打开，然后点击添加。",
+  "Got it": "知道了",
+  "Close install instructions": "关闭安装说明",
 });
 Object.assign(zhTw, {
   Roles: "角色",
@@ -534,6 +542,14 @@ Object.assign(zhTw, {
   Never: "從未登入",
   "Select one or more roles. Access from the selected roles is combined.": "選擇一個或多個角色。系統將合併所選角色的存取權限。",
   "Select at least one role": "請至少選擇一個角色",
+  "Enable icon count": "啟用圖示數字",
+  "Install Local News on iPhone": "在 iPhone 上安裝本地新聞",
+  "Open this page in Safari.": "在 Safari 中開啟此頁面。",
+  "Tap the Share button.": "點擊分享按鈕。",
+  "Select Add to Home Screen.": "選擇加入主畫面。",
+  "Turn on Open as Web App, then tap Add.": "開啟以網頁 App 開啟，然後點擊加入。",
+  "Got it": "知道了",
+  "Close install instructions": "關閉安裝說明",
 });
 
 type Language = "en" | "zh-cn" | "zh-tw";
