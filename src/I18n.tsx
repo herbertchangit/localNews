@@ -13,6 +13,7 @@ const zh: Record<string, string> = {
   Culture: "文化",
   Newsroom: "新闻中心",
   Login: "登入",
+  "Sign-up": "注册",
   Logout: "登出",
   "Developing story": "持续报道",
   "Read full story": "阅读完整报道",
@@ -463,6 +464,7 @@ const zhTw: Record<string, string> = {
   ),
 };
 Object.assign(zhTw, {
+  "Sign-up": "註冊",
   "Invite via WhatsApp": "透過 WhatsApp 邀請",
   "Email or contact": "電子郵箱或聯絡電話",
   "SECURITY REQUIRED": "安全驗證",

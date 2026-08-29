@@ -1300,7 +1300,9 @@ function Login() {
     [recoveryName, setRecoveryName] = useState(""),
     [resetToken, setResetToken] = useState(""),
     [success, setSuccess] = useState(""),
-    [signingUp, setSigningUp] = useState(false);
+    [signingUp, setSigningUp] = useState(
+      () => new URLSearchParams(where.search).get("mode") === "signup",
+    );
   useEffect(() => {
     if (getSession()) nav("/newsroom", { replace: true });
   }, []);
