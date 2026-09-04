@@ -1,0 +1,11 @@
+.storyGalleryItem > .storyFullPhotoPreview { height: auto; min-height: 0; background: #edf1ed; }
+.storyFullPhotoPreview img { display: block; width: 100%; height: auto; object-fit: contain; }
+.photoTagEditor { min-width: 0; padding: 10px; }
+.photoTagEditor label { display: block; }
+.photoTagEditor input { width: 100%; box-sizing: border-box; }
+.photoTagSuggestions { max-height: 230px; overflow-y: auto; border: 1px solid #cbd7ce; background: white; margin: 6px 0; }
+.photoTagSuggestions > button { display: flex; flex-direction: column; gap: 4px; width: 100%; height: auto; text-align: left; padding: 10px; border: 0; border-bottom: 1px solid #e2e8e3; background: white; color: #174f3a; cursor: pointer; }
+.photoTagSuggestions > button:hover, .photoTagSuggestions > button:focus-visible { background: #eef5ef; }
+.photoTagSuggestions > button:disabled { opacity: .5; cursor: default; }
+.photoTagSuggestions small { overflow-wrap: anywhere; }
+.photoTagSelected { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }

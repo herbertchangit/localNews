@@ -41,6 +41,8 @@ import { firstHttpUrl, firstPhotoUrl, isVideoUrl, previewImageForUrl } from "./r
 import { useMenuAccess } from "./menuAccess";
 import ShareStoryButton from "./ShareStoryButton";
 import { attendanceTokenFromQr } from "./attendanceQr";
+import { appointmentExpired } from "../server/appointmentExpiry";
+import { useActiveAppointmentCount } from "./useActiveAppointmentCount";
 type Story = {
   id: string;
   title: string;
@@ -110,28 +112,18 @@ type SidebarAccount = {
 export function AudienceSidebar({
   active,
 }: {
-  active: "overview" | "people" | "health" | "appointments" | "settings";
+  active: "overview" | "people" | "health" | "appointments" | "settings" | "photos";
 }) {
   const u = session()?.user;
   const visible = useMenuAccess();
   const isDoctor = u?.role === "DOCTOR";
-  const [appointmentCount, setAppointmentCount] = useState(0);
+  const appointmentCount = useActiveAppointmentCount(token(), isDoctor);
   const [account, setAccount] = useState<SidebarAccount | null>(null);
   const [canAccessRegistrations, setCanAccessRegistrations] = useState(false);
   const [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(
     null,
   );
   const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => {
-    if (!u) return;
-    const url = isDoctor
-      ? "/api/doctor/health/appointments"
-      : "/api/health-events/appointments/mine";
-    fetch(url, { headers: { Authorization: `Bearer ${token()}` } })
-      .then((response) => (response.ok ? response.json() : []))
-      .then((items) => setAppointmentCount(items.length))
-      .catch(() => setAppointmentCount(0));
-  }, [u?.id, isDoctor]);
   useEffect(() => {
     if (!u) return;
     fetch("/api/me", { headers: { Authorization: `Bearer ${token()}` } })
@@ -445,6 +437,9 @@ export function AudienceHealthServices() {
 }
 export function AudienceAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  useEffect(() => {
+    window.dispatchEvent(new Event("localnews:appointments-updated"));
+  }, [appointments]);
   const [busy, setBusy] = useState(true);
   const [cancelling, setCancelling] = useState("");
   const [savingRegistration, setSavingRegistration] = useState("");
@@ -600,6 +595,7 @@ export function AudienceAppointments() {
     setScannerOpen(false);
   };
   const cancelAppointment = async (item: Appointment) => {
+    if (appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime)) return setNotice("This appointment has expired.");
     if (
       !confirm(
         `Cancel your appointment with ${item.doctor.user.name} on ${new Date(item.event.eventDate).toLocaleDateString()} at ${item.startTime}?`,
@@ -654,6 +650,7 @@ export function AudienceAppointments() {
   };
   const saveRegistration = async (item: Appointment) => {
     if (!item.registration) return;
+    if (appointmentExpired(item.event.eventDate)) return setNotice("This appointment has expired.");
     setSavingRegistration(item.id);
     setNotice("");
     try {
@@ -693,6 +690,7 @@ export function AudienceAppointments() {
     }
   };
   const unregisterRegistration = async (item: Appointment) => {
+    if (appointmentExpired(item.event.eventDate)) return setNotice("This appointment has expired.");
     if (
       !item.registration ||
       !confirm(
@@ -755,6 +753,7 @@ export function AudienceAppointments() {
         ) : appointments.length ? (
           <div className="audienceAppointmentList">
             {appointments.map((item) => {
+              const expired = appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime);
               const doctorPhoto =
                 item.doctor.profileImage || item.doctor.user.avatarUrl;
               return (
@@ -827,7 +826,7 @@ export function AudienceAppointments() {
                         Persons / 人数
                         <input
                           aria-label="Total persons"
-                          disabled={Boolean(item.registration.checkedInAt)}
+                          disabled={expired || Boolean(item.registration.checkedInAt)}
                           type="number"
                           min={1}
                           max={999}
@@ -846,7 +845,7 @@ export function AudienceAppointments() {
                         Meal / 用餐
                         <select
                           aria-label="Meal required"
-                          disabled={Boolean(item.registration.checkedInAt)}
+                          disabled={expired || Boolean(item.registration.checkedInAt)}
                           value={item.registration.meal ? "yes" : "no"}
                           onChange={(event) =>
                             editRegistration(item.id, {
@@ -862,6 +861,7 @@ export function AudienceAppointments() {
                         <button
                           type="button"
                           disabled={
+                            expired ||
                             savingRegistration === item.id ||
                             Boolean(item.registration.checkedInAt)
                           }
@@ -874,6 +874,7 @@ export function AudienceAppointments() {
                           className="danger"
                           type="button"
                           disabled={
+                            expired ||
                             savingRegistration === item.id ||
                             Boolean(item.registration.checkedInAt)
                           }
@@ -892,13 +893,14 @@ export function AudienceAppointments() {
                     </div>
                   )}
                   <div className="audienceAppointmentControls">
+                    {expired && <span className="statusPill">Expired / 已过期</span>}
                     <i className={`statusPill ${item.status.toLowerCase()}`}>
                       {item.status.replace("_", " ")}
                     </i>
                     {["PENDING", "CONFIRMED"].includes(item.status) && (
                       <button
                         className="audienceAppointmentCancel"
-                        disabled={cancelling === item.id}
+                        disabled={expired || cancelling === item.id}
                         onClick={(event) => {
                           event.stopPropagation();
                           cancelAppointment(item);
@@ -1063,7 +1065,7 @@ export function AudienceAppointments() {
                 <button
                   className="danger"
                   type="button"
-                  disabled={cancelling === selected.id}
+                  disabled={appointmentExpired(selected.event.eventDate, selected.registration ? null : selected.endTime) || cancelling === selected.id}
                   onClick={() => cancelAppointment(selected)}
                 >
                   <CalendarX2 />

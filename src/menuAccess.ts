@@ -10,9 +10,9 @@ type RoleAccessResponse = {
 export type MenuVisibility = ((id: string) => boolean) & { configured: boolean; loading: boolean };
 
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
-const ordinaryDefaults = new Set(["overview", "talk_with_doc", "appointments", "settings", "logout", "update_app"]);
-const editorialDefaults = new Set(["overview", "stories", "talk_with_doc", "appointments", "settings", "logout", "update_app"]);
-const medicalDefaults = new Set(["health_events", "appointments", "doctors", "logout", "update_app"]);
+const ordinaryDefaults = new Set(["photos", "overview", "talk_with_doc", "appointments", "settings", "logout", "update_app"]);
+const editorialDefaults = new Set(["photos", "overview", "stories", "talk_with_doc", "appointments", "settings", "logout", "update_app"]);
+const medicalDefaults = new Set(["photos", "health_events", "appointments", "doctors", "logout", "update_app"]);
 
 const defaultMenus = (role = "") => {
   if (role === "ADMIN") return null;

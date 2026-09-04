@@ -39,6 +39,7 @@ import {
   createRoleMenuRouter,
 } from "./roleMenus.js";
 import { articlePublicationCutoff } from "./articleExpiry.js";
+import { taggedPhotoWhere } from "./taggedPhotos.js";
 import {
   absoluteWebUrl,
   injectSocialMeta,
@@ -1391,6 +1392,44 @@ app.delete(
     );
   },
 );
+app.get("/api/me/photos", auth(), async (q: Req, r) => {
+  await expirePublishedArticles();
+  const photos = await db.articlePhoto.findMany({
+    where: taggedPhotoWhere(q.user!.id, canViewPrivateStories(q.user!.role)),
+    select: { id: true, url: true, caption: true, article: { select: { title: true, slug: true, status: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  r.json(photos.filter(photo => !isVideoUploadUrl(photo.url)));
+});
+app.get("/api/newsroom/articles/:id/photos/:photoId/tags", auth(newsroomRoles), async (q: Req, r) => {
+  const photo = await db.articlePhoto.findFirst({ where: { id: q.params.photoId, articleId: q.params.id }, include: { article: true } });
+  if (!photo || !canEditArticle(q, photo.article)) return r.status(403).json({ error: "Story edit access required" });
+  r.json(await db.photoUserTag.findMany({ where: { photoId: photo.id }, select: { userId: true, user: { select: { name: true } } } }));
+});
+app.get("/api/newsroom/articles/:id/photos/:photoId/tag-users", auth(newsroomRoles), async (q: Req, r) => {
+  const photo = await db.articlePhoto.findFirst({ where: { id: q.params.photoId, articleId: q.params.id }, include: { article: true } });
+  if (!photo || !canEditArticle(q, photo.article)) return r.status(403).json({ error: "Story edit access required" });
+  const search = z.string().trim().max(100).parse(q.query.search || "");
+  if (!search) return r.json([]);
+  r.json(await db.user.findMany({
+    where: { OR: [{ name: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] },
+    select: { id: true, name: true, email: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 10,
+  }));
+});
+app.patch("/api/newsroom/articles/:id/photos/:photoId/tags", auth(newsroomRoles), async (q: Req, r) => {
+  const body = z.union([z.object({ userId: z.string().min(1) }), z.object({ email: z.string().trim().email() }), z.object({ removeUserId: z.string().min(1) })]).parse(q.body);
+  const photo = await db.articlePhoto.findFirst({ where: { id: q.params.photoId, articleId: q.params.id }, include: { article: true } });
+  if (!photo || !canEditArticle(q, photo.article)) return r.status(403).json({ error: "Story edit access required" });
+  if (isVideoUploadUrl(photo.url)) return r.status(400).json({ error: "Only photos can be tagged" });
+  if ("removeUserId" in body) {
+    await db.photoUserTag.deleteMany({ where: { photoId: photo.id, userId: body.removeUserId } });
+  } else {
+    const user = await db.user.findFirst({ where: "userId" in body ? { id: body.userId } : { email: { equals: body.email, mode: "insensitive" } }, select: { id: true } });
+    if (!user) return r.status(400).json({ error: "No account with that registered email" });
+    await db.photoUserTag.upsert({ where: { photoId_userId: { photoId: photo.id, userId: user.id } }, create: { photoId: photo.id, userId: user.id }, update: {} });
+  }
+  r.json({ ok: true });
+});
 app.get("/api/articles", optionalAuth, async (q: Req, r) => {
   await expirePublishedArticles();
   const categoryId =

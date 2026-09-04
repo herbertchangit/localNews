@@ -10,6 +10,7 @@ import { DEFAULT_PASSWORD } from "./passwordPolicy.js";
 import { isContactMatch, loginEmailForContact } from "./loginIdentifier.js";
 import { findRegistrationConflicts } from "./registrationDuplicate.js";
 import { attendanceDateError } from "./attendanceDate.js";
+import { appointmentExpired } from "./appointmentExpiry.js";
 
 const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
@@ -243,11 +244,12 @@ export function createRegistrationRouter(db: any, secret: string) {
     if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
     const attendance = await db.registrationAttendance.findUnique({
       where: { id: req.params.attendanceId },
-      include: { submission: { select: { id: true, formId: true, contact: true, unregisteredAt: true } } },
+      include: { eventDate: true, submission: { select: { id: true, formId: true, contact: true, unregisteredAt: true } } },
     });
     if (!attendance || !isContactMatch(account.phone, attendance.submission.contact)) return res.status(404).json({ error: "Registration appointment not found" });
     if (attendance.submission.unregisteredAt) return res.status(409).json({ error: "This registration is already un-registered" });
     if (attendance.checkedInAt) return res.status(409).json({ error: "Attended registrations can no longer be changed" });
+    if (appointmentExpired(attendance.eventDate.eventDate)) return res.status(409).json({ error: "Expired registrations can no longer be changed" });
     const updated = await db.registrationAttendance.update({ where: { id: attendance.id }, data, include: { eventDate: true } });
     await db.auditLog.create({ data: { action: "REGISTRATION_ATTENDANCE_UPDATED", actorId: req.user.id, metadata: { formId: attendance.submission.formId, submissionId: attendance.submission.id, attendanceId: attendance.id } } });
     res.json(updated);
@@ -257,11 +259,12 @@ export function createRegistrationRouter(db: any, secret: string) {
     if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
     const attendance = await db.registrationAttendance.findUnique({
       where: { id: req.params.attendanceId },
-      include: { submission: { include: { attendances: { select: { id: true } } } } },
+      include: { eventDate: true, submission: { include: { attendances: { select: { id: true } } } } },
     });
     if (!attendance || !isContactMatch(account.phone, attendance.submission.contact)) return res.status(404).json({ error: "Registration appointment not found" });
     if (attendance.submission.unregisteredAt) return res.status(409).json({ error: "This registration is already un-registered" });
     if (attendance.checkedInAt) return res.status(409).json({ error: "Attended registrations can no longer be un-registered" });
+    if (appointmentExpired(attendance.eventDate.eventDate)) return res.status(409).json({ error: "Expired registrations can no longer be un-registered" });
     if (attendance.submission.attendances.length === 1) {
       await db.registrationSubmission.update({ where: { id: attendance.submission.id }, data: { unregisteredAt: new Date() } });
     } else {

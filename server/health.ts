@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { HealthAppointmentStatus, PrismaClient, Role } from "@prisma/client";
 import { z } from "zod";
 import { isContactMatch } from "./loginIdentifier.js";
+import { appointmentExpired } from "./appointmentExpiry.js";
 
 const eventSelect = {
   doctors: { include: { doctor: { include: { user: { select: { id: true, name: true, email: true } } } } } },
@@ -532,9 +533,10 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       const user = jwt.verify(token, secret) as { id: string; role: Role };
       const current = await db.healthAppointment.findFirst({
         where: { id: req.params.id, patientId: user.id },
-        select: { id: true, slotId: true, status: true, eventId: true },
+        select: { id: true, slotId: true, status: true, eventId: true, endTime: true, event: { select: { eventDate: true } } },
       });
       if (!current) return res.status(404).json({ error: "Appointment not found" });
+      if (appointmentExpired(current.event.eventDate, current.endTime)) return res.status(409).json({ error: "Expired appointments cannot be cancelled" });
       if (current.status === HealthAppointmentStatus.CANCELLED) return res.status(409).json({ error: "This appointment is already cancelled" });
       if (current.status === HealthAppointmentStatus.COMPLETED || current.status === HealthAppointmentStatus.NO_SHOW) {
         return res.status(409).json({ error: "Past appointments cannot be cancelled" });

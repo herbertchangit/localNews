@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import {
@@ -671,8 +672,8 @@ export default function RegistrationManagement() {
           ))}
         </div>
       </section>
-      {editor && (
-        <div className="modalBackdrop" onMouseDown={() => setEditor(null)}>
+      {editor && createPortal(
+        <div className="modalBackdrop registrationModalBackdrop" onMouseDown={() => setEditor(null)}>
           <form
             className="registrationEditor"
             onSubmit={save}
@@ -985,10 +986,11 @@ export default function RegistrationManagement() {
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
-      {detail && (
-        <div className="modalBackdrop" onMouseDown={() => setDetail(null)}>
+      {detail && createPortal(
+        <div className="modalBackdrop registrationModalBackdrop" onMouseDown={() => setDetail(null)}>
           <section
             className="registrationResponses"
             onMouseDown={(event) => event.stopPropagation()}
@@ -1193,11 +1195,12 @@ export default function RegistrationManagement() {
               ))}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
-      {attendanceCodes && (
+      {attendanceCodes && createPortal(
         <div
-          className="modalBackdrop"
+          className="modalBackdrop registrationModalBackdrop"
           onMouseDown={() => setAttendanceCodes(null)}
         >
           <section
@@ -1235,7 +1238,8 @@ export default function RegistrationManagement() {
               })}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

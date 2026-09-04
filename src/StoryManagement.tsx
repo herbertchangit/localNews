@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
+import PhotoTags from "./PhotoTags";
 import "./story-url-preview.css";
 import "./story-media.css";
 import "./story-preview.css";
@@ -777,7 +778,7 @@ export default function StoryManagement() {
         </div>
       )}
       {editing && (
-        <div className="modalBackdrop" onMouseDown={closeEditor}>
+        <div className="modalBackdrop storyEditorBackdrop" onMouseDown={closeEditor}>
           <form
             className="userModal storyEditorModal"
             onSubmit={save}
@@ -805,7 +806,12 @@ export default function StoryManagement() {
                     <GripVertical /> Drag media to change its sequence. The first photo is used as the story-board thumbnail.
                   </p>
                 </div>
-                <button type="button" onClick={() => fileRef.current?.click()}>
+                <button
+                  className="storyMediaAddButton"
+                  type="button"
+                  disabled={saving || activePhotos.length >= maxMediaItems}
+                  onClick={() => fileRef.current?.click()}
+                >
                   <ImagePlus />
                   Add media / 新增媒體
                 </button>
@@ -918,10 +924,12 @@ export default function StoryManagement() {
                       </div>
                     ) : (
                       <div
+                        className="storyFullPhotoPreview"
                         style={{
-                          backgroundImage: `url(${photo.dataUrl || photo.url})`,
+                          backgroundImage: "none",
                         }}
                       >
+                        <img src={photo.dataUrl || photo.url} alt={photo.caption || `Story photo ${index + 1}`} />
                         <span>{index + 1}</span>
                       </div>
                     )}
@@ -943,6 +951,7 @@ export default function StoryManagement() {
                         }
                       />
                     </label>
+                    {!photo.dataUrl && !isVideoUrl(photo.url) && <PhotoTags articleId={editing.id} photoId={photo.id} />}
                     <button
                       type="button"
                       onClick={() =>
@@ -960,6 +969,17 @@ export default function StoryManagement() {
                     </button>
                   </div>
                 ))}
+              </div>
+              <div className="storyGalleryFooter">
+                <button
+                  className="storyMediaAddButton"
+                  type="button"
+                  disabled={saving || activePhotos.length >= maxMediaItems}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <ImagePlus />
+                  Add media / 新增媒體
+                </button>
               </div>
             </section>
             <label>

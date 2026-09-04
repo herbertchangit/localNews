@@ -40,3 +40,4 @@
     margin-left:auto;
   }
 }
+.sessionUnifiedSidebar > :not(.brand):not(.workspace):not(.sessionCommonSidebarPortal){display:none!important}

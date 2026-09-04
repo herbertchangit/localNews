@@ -43,6 +43,7 @@ enum HealthAppointmentStatus {
 }
 
 model User {
+  photoTags                 PhotoUserTag[]
   id                        String              @id @default(cuid())
   email                     String              @unique
   password                  String
@@ -311,6 +312,7 @@ model Article {
 }
 
 model ArticlePhoto {
+  userTags  PhotoUserTag[]
   id        String          @id @default(cuid())
   url       String
   caption   String?
@@ -322,6 +324,15 @@ model ArticlePhoto {
   updatedAt DateTime        @updatedAt
 
   @@index([articleId, sortOrder])
+}
+
+model PhotoUserTag {
+  photoId String
+  userId String
+  photo ArticlePhoto @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([photoId, userId])
+  @@index([userId])
 }
 
 model Comment {

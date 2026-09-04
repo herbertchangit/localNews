@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 export const MENU_DEFINITIONS = [
+  { id: "photos", label: "Photos — Manually tagged photos", group: "Main menu" },
   { id: "overview", label: "Overview — Daily Brief", group: "Main menu" },
   { id: "stories", label: "Stories — Story CRUD", group: "Main menu" },
   { id: "people", label: "People", group: "Main menu" },
@@ -122,6 +123,7 @@ export function createRoleMenuRouter(db: PrismaClient, secret: string) {
 }
 
 export const routeMenu = (path: string, method = "GET") => {
+  if (path === "/api/me/photos") return "photos";
   if (path.toLowerCase() === "/api/registrations/mine/check-in") return null;
   if (/^\/api\/(?:admin\/)?(?:accounts|users)|^\/api\/people\//.test(path)) return "people";
   if (method === "GET" && (/^\/api\/articles(?:\/[^/]+)?\/?$/.test(path) || /^\/api\/articles\/[^/]+\/discussion\/?$/.test(path))) return "overview";

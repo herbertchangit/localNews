@@ -51,6 +51,8 @@ import JingSiManagement from "./JingSiManagement";
 import LanguageMappingManagement from "./LanguageMappingManagement";
 import AreaManagement from "./AreaManagement";
 import ReaderSettings from "./ReaderSettings";
+import MyPhotos from "./MyPhotos";
+import { useTaggedPhotos } from "./useTaggedPhotos";
 import { SelfAvatarTools, AdminAvatarTools } from "./AvatarTools";
 import StoryComposer from "./StoryComposer";
 import StoryManagement from "./StoryManagement";
@@ -81,6 +83,7 @@ import CooperationPeople from "./CooperationPeople";
 import RegistrationManagement from "./RegistrationManagement";
 import PublicRegistration from "./PublicRegistration";
 import SignUpForm from "./SignUpForm";
+import { useActiveAppointmentCount } from "./useActiveAppointmentCount";
 import RoleManagement from "./RoleManagement";
 import { useMenuAccess } from "./menuAccess";
 import { LanguageDropdown } from "./I18n";
@@ -607,8 +610,9 @@ function SessionSidebarMenu({ current }: { current: Session }) {
     where = useLocation(),
     [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(null),
     [canViewPeople, setCanViewPeople] = useState(false),
-    [canManageRegistrations, setCanManageRegistrations] = useState(false),
-    [appointmentCount, setAppointmentCount] = useState(0);
+    [canManageRegistrations, setCanManageRegistrations] = useState(false);
+  const appointmentCount = useActiveAppointmentCount(current.token, current.user.role === "DOCTOR");
+  const hasTaggedPhotos = useTaggedPhotos(current.token, where.pathname);
   const visible = useMenuAccess();
   useEffect(() => {
     const receive = (event: Event) =>
@@ -635,15 +639,6 @@ function SessionSidebarMenu({ current }: { current: Session }) {
         setCanManageRegistrations(false);
       });
   }, [current.user.id, current.token]);
-  useEffect(() => {
-    const url = current.user.role === "DOCTOR"
-      ? "/api/doctor/health/appointments"
-      : "/api/health-events/appointments/mine";
-    fetch(url, { headers: { Authorization: `Bearer ${current.token}` } })
-      .then((response) => response.ok ? response.json() : [])
-      .then((items) => setAppointmentCount(Array.isArray(items) ? items.length : 0))
-      .catch(() => setAppointmentCount(0));
-  }, [current.user.id, current.user.role, current.token]);
   const role = current.user.role,
     overviewPath =
       role === "ADMIN_MEDICAL" ? "/newsroom/health/events" : "/newsroom",
@@ -764,6 +759,7 @@ function SessionSidebarMenu({ current }: { current: Session }) {
           {appointmentCount > 0 && <em>{appointmentCount}</em>}
         </button>
       )}
+      {visible("photos") && hasTaggedPhotos && <button className={`sessionCommonSidebarButton${where.pathname === "/newsroom/photos" ? " active" : ""}`} onClick={() => go("/newsroom/photos")}><FileText />Photos / 照片</button>}
       {visible("doctors") && (
         <button
           className={
@@ -887,6 +883,7 @@ function AdminSidebarMenu({ current }: { current: Session }) {
     medicalOnly = current.user.role === "ADMIN_MEDICAL",
     [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(null);
   const visible = useMenuAccess();
+  const hasTaggedPhotos = useTaggedPhotos(current.token, where.pathname);
   useEffect(() => {
     const receive = (event: Event) =>
       setUpdateResult((event as CustomEvent<AppUpdateResult>).detail);
@@ -995,6 +992,7 @@ function AdminSidebarMenu({ current }: { current: Session }) {
           Appointments
         </Link>
       )}
+      {visible("photos") && hasTaggedPhotos && <Link className={active("/newsroom/photos")} to="/newsroom/photos"><FileText />Photos / 照片</Link>}
       {visible("doctors") && (
         <Link
           className={active("/newsroom/health/doctors")}
@@ -2316,6 +2314,7 @@ export default function App() {
         <Route path="/stories/:slug" element={<ArticleDetail />} />
         <Route path="/registration/:slug" element={<PublicRegistration />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/newsroom/photos" element={<RequireAuth><MyPhotos /></RequireAuth>} />
         <Route
           path="/newsroom"
           element={

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import {
@@ -140,6 +140,7 @@ function StoryModal({
     [photos, setPhotos] = useState<DraftPhoto[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const choosePhotos = async (files?: FileList | null) => {
     if (!files?.length) return;
     const incoming = Array.from(files);
@@ -218,7 +219,7 @@ function StoryModal({
     }
   };
   return (
-    <div className="modalBackdrop">
+    <div className="modalBackdrop storyEditorBackdrop">
       <form className="userModal storyComposerModal" onSubmit={submit}>
         <div className="modalHead">
           <div>
@@ -237,56 +238,88 @@ function StoryModal({
           </p>
         </div>
         {error && <div className="storyComposerError">{error}</div>}
-        <label>
-          Story photos and captions / 新聞照片及說明
-          <div className="composerPhotoField">
-            <ImagePlus />
-            <span>Add up to 12 photos / 最多新增 12 張照片</span>
-            <input
-              multiple
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => choosePhotos(event.target.files)}
-            />
+        <section className="composerStoryPhotosCard">
+          <div className="composerStoryPhotosHeading">
+            <div>
+              <b>Story photos and captions / 新聞照片及說明</b>
+              <span>Add up to 12 photos / 最多新增 12 張照片</span>
+            </div>
+            <button
+              className="storyMediaAddButton"
+              type="button"
+              disabled={busy || photos.length >= 12}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              <ImagePlus />
+              Add media / 新增媒體
+            </button>
           </div>
-        </label>
-        {!!photos.length && (
-          <div className="composerGallery">
-            {photos.map((photo, index) => (
-              <div key={photo.id}>
-                <img src={photo.dataUrl} alt={`Story preview ${index + 1}`} />
-                <label>
-                  Caption / 圖片說明
-                  <input
-                    maxLength={240}
-                    placeholder="Describe this photo / 說明這張照片"
-                    value={photo.caption}
-                    onChange={(event) =>
+          <input
+            ref={photoInputRef}
+            hidden
+            multiple
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => {
+              choosePhotos(event.target.files);
+              event.target.value = "";
+            }}
+          />
+          {!photos.length && (
+            <div className="composerPhotoField">
+              <ImagePlus />
+              <span>No photos yet / 尚未有照片</span>
+            </div>
+          )}
+          {!!photos.length && (
+            <div className="composerGallery">
+              {photos.map((photo, index) => (
+                <div key={photo.id}>
+                  <img src={photo.dataUrl} alt={`Story preview ${index + 1}`} />
+                  <label>
+                    Caption / 圖片說明
+                    <input
+                      maxLength={240}
+                      placeholder="Describe this photo / 說明這張照片"
+                      value={photo.caption}
+                      onChange={(event) =>
+                        setPhotos((items) =>
+                          items.map((item) =>
+                            item.id === photo.id
+                              ? { ...item, caption: event.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
                       setPhotos((items) =>
-                        items.map((item) =>
-                          item.id === photo.id
-                            ? { ...item, caption: event.target.value }
-                            : item,
-                        ),
+                        items.filter((item) => item.id !== photo.id),
                       )
                     }
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPhotos((items) =>
-                      items.filter((item) => item.id !== photo.id),
-                    )
-                  }
-                >
-                  <Trash2 />
-                  Remove / 移除
-                </button>
-              </div>
-            ))}
+                  >
+                    <Trash2 />
+                    Remove / 移除
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="composerStoryPhotosFooter">
+            <button
+              className="storyMediaAddButton"
+              type="button"
+              disabled={busy || photos.length >= 12}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              <ImagePlus />
+              Add media / 新增媒體
+            </button>
           </div>
-        )}
+        </section>
         <label>
           Story title / 新聞標題
           <input
