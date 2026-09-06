@@ -1401,6 +1401,16 @@ app.get("/api/me/photos", auth(), async (q: Req, r) => {
   });
   r.json(photos.filter(photo => !isVideoUploadUrl(photo.url)));
 });
+app.delete("/api/me/photos/:photoId", auth(), async (q: Req, r) => {
+  const removed = await db.photoUserTag.deleteMany({
+    where: { photoId: q.params.photoId, userId: q.user!.id },
+  });
+  if (!removed.count) return r.status(404).json({ error: "Tagged photo not found" });
+  await db.auditLog.create({
+    data: { action: "STORY_PHOTO_SELF_UNTAGGED", actorId: q.user!.id, metadata: { photoId: q.params.photoId } },
+  });
+  r.status(204).end();
+});
 app.get("/api/newsroom/articles/:id/photos/:photoId/tags", auth(newsroomRoles), async (q: Req, r) => {
   const photo = await db.articlePhoto.findFirst({ where: { id: q.params.photoId, articleId: q.params.id }, include: { article: true } });
   if (!photo || !canEditArticle(q, photo.article)) return r.status(403).json({ error: "Story edit access required" });

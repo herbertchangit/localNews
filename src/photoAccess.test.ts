@@ -4,6 +4,7 @@ describe("manual photo tag permissions", () => {
   it("exposes a distinct Photos permission", () => {
     expect(MENU_DEFINITIONS.filter(menu => menu.id === "photos")).toHaveLength(1);
     expect(routeMenu("/api/me/photos")).toBe("photos");
+    expect(routeMenu("/api/me/photos/photo-id", "DELETE")).toBeNull();
   });
   it("requires story authority to list and update tags", () => {
     const path = "/api/newsroom/articles/story/photos/photo/tags";
