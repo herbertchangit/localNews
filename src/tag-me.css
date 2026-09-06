@@ -1,0 +1,4 @@
+.tagMeButton{display:block;margin:10px auto;padding:9px 15px;border:1px solid #174f3a;background:#174f3a;color:#fff;font:700 10px 'DM Sans',sans-serif;cursor:pointer}
+.tagMeButton:hover,.tagMeButton:focus-visible{background:#246b50}
+.tagMeButton:disabled{background:#e2e8e3;border-color:#bdc9c0;color:#53665d;cursor:default}
+@media(max-width:700px){.storyLightbox .tagMeButton{position:sticky;bottom:10px;z-index:2;width:calc(100% - 28px);min-height:44px;margin:10px 14px;font-size:12px;box-shadow:0 4px 16px #0008}}

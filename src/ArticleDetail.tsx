@@ -6,6 +6,7 @@ import RichText from "./RichText";
 import "./story-media.css";
 import "./story-preview.css";
 import "./story-lightbox.css";
+import "./tag-me.css";
 import { firstHttpUrl, isFacebookUrl, isVideoUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
 import ShareStoryButton from "./ShareStoryButton";
 
@@ -97,6 +98,8 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
   const [discussionLoading, setDiscussionLoading] = useState(false);
   const [responseBusy, setResponseBusy] = useState(false);
   const [photoResponseBusy, setPhotoResponseBusy] = useState<string | null>(null);
+  const [taggedPhotoIds, setTaggedPhotoIds] = useState<Set<string>>(new Set());
+  const [taggingPhotoId, setTaggingPhotoId] = useState("");
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [notice, setNotice] = useState("");
@@ -144,6 +147,28 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
       .catch((caught) => setNotice(caught.message))
       .finally(() => setDiscussionLoading(false));
   }, [article?.id, preview]);
+
+  useEffect(() => {
+    if (!article || !session || preview) return;
+    fetch(`/api/articles/${article.id}/photo-tags/me`, { headers: authHeaders })
+      .then(async (response) => response.ok ? response.json() : { photoIds: [] })
+      .then((data) => setTaggedPhotoIds(new Set(data.photoIds || [])))
+      .catch(() => setTaggedPhotoIds(new Set()));
+  }, [article?.id, preview, session?.token]);
+
+  const tagMe = async (photoId: string) => {
+    if (!article || !session || taggingPhotoId) return;
+    setTaggingPhotoId(photoId); setNotice("");
+    try {
+      const response = await fetch(`/api/articles/${article.id}/photo-tags/me/${photoId}`, { method: "POST", headers: authHeaders });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not tag photo");
+      setTaggedPhotoIds((current) => new Set([...current, photoId]));
+      setNotice("Photo tagged. It is now available in Photos / 照片已標記。");
+      window.dispatchEvent(new Event("localnews:photo-tags-updated"));
+    } catch (caught: any) { setNotice(caught.message); }
+    finally { setTaggingPhotoId(""); }
+  };
 
   const saveResponse = async (category: ResponseCategory) => {
     if (!article || !session || responseBusy) return;
@@ -239,5 +264,5 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
       {notice && <div className="discussionNotice" role="status">{notice}</div>}
       <div className="commentList"><div><h3><MessageCircle />Comments</h3><span>{discussion.comments.length}</span></div>{discussionLoading ? <p className="commentsEmpty">Loading comments…</p> : discussion.comments.length ? discussion.comments.map((comment) => <article key={comment.id}><div className="commentAvatar">{comment.user.avatarUrl ? <img src={comment.user.avatarUrl} alt="" /> : comment.user.name.slice(0, 2).toUpperCase()}</div><div><header><b>{comment.user.name}</b><time>{new Date(comment.createdAt).toLocaleString()}</time></header><p>{comment.body}</p></div></article>) : <p className="commentsEmpty">No comments yet. Start the conversation.</p>}</div>
     </section>}
-  </main>{mediaViewer && <div className="storyLightbox" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setMediaViewer(null)}><section role="dialog" aria-modal="true" aria-label="Story media viewer"><header><div><b>{article.title}</b>{mediaViewer.kind === "gallery" && <span>{mediaViewer.index + 1} / {mediaViewer.items.length}</span>}</div><button type="button" onClick={() => setMediaViewer(null)} aria-label="Close media viewer"><X /></button></header><div className="storyLightboxStage" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const endX = event.changedTouches[0]?.clientX; if (touchStartX.current !== null && endX !== undefined && Math.abs(endX - touchStartX.current) > 50) moveViewer(endX > touchStartX.current ? -1 : 1); touchStartX.current = null; }}>{mediaViewer.kind !== "gallery" ? <iframe src={mediaViewer.url} title={article.title} allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen /> : isVideoUrl(mediaViewer.items[mediaViewer.index].url) ? <video key={mediaViewer.items[mediaViewer.index].url} src={mediaViewer.items[mediaViewer.index].url} controls autoPlay playsInline /> : <img src={mediaViewer.items[mediaViewer.index].url} alt={mediaViewer.items[mediaViewer.index].caption || article.title} />}{mediaViewer.kind === "gallery" && mediaViewer.items.length > 1 && <><button type="button" className="storyLightboxPrevious" onClick={() => moveViewer(-1)} aria-label="Previous photo or video"><ArrowLeft /></button><button type="button" className="storyLightboxNext" onClick={() => moveViewer(1)} aria-label="Next photo or video"><ArrowRight /></button></>}</div>{mediaViewer.kind === "gallery" && mediaViewer.items[mediaViewer.index].caption && <p>{mediaViewer.items[mediaViewer.index].caption}</p>}</section></div>}{!preview && <footer><div className="brand light"><span>LN</span><div>LOCAL NEWS<small>INDEPENDENT. ESSENTIAL.</small></div></div><p>Reporting with context, accountability and care.</p><small>© 2026 Local News. All rights reserved.</small></footer>}</div>;
+  </main>{mediaViewer && <div className="storyLightbox" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setMediaViewer(null)}><section role="dialog" aria-modal="true" aria-label="Story media viewer"><header><div><b>{article.title}</b>{mediaViewer.kind === "gallery" && <span>{mediaViewer.index + 1} / {mediaViewer.items.length}</span>}</div><button type="button" onClick={() => setMediaViewer(null)} aria-label="Close media viewer"><X /></button></header><div className="storyLightboxStage" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const endX = event.changedTouches[0]?.clientX; if (touchStartX.current !== null && endX !== undefined && Math.abs(endX - touchStartX.current) > 50) moveViewer(endX > touchStartX.current ? -1 : 1); touchStartX.current = null; }}>{mediaViewer.kind !== "gallery" ? <iframe src={mediaViewer.url} title={article.title} allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen /> : isVideoUrl(mediaViewer.items[mediaViewer.index].url) ? <video key={mediaViewer.items[mediaViewer.index].url} src={mediaViewer.items[mediaViewer.index].url} controls autoPlay playsInline /> : <img src={mediaViewer.items[mediaViewer.index].url} alt={mediaViewer.items[mediaViewer.index].caption || article.title} />}{mediaViewer.kind === "gallery" && mediaViewer.items.length > 1 && <><button type="button" className="storyLightboxPrevious" onClick={() => moveViewer(-1)} aria-label="Previous photo or video"><ArrowLeft /></button><button type="button" className="storyLightboxNext" onClick={() => moveViewer(1)} aria-label="Next photo or video"><ArrowRight /></button></>}</div>{mediaViewer.kind === "gallery" && mediaViewer.items[mediaViewer.index].caption && <p>{mediaViewer.items[mediaViewer.index].caption}</p>}{session && !preview && mediaViewer.kind === "gallery" && mediaViewer.items[mediaViewer.index].id !== "cover" && !isVideoUrl(mediaViewer.items[mediaViewer.index].url) && <button className="tagMeButton" type="button" disabled={taggedPhotoIds.has(mediaViewer.items[mediaViewer.index].id) || !!taggingPhotoId} onClick={() => tagMe(mediaViewer.items[mediaViewer.index].id)}>{taggedPhotoIds.has(mediaViewer.items[mediaViewer.index].id) ? "Tagged Me / 已標記我" : taggingPhotoId === mediaViewer.items[mediaViewer.index].id ? "Tagging… / 標記中…" : "Tag This Photo as Me / 標記此照片為我"}</button>}</section></div>}{!preview && <footer><div className="brand light"><span>LN</span><div>LOCAL NEWS<small>INDEPENDENT. ESSENTIAL.</small></div></div><p>Reporting with context, accountability and care.</p><small>© 2026 Local News. All rights reserved.</small></footer>}</div>;
 }

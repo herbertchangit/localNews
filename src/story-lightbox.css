@@ -139,8 +139,8 @@
 
 @media (max-width: 700px) {
   .storyLightbox { padding: 0; }
-  .storyLightbox > section { max-height: 100vh; }
-  .storyLightboxStage { height: calc(100vh - 66px); }
+  .storyLightbox > section { max-height: 100vh; max-height: 100dvh; overflow-y: auto; }
+  .storyLightboxStage { height: calc(100vh - 150px); height: calc(100dvh - 150px); min-height: 240px; flex: 0 0 auto; }
   .storyLightboxStage > button { height: 38px; width: 38px; }
   .storyLightboxPrevious { left: 8px; }
   .storyLightboxNext { right: 8px; }

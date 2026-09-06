@@ -123,6 +123,7 @@ export function createRoleMenuRouter(db: PrismaClient, secret: string) {
 }
 
 export const routeMenu = (path: string, method = "GET") => {
+  if (/^\/api\/articles\/[^/]+\/photo-tags\/me(?:\/|$)/.test(path)) return null;
   if (path === "/api/me/photos") return "photos";
   if (path.toLowerCase() === "/api/registrations/mine/check-in") return null;
   if (/^\/api\/(?:admin\/)?(?:accounts|users)|^\/api\/people\//.test(path)) return "people";

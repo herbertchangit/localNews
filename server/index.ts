@@ -1627,6 +1627,27 @@ app.post("/api/articles/:id/responses", auth(), async (q: Req, r) => {
   });
   r.json(await responseState(article.id, q.user!.id));
 });
+app.get("/api/articles/:articleId/photo-tags/me", auth(), async (q: Req, r) => {
+  const article = await db.article.findFirst({
+    where: { id: q.params.articleId, status: ArticleStatus.PUBLISHED, ...publishedVisibility(q) },
+    select: { photos: { where: { userTags: { some: { userId: q.user!.id } } }, select: { id: true } } },
+  });
+  if (!article) return r.status(404).json({ error: "Story not found" });
+  r.json({ photoIds: article.photos.map((photo) => photo.id) });
+});
+app.post("/api/articles/:articleId/photo-tags/me/:photoId", auth(), async (q: Req, r) => {
+  const photo = await db.articlePhoto.findFirst({
+    where: { id: q.params.photoId, articleId: q.params.articleId, article: { status: ArticleStatus.PUBLISHED, ...publishedVisibility(q) } },
+    select: { id: true, url: true },
+  });
+  if (!photo || isVideoUploadUrl(photo.url)) return r.status(404).json({ error: "Story photo not found" });
+  await db.photoUserTag.upsert({
+    where: { photoId_userId: { photoId: photo.id, userId: q.user!.id } },
+    create: { photoId: photo.id, userId: q.user!.id }, update: {},
+  });
+  await db.auditLog.create({ data: { action: "STORY_PHOTO_SELF_TAGGED", actorId: q.user!.id, metadata: { articleId: q.params.articleId, photoId: photo.id } } });
+  r.json({ tagged: true, photoId: photo.id });
+});
 app.post(
   "/api/articles/:articleId/photos/:photoId/responses",
   auth(),

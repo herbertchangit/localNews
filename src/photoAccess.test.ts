@@ -11,4 +11,8 @@ describe("manual photo tag permissions", () => {
     expect(routeMenu(path, "PATCH")).toBe("stories");
     expect(routeMenu("/api/newsroom/articles/story/photos/photo/tag-users", "GET")).toBe("stories");
   });
+  it("allows signed-in users to tag only themselves without role menu authority", () => {
+    expect(routeMenu("/api/articles/story/photo-tags/me", "GET")).toBeNull();
+    expect(routeMenu("/api/articles/story/photo-tags/me/photo", "POST")).toBeNull();
+  });
 });
