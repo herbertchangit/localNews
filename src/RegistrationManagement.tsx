@@ -14,6 +14,8 @@ import {
   Pencil,
   Plus,
   QrCode,
+  Save,
+  Search,
   Settings,
   Trash2,
   Users,
@@ -26,8 +28,11 @@ import {
   cleanRegistrationOptionLines,
   splitRegistrationOptionLines,
 } from "./registrationFieldOptions";
-import { registrationAnswerText, type RegistrationQuantityAnswer } from "./registrationAnswers";
+import { type RegistrationQuantityAnswer } from "./registrationAnswers";
 import { registrationFieldSummaries } from "./registrationSummary";
+import RegistrationAnswersEditor, {
+  type EditableRegistrationAnswer,
+} from "./RegistrationAnswersEditor";
 
 type EventDate = { id: string; eventDate: string };
 type CustomField = {
@@ -94,6 +99,19 @@ const empty = {
 };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const day = (value: string) => value.slice(0, 10);
+const submissionSignature = (submission: Submission) =>
+  JSON.stringify({
+    registrantName: submission.registrantName,
+    identity: submission.identity,
+    contact: submission.contact,
+    origin: submission.origin,
+    customAnswers: submission.customAnswers,
+    attendances: submission.attendances.map(({ id, totalPersons, meal }) => ({
+      id,
+      totalPersons,
+      meal,
+    })),
+  });
 
 function AttendanceQrImage({ token, label }: { token: string; label: string }) {
   const [source, setSource] = useState("");
@@ -135,6 +153,9 @@ export default function RegistrationManagement() {
     [loading, setLoading] = useState(true);
   const [canManage, setCanManage] = useState(false),
     [hideUnregistered, setHideUnregistered] = useState(true);
+  const [registrationSearch, setRegistrationSearch] = useState("");
+  const [savedSubmissions, setSavedSubmissions] = useState<Record<string, string>>({});
+  const [savingSubmission, setSavingSubmission] = useState("");
   const headers = useMemo(
     () => ({
       "Content-Type": "application/json",
@@ -287,9 +308,17 @@ export default function RegistrationManagement() {
   };
   const showResponses = async (form: RegistrationForm) => {
     try {
-      setDetail(
-        await api(`/api/registrations/admin/forms/${form.id}/submissions`),
+      const loaded = await api(`/api/registrations/admin/forms/${form.id}/submissions`);
+      setRegistrationSearch("");
+      setSavedSubmissions(
+        Object.fromEntries(
+          loaded.submissions.map((submission: Submission) => [
+            submission.id,
+            submissionSignature(submission),
+          ]),
+        ),
       );
+      setDetail(loaded);
     } catch (error: any) {
       flash(error.message);
     }
@@ -329,10 +358,9 @@ export default function RegistrationManagement() {
       flash(error.message);
     }
   };
-  const editAttendance = (
+  const editSubmission = (
     submissionId: string,
-    attendanceId: string,
-    changes: Partial<Submission["attendances"][number]>,
+    changes: Partial<Submission>,
   ) =>
     setDetail((current) =>
       current
@@ -340,24 +368,33 @@ export default function RegistrationManagement() {
             ...current,
             submissions: current.submissions.map((submission) =>
               submission.id === submissionId
-                ? {
-                    ...submission,
-                    attendances: submission.attendances.map((item) =>
-                      item.id === attendanceId ? { ...item, ...changes } : item,
-                    ),
-                  }
+                ? { ...submission, ...changes }
                 : submission,
             ),
           }
         : current,
     );
+  const editCustomAnswer = (
+    submission: Submission,
+    fieldId: string,
+    value: EditableRegistrationAnswer,
+  ) =>
+    editSubmission(submission.id, {
+      customAnswers: { ...submission.customAnswers, [fieldId]: value },
+    });
   const updateSubmission = async (submission: Submission) => {
+    setSavingSubmission(submission.id);
     try {
       const saved = await api(
         `/api/registrations/admin/submissions/${submission.id}`,
         {
           method: "PATCH",
           body: JSON.stringify({
+            registrantName: submission.registrantName,
+            identity: submission.identity,
+            contact: submission.contact,
+            origin: submission.origin,
+            customAnswers: submission.customAnswers,
             attendances: submission.attendances.map(
               ({ id, totalPersons, meal }) => ({ id, totalPersons, meal }),
             ),
@@ -374,9 +411,15 @@ export default function RegistrationManagement() {
             }
           : current,
       );
+      setSavedSubmissions((current) => ({
+        ...current,
+        [saved.id]: submissionSignature(saved),
+      }));
       flash("Registration updated");
     } catch (error: any) {
       flash(error.message);
+    } finally {
+      setSavingSubmission("");
     }
   };
   const unregister = async (submission: Submission) => {
@@ -433,17 +476,19 @@ export default function RegistrationManagement() {
     [];
   const visibleSubmissions =
     detail?.submissions.filter(
-      (submission) => !hideUnregistered || !submission.unregisteredAt,
+      (submission) => {
+        if (hideUnregistered && submission.unregisteredAt) return false;
+        const query = registrationSearch.trim().toLowerCase();
+        if (!query) return true;
+        const queryDigits = query.replace(/\D/g, "");
+        const contactDigits = submission.contact.replace(/\D/g, "");
+        return (
+          submission.registrantName.toLowerCase().includes(query) ||
+          submission.contact.toLowerCase().includes(query) ||
+          Boolean(queryDigits && contactDigits.includes(queryDigits))
+        );
+      },
     ) || [];
-  const registeredPersons = activeSubmissions.reduce(
-    (total, submission) =>
-      total +
-      submission.attendances.reduce(
-        (sum, attendance) => sum + Number(attendance.totalPersons || 0),
-        0,
-      ),
-    0,
-  );
   const eventDateSummaries =
     detail?.eventDates.map((eventDate) =>
       activeSubmissions.reduce(
@@ -919,10 +964,6 @@ export default function RegistrationManagement() {
                 Export all fields / 导出全部字段
               </button>
             )}
-            <div className="responseTotal">
-              <span>Total persons registered / 已登记总人数</span>
-              <strong>{registeredPersons}</strong>
-            </div>
             {customFieldSummaries.length > 0 && (
               <section
                 className="registrationCustomSummary"
@@ -966,14 +1007,26 @@ export default function RegistrationManagement() {
                 ))}
               </section>
             )}
-            <label className="registrationResponseFilter">
-              <input
-                type="checkbox"
-                checked={hideUnregistered}
-                onChange={(event) => setHideUnregistered(event.target.checked)}
-              />
-              Hide un-registered registrations / 隐藏已取消登记
-            </label>
+            <div className="registrationResponseTools">
+              <label className="registrationResponseSearch">
+                <Search />
+                <input
+                  type="search"
+                  value={registrationSearch}
+                  onChange={(event) => setRegistrationSearch(event.target.value)}
+                  placeholder="Search registrant name or mobile number"
+                  aria-label="Search registrant by name or mobile number"
+                />
+              </label>
+              <label className="registrationResponseFilter">
+                <input
+                  type="checkbox"
+                  checked={hideUnregistered}
+                  onChange={(event) => setHideUnregistered(event.target.checked)}
+                />
+                Hide un-registered registrations / 隐藏已取消登记
+              </label>
+            </div>
             <section
               className="responseDateSummaries"
               aria-label="Registration summary by event date"
@@ -1023,114 +1076,68 @@ export default function RegistrationManagement() {
                   key={submission.id}
                 >
                   <header>
-                    <div>
-                      <b>{submission.registrantName}</b>
-                      <small>
-                        {submission.identity === "VOLUNTEER"
-                          ? "Volunteer / 志工"
-                          : "Non-Volunteer / 非志工"}{" "}
-                        · {submission.origin}
-                      </small>
+                    <div className="responseRegistrantDetails">
+                      <span>
+                        Name / 姓名: <b>{submission.registrantName}</b>
+                      </span>
+                      <span className="responseRegistrantMobile">
+                        Mobile number / 手机号码: <b>{submission.contact}</b>
+                        {!submission.unregisteredAt &&
+                          savedSubmissions[submission.id] !==
+                            submissionSignature(submission) && (
+                            <button
+                              type="button"
+                              disabled={savingSubmission === submission.id}
+                              onClick={() => updateSubmission(submission)}
+                            >
+                              <Save />
+                              {savingSubmission === submission.id
+                                ? "Saving…"
+                                : "Save changes / 保存更改"}
+                            </button>
+                          )}
+                      </span>
                     </div>
                     <div className="responseRegistrationStatus">
-                      <span>
-                        {submission.unregisteredAt
-                          ? "Un-registered / 已取消登记"
-                          : "Registered / 已登记"}
-                      </span>
+                      <div>
+                        <span>
+                          {submission.unregisteredAt
+                            ? "Un-registered / 已取消登记"
+                            : "Registered / 已登记"}
+                        </span>
+                        {!submission.unregisteredAt && (
+                          <button
+                            type="button"
+                            className="responseUnregisterButton"
+                            onClick={() => unregister(submission)}
+                          >
+                            Un-register
+                          </button>
+                        )}
+                      </div>
                       <time>
                         {new Date(submission.createdAt).toLocaleString()}
                       </time>
                     </div>
                   </header>
-                  <p>{submission.contact}</p>
                   {detail.customFields?.length > 0 && (
-                    <dl className="registrationCustomAnswers">
-                      {detail.customFields.map((field) => (
-                        <div key={field.id}>
-                          <dt>{field.title}</dt>
-                          <dd>
-                            {registrationAnswerText(
-                              submission.customAnswers?.[field.id] ?? "—",
-                            )}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
+                    <section className="responseCustomFields">
+                      <strong>Additional fields / 其他资料</strong>
+                      <RegistrationAnswersEditor
+                        fields={detail.customFields}
+                        answers={submission.customAnswers}
+                        disabled={Boolean(submission.unregisteredAt)}
+                        onChange={(fieldId, value) =>
+                          editCustomAnswer(submission, fieldId, value)
+                        }
+                      />
+                    </section>
                   )}
-                  <div className="responseAttendances">
-                    {submission.attendances.map((attendance) => (
-                      <div key={attendance.id}>
-                        <strong>
-                          {new Date(
-                            attendance.eventDate.eventDate,
-                          ).toLocaleDateString()}
-                          {attendance.checkedInAt && (
-                            <small className="responseCheckedIn">
-                              Checked in / 已签到
-                              {new Date(attendance.checkedInAt).toLocaleString()}
-                            </small>
-                          )}
-                        </strong>
-                        <label>
-                          Persons / 人数
-                          <input
-                            disabled={
-                              !canManage || Boolean(submission.unregisteredAt)
-                            }
-                            type="number"
-                            min={1}
-                            max={999}
-                            value={attendance.totalPersons}
-                            onChange={(event) =>
-                              editAttendance(submission.id, attendance.id, {
-                                totalPersons: Number(event.target.value),
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Meal / 用餐
-                          <select
-                            disabled={
-                              !canManage || Boolean(submission.unregisteredAt)
-                            }
-                            value={attendance.meal ? "yes" : "no"}
-                            onChange={(event) =>
-                              editAttendance(submission.id, attendance.id, {
-                                meal: event.target.value === "yes",
-                              })
-                            }
-                          >
-                            <option value="no">No / 否</option>
-                            <option value="yes">Yes / 是</option>
-                          </select>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                  {submission.unregisteredAt ? (
+                  {submission.unregisteredAt && (
                     <small className="unregisteredDate">
                       Un-registered{" "}
                       {new Date(submission.unregisteredAt).toLocaleString()}
                     </small>
-                  ) : (
-                    <div className="responseActions">
-                      <button
-                        type="button"
-                        onClick={() => updateSubmission(submission)}
-                      >
-                        Save changes / 保存更改
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={() => unregister(submission)}
-                      >
-                        <Trash2 />
-                        Un-register / 取消登记
-                      </button>
-                    </div>
                   )}
                 </article>
               ))}

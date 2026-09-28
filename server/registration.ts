@@ -52,6 +52,11 @@ const submissionInput = z.object({
   customAnswers: z.record(customAnswerValue).optional().default({}),
 });
 const submissionUpdateInput = z.object({
+  registrantName: z.string().trim().min(2).max(120),
+  identity: z.enum(["VOLUNTEER", "NON_VOLUNTEER"]),
+  contact: z.string().trim().min(5).max(80),
+  origin: z.string().trim().min(2).max(160),
+  customAnswers: z.record(customAnswerValue).optional().default({}),
   attendances: z.array(z.object({
     id: z.string().min(1),
     totalPersons: z.coerce.number().int().min(1).max(999),
@@ -420,12 +425,26 @@ export function createRegistrationRouter(db: any, secret: string) {
   });
   router.patch("/admin/submissions/:id", authenticate, manage, async (req: any, res) => {
     const data = submissionUpdateInput.parse(req.body);
-    const submission = await db.registrationSubmission.findUnique({ where: { id: req.params.id }, include: { attendances: { select: { id: true } } } });
+    const submission = await db.registrationSubmission.findUnique({ where: { id: req.params.id }, include: { attendances: { select: { id: true } }, form: { select: { customFields: true } } } });
     if (!submission) return res.status(404).json({ error: "Registration not found" });
     if (submission.unregisteredAt) return res.status(409).json({ error: "Un-registered entries cannot be changed" });
+    const customAnswerError = validateCustomAnswers(Array.isArray(submission.form.customFields) ? submission.form.customFields : [], data.customAnswers);
+    if (customAnswerError) return res.status(400).json({ error: customAnswerError });
     const allowed = new Set(submission.attendances.map((item: any) => item.id));
     if (data.attendances.some((item) => !allowed.has(item.id))) return res.status(400).json({ error: "One or more attendance records are invalid" });
-    await db.$transaction(data.attendances.map((item) => db.registrationAttendance.update({ where: { id: item.id }, data: { totalPersons: item.totalPersons, meal: item.meal } })));
+    await db.$transaction([
+      db.registrationSubmission.update({
+        where: { id: submission.id },
+        data: {
+          registrantName: data.registrantName,
+          identity: data.identity,
+          contact: data.contact,
+          origin: data.origin,
+          customAnswers: data.customAnswers,
+        },
+      }),
+      ...data.attendances.map((item) => db.registrationAttendance.update({ where: { id: item.id }, data: { totalPersons: item.totalPersons, meal: item.meal } })),
+    ]);
     await db.auditLog.create({ data: { action: "REGISTRATION_UPDATED", actorId: req.user.id, metadata: { formId: submission.formId, submissionId: submission.id } } });
     res.json(await db.registrationSubmission.findUnique({ where: { id: submission.id }, include: { attendances: { include: { eventDate: true }, orderBy: { eventDate: { eventDate: "asc" } } } } }));
   });
