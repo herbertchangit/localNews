@@ -20,3 +20,10 @@ export function findRegistrationConflicts(
     return dates.length ? [{ registrantName: submission.registrantName, dates }] : [];
   });
 }
+
+export function findContactRegistration(
+  submissions: ExistingRegistration[],
+  contact: string,
+) {
+  return submissions.find((submission) => isContactMatch(contact, submission.contact));
+}

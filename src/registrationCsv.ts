@@ -1,4 +1,5 @@
 import { toCsv } from "./userCsv";
+import { registrationAnswerText, type RegistrationQuantityAnswer } from "./registrationAnswers";
 
 type RegistrationExportForm = {
   eventName: string;
@@ -12,7 +13,7 @@ type RegistrationExportForm = {
     origin: string;
     createdAt: string;
     unregisteredAt: string | null;
-    customAnswers?: Record<string, string | number | boolean | string[]>;
+    customAnswers?: Record<string, string | number | boolean | string[] | RegistrationQuantityAnswer>;
     attendances: {
       totalPersons: number;
       meal: boolean;
@@ -23,9 +24,6 @@ type RegistrationExportForm = {
 };
 
 const dateOnly = (value: string) => value.slice(0, 10);
-
-const answerText = (value: unknown) =>
-  Array.isArray(value) ? value.join(", ") : String(value ?? "");
 
 export const registrationCsvTable = (form: RegistrationExportForm) => {
   const customFields = Array.isArray(form.customFields)
@@ -61,7 +59,7 @@ export const registrationCsvTable = (form: RegistrationExportForm) => {
     submission.contact,
     submission.origin,
     ...customFields.map((field) =>
-      answerText(submission.customAnswers?.[field.id]),
+      registrationAnswerText(submission.customAnswers?.[field.id]),
     ),
     ...eventDates.flatMap((eventDate) => {
       const attendance = submission.attendances.find(

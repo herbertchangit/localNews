@@ -8,7 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DEFAULT_PASSWORD } from "./passwordPolicy.js";
 import { isContactMatch, loginEmailForContact } from "./loginIdentifier.js";
-import { findRegistrationConflicts } from "./registrationDuplicate.js";
+import { findContactRegistration, findRegistrationConflicts } from "./registrationDuplicate.js";
 import { attendanceDateError } from "./attendanceDate.js";
 import { appointmentExpired } from "./appointmentExpiry.js";
 
@@ -16,25 +16,29 @@ const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
 const photoInput = z.object({ dataUrl: z.string().max(7_500_000) });
 const dateValue = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid event date");
-const customFieldType = z.enum(["TEXT", "TEXTAREA", "NUMBER", "DATE", "SELECT", "RADIO", "CHECKBOX"]);
+const customFieldType = z.enum(["TEXT", "TEXTAREA", "NUMBER", "DATE", "SELECT", "RADIO", "CHECKBOX", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"]);
 const customFieldInput = z.object({
   id: z.string().trim().min(1).max(80),
   title: z.string().trim().min(1).max(160),
   type: customFieldType,
   required: z.boolean().optional().default(false),
+  countInSummary: z.boolean().optional().default(false),
   options: z.array(z.string().trim().min(1).max(120)).max(50).optional().default([]),
-}).transform((field) => ({ ...field, options: [...new Set(field.options)] }));
+}).transform((field) => ({
+  ...field,
+  countInSummary: ["NUMBER", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type) && field.countInSummary,
+  options: [...new Set(field.options)],
+}));
 const formInput = z.object({
   eventName: z.string().trim().min(2).max(160),
   description: z.string().trim().min(2).max(5000),
   active: z.boolean().optional().default(true),
-  eventDates: z.array(dateValue).min(1).max(60).transform((dates) => [...new Set(dates)]),
-  viewerIds: z.array(z.string().min(1)).max(500).optional().default([]).transform((ids) => [...new Set(ids)]),
+  eventDates: z.array(dateValue).max(60).transform((dates) => [...new Set(dates)]),
   customFields: z.array(customFieldInput).max(100).optional().default([])
     .refine((fields) => new Set(fields.map((field) => field.id)).size === fields.length, "Custom field IDs must be unique")
-    .refine((fields) => fields.every((field) => !["SELECT", "RADIO", "CHECKBOX"].includes(field.type) || field.options.length > 0), "Choice fields require at least one option"),
+    .refine((fields) => fields.every((field) => !["SELECT", "RADIO", "CHECKBOX", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type) || field.options.length > 0), "Choice fields require at least one option"),
 });
-const customAnswerValue = z.union([z.string().max(5000), z.number().finite(), z.boolean(), z.array(z.string().max(120)).max(50)]);
+const customAnswerValue = z.union([z.string().max(5000), z.number().finite(), z.boolean(), z.array(z.string().max(120)).max(50), z.record(z.coerce.number().int().min(0).max(999))]);
 const submissionInput = z.object({
   registrantName: z.string().trim().min(2).max(120),
   identity: z.enum(["VOLUNTEER", "NON_VOLUNTEER"]),
@@ -44,7 +48,7 @@ const submissionInput = z.object({
     eventDateId: z.string().min(1),
     totalPersons: z.coerce.number().int().min(1).max(999),
     meal: z.boolean(),
-  })).min(1).max(60).refine((items) => new Set(items.map((item) => item.eventDateId)).size === items.length, "Duplicate event dates are not allowed"),
+  })).max(60).refine((items) => new Set(items.map((item) => item.eventDateId)).size === items.length, "Duplicate event dates are not allowed"),
   customAnswers: z.record(customAnswerValue).optional().default({}),
 });
 const submissionUpdateInput = z.object({
@@ -53,6 +57,9 @@ const submissionUpdateInput = z.object({
     totalPersons: z.coerce.number().int().min(1).max(999),
     meal: z.boolean(),
   })).min(1).max(60).refine((items) => new Set(items.map((item) => item.id)).size === items.length, "Duplicate attendance records are not allowed"),
+});
+const customAnswersUpdateInput = z.object({
+  customAnswers: z.record(customAnswerValue).optional().default({}),
 });
 const attendanceUpdateInput = z.object({
   totalPersons: z.coerce.number().int().min(1).max(999),
@@ -67,13 +74,21 @@ const validateCustomAnswers = (fields: any[], answers: Record<string, unknown>) 
   if (Object.keys(answers).some((id) => !allowed.has(id))) return "One or more custom answers are invalid";
   for (const field of fields) {
     const value = answers[field.id];
-    const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
+    const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0) || (typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0);
     if (field.required && empty) return `${field.title} is required`;
     if (empty) continue;
     if (field.type === "NUMBER" && typeof value !== "number") return `${field.title} must be a number`;
     if (["SELECT", "RADIO"].includes(field.type) && (typeof value !== "string" || !field.options.includes(value))) return `${field.title} has an invalid choice`;
     if (field.type === "CHECKBOX" && (!Array.isArray(value) || value.some((item) => !field.options.includes(item)))) return `${field.title} has an invalid choice`;
-    if (!["NUMBER", "CHECKBOX"].includes(field.type) && typeof value !== "string") return `${field.title} has an invalid value`;
+    if (["RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return `${field.title} has an invalid quantity`;
+      const quantities = Object.entries(value);
+      const selectedQuantities = quantities.filter(([, quantity]) => Number(quantity) > 0);
+      if (field.required && field.type === "RADIO_QUANTITY" && selectedQuantities.length === 0) return `${field.title} is required`;
+      if (field.type === "RADIO_QUANTITY" && selectedQuantities.length > 1) return `${field.title} must have one choice`;
+      if (quantities.some(([option, quantity]) => !field.options.includes(option) || !Number.isInteger(quantity) || Number(quantity) < 0 || Number(quantity) > 999)) return `${field.title} has an invalid quantity`;
+    }
+    if (!["NUMBER", "CHECKBOX", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type) && typeof value !== "string") return `${field.title} has an invalid value`;
   }
   return null;
 };
@@ -114,7 +129,6 @@ export function createRegistrationRouter(db: any, secret: string) {
   const manage = (req: any, res: any, next: any) => canManage(req) ? next() : res.status(403).json({ error: "Registration management permission required" });
   const include = {
     creator: { select: { id: true, name: true } },
-    viewers: { select: { id: true, name: true, email: true }, orderBy: { name: "asc" } },
     eventDates: { orderBy: { eventDate: "asc" } },
     _count: { select: { submissions: { where: { unregisteredAt: null } } } },
   };
@@ -126,8 +140,8 @@ export function createRegistrationRouter(db: any, secret: string) {
   };
 
   router.get("/capability", authenticate, async (req: any, res) => {
-    const assignedCount = canManage(req) ? 0 : await db.registrationForm.count({ where: { viewers: { some: { id: req.user.id } } } });
-    res.json({ canManage: canManage(req), canAccess: canManage(req) || assignedCount > 0, assignedCount });
+    const manageable = canManage(req);
+    res.json({ canManage: manageable, canAccess: manageable });
   });
   router.get("/mine", authenticate, async (req: any, res) => {
     const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
@@ -273,12 +287,35 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.auditLog.create({ data: { action: "REGISTRATION_ATTENDANCE_UNREGISTERED", actorId: req.user.id, metadata: { formId: attendance.submission.formId, submissionId: attendance.submission.id, attendanceId: attendance.id } } });
     res.status(204).end();
   });
-  router.get("/admin/viewer-options", authenticate, manage, async (_req, res) => {
-    res.json(await db.user.findMany({ where: { locked: false, suspended: false }, select: { id: true, name: true, email: true, role: true }, orderBy: { name: "asc" } }));
+  router.patch("/mine/submissions/:submissionId", authenticate, async (req: any, res) => {
+    const data = customAnswersUpdateInput.parse(req.body);
+    const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
+    if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
+    const submission = await db.registrationSubmission.findUnique({
+      where: { id: req.params.submissionId },
+      include: { form: { select: { id: true, customFields: true } } },
+    });
+    if (!submission || submission.unregisteredAt || !isContactMatch(account.phone, submission.contact))
+      return res.status(404).json({ error: "Registration appointment not found" });
+    const fields = Array.isArray(submission.form.customFields) ? submission.form.customFields : [];
+    const customAnswerError = validateCustomAnswers(fields, data.customAnswers);
+    if (customAnswerError) return res.status(400).json({ error: customAnswerError });
+    const updated = await db.registrationSubmission.update({
+      where: { id: submission.id },
+      data: { customAnswers: data.customAnswers },
+      select: { id: true, customAnswers: true },
+    });
+    await db.auditLog.create({
+      data: {
+        action: "REGISTRATION_CUSTOM_ANSWERS_UPDATED",
+        actorId: req.user.id,
+        metadata: { formId: submission.form.id, submissionId: submission.id },
+      },
+    });
+    res.json(updated);
   });
-  router.get("/admin/forms", authenticate, async (req: any, res) => {
-    const where = canManage(req) ? {} : { viewers: { some: { id: req.user.id } } };
-    res.json(await db.registrationForm.findMany({ where, include, orderBy: { updatedAt: "desc" } }));
+  router.get("/admin/forms", authenticate, manage, async (_req, res) => {
+    res.json(await db.registrationForm.findMany({ include, orderBy: { updatedAt: "desc" } }));
   });
   router.post("/admin/forms", authenticate, manage, async (req: any, res) => {
     const data = formInput.parse(req.body);
@@ -290,7 +327,6 @@ export function createRegistrationRouter(db: any, secret: string) {
         customFields: data.customFields,
         slug: await availableSlug(data.eventName),
         creatorId: req.user.id,
-        viewers: { connect: data.viewerIds.map((id) => ({ id })) },
         eventDates: { create: data.eventDates.map((eventDate) => ({ eventDate: dateAtUtcMidnight(eventDate) })) },
       },
       include,
@@ -309,7 +345,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.$transaction([
       db.registrationEventDate.deleteMany({ where: { formId: current.id, eventDate: { notIn: data.eventDates.map(dateAtUtcMidnight) } } }),
       db.registrationEventDate.createMany({ data: data.eventDates.filter((date) => !existing.has(date)).map((eventDate) => ({ formId: current.id, eventDate: dateAtUtcMidnight(eventDate) })) }),
-      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, customFields: data.customFields, viewers: { set: data.viewerIds.map((id) => ({ id })) } } }),
+      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, customFields: data.customFields } }),
     ]);
     const form = await db.registrationForm.findUnique({ where: { id: current.id }, include });
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
@@ -346,9 +382,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_DELETED", actorId: req.user.id, metadata: { formId: current.id, eventName: current.eventName } } });
     res.status(204).end();
   });
-  router.get("/admin/forms/:id/submissions", authenticate, async (req: any, res) => {
-    const allowed = canManage(req) || Boolean(await db.registrationForm.findFirst({ where: { id: req.params.id, viewers: { some: { id: req.user.id } } }, select: { id: true } }));
-    if (!allowed) return res.status(403).json({ error: "This registration form is not assigned to you" });
+  router.get("/admin/forms/:id/submissions", authenticate, manage, async (req: any, res) => {
     const form = await db.registrationForm.findUnique({
       where: { id: req.params.id },
       include: {
@@ -451,6 +485,15 @@ export function createRegistrationRouter(db: any, secret: string) {
         contact: true,
         attendances: { select: { eventDateId: true, eventDate: { select: { eventDate: true } } } },
       },
+    });
+    const contactRegistration = !data.attendances.length
+      ? findContactRegistration(existingRegistrations, data.contact)
+      : null;
+    if (contactRegistration) return res.status(409).json({
+      code: "ALREADY_REGISTERED",
+      existingRegistrantName: contactRegistration.registrantName,
+      eventDates: [],
+      error: `This contact is already registered under ${contactRegistration.registrantName}. / 此联络号码已由 ${contactRegistration.registrantName} 登记。`,
     });
     const conflicts = findRegistrationConflicts(existingRegistrations, data.contact, data.attendances.map((item) => item.eventDateId));
     if (conflicts.length) {

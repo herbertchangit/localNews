@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { CalendarDays, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
 import { registrationPrefill } from "./registrationPrefill";
+import { isRegistrationQuantityAnswer, type RegistrationQuantityAnswer } from "./registrationAnswers";
 
 type EventDate = { id: string; eventDate: string };
-type CustomField = { id: string; title: string; type: "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "RADIO" | "CHECKBOX"; required: boolean; options: string[] };
+type CustomField = { id: string; title: string; type: "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "RADIO" | "CHECKBOX" | "RADIO_QUANTITY" | "CHECKBOX_QUANTITY"; required: boolean; options: string[] };
 type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; eventDates: EventDate[]; customFields: CustomField[] };
-type Attendance = { selected: boolean; totalPersons: number; meal: boolean };
 type AreaOption = { id: string; name: string; mutualLove: { id: string; name: string; harmony: { id: string; name: string } } };
 type Session = { token: string; user: { name?: string; role?: string } };
 
@@ -27,8 +27,7 @@ export default function PublicRegistration() {
   const [passwords, setPasswords] = useState({ newPassword: "", confirmPassword: "" });
   const [values, setValues] = useState({ registrantName: "", identity: "NON_VOLUNTEER", contact: "", area: "", otherArea: "" });
   const [areas, setAreas] = useState<AreaOption[]>([]);
-  const [attendance, setAttendance] = useState<Record<string, Attendance>>({});
-  const [customAnswers, setCustomAnswers] = useState<Record<string, string | number | string[]>>({});
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string | number | string[] | RegistrationQuantityAnswer>>({});
 
   useEffect(() => {
     if (invitationToken) return;
@@ -74,7 +73,6 @@ export default function PublicRegistration() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         setForm(data);
-        setAttendance(Object.fromEntries(data.eventDates.map((item: EventDate) => [item.id, { selected: false, totalPersons: 1, meal: false }])));
       })
       .catch((reason) => setError(reason.message || "Registration form unavailable"))
       .finally(() => setLoading(false));
@@ -82,8 +80,7 @@ export default function PublicRegistration() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const attendances = Object.entries(attendance).filter(([, value]) => value.selected).map(([eventDateId, value]) => ({ eventDateId, totalPersons: value.totalPersons, meal: value.meal }));
-    if (!attendances.length) return setError("Select at least one event date / 请至少选择一个活动日期");
+    const attendances: never[] = [];
     const origin = values.area === "OTHERS" ? values.otherArea.trim() : values.area;
     if (!origin) return setError("Select or enter your area / 请选择或填写地区");
     setBusy(true);
@@ -124,11 +121,24 @@ export default function PublicRegistration() {
 
   const renderCustomField = (field: CustomField) => {
     const answer = customAnswers[field.id];
-    const setAnswer = (value: string | number | string[]) => setCustomAnswers((current) => ({ ...current, [field.id]: value }));
+    const setAnswer = (value: string | number | string[] | RegistrationQuantityAnswer) => setCustomAnswers((current) => ({ ...current, [field.id]: value }));
     if (field.type === "RADIO") return <section className="publicCustomField" key={field.id}><fieldset><legend>{field.title}{field.required ? " *" : ""}</legend>{field.options.map((option) => <label key={option}><input required={field.required} type="radio" name={field.id} value={option} checked={answer === option} onChange={() => setAnswer(option)} />{option}</label>)}</fieldset></section>;
     if (field.type === "CHECKBOX") {
       const selected = Array.isArray(answer) ? answer : [];
       return <section className="publicCustomField" key={field.id}><fieldset><legend>{field.title}{field.required ? " *" : ""}</legend>{field.options.map((option) => <label key={option}><input type="checkbox" checked={selected.includes(option)} onChange={(event) => setAnswer(event.target.checked ? [...selected, option] : selected.filter((item) => item !== option))} />{option}</label>)}{field.required && <input className="customCheckboxRequirement" required tabIndex={-1} aria-hidden="true" value={selected.length ? "selected" : ""} onChange={() => undefined} />}</fieldset></section>;
+    }
+    if (["RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type)) {
+      const quantities = isRegistrationQuantityAnswer(answer) ? answer : {};
+      const multiple = field.type === "CHECKBOX_QUANTITY";
+      const selectOption = (option: string, checked: boolean) => {
+        if (!checked) {
+          const next = { ...quantities };
+          delete next[option];
+          return setAnswer(next);
+        }
+        setAnswer(multiple ? { ...quantities, [option]: quantities[option] || 1 } : { [option]: quantities[option] || 1 });
+      };
+      return <section className="publicCustomField publicQuantityField" key={field.id}><fieldset><legend>{field.title}{field.required ? " *" : ""}</legend>{field.options.map((option) => { const selected = Number(quantities[option] || 0) > 0; return <div className="publicQuantityOption" key={option}><label><input required={!multiple && field.required} type={multiple ? "checkbox" : "radio"} name={field.id} checked={selected} onChange={(event) => selectOption(option, event.target.checked)} />{option}</label><label className="publicQuantityInput">Quantity / 数量<input aria-label={`${option} quantity`} disabled={!selected} required={selected} type="number" min={1} max={999} value={selected ? quantities[option] : ""} onChange={(event) => setAnswer({ ...quantities, [option]: Math.max(1, Math.min(999, Number(event.target.value) || 1)) })} /></label></div>; })}{multiple && field.required && <input className="customCheckboxRequirement" required tabIndex={-1} aria-hidden="true" value={Object.values(quantities).some((quantity) => Number(quantity) > 0) ? "selected" : ""} onChange={() => undefined} />}</fieldset></section>;
     }
     return <section className="publicCustomField" key={field.id}><label>{field.title}{field.type === "TEXT" && <input required={field.required} maxLength={5000} value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)} />}{field.type === "TEXTAREA" && <textarea required={field.required} maxLength={5000} rows={4} value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)} />}{field.type === "NUMBER" && <input required={field.required} type="number" value={answer ?? ""} onChange={(event) => setAnswer(event.target.value === "" ? "" : Number(event.target.value))} />}{field.type === "DATE" && <input required={field.required} type="date" value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)} />}{field.type === "SELECT" && <select required={field.required} value={String(answer ?? "")} onChange={(event) => setAnswer(event.target.value)}><option value="">Select an option</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>}</label></section>;
   };
@@ -137,7 +147,7 @@ export default function PublicRegistration() {
     <PublicHeader hideLoginWhenSignedOut />
     {loading && <main className="publicRegistrationCard">Loading registration form… / 正在载入登记表格…</main>}
     {!loading && error && !form && <main className="publicRegistrationCard"><h1>Registration unavailable / 登记表格暂不可用</h1><p>{error}</p><Link to="/">Return to Local News / 返回本地新闻</Link></main>}
-    {form && done && !showPassword && <main className="publicRegistrationCard registrationThanks"><CheckCircle2 /><small>PRE-REGISTRATION RECEIVED / 已收到预登记</small><h1>Thank you / 谢谢您，{values.registrantName}.</h1><p>Your registration for / 您的登记已记录：<b>{form.eventName}</b></p>{accountCreated?<><p>A new DADE account has been created. Create your password to view the registered event date in Your Appointments.<br/>已为您建立慈济人账户。请设置新密码，然后在“您的预约”查看登记日期。</p><p className="registrationRedirectNotice">Password setup will open in 3 minutes, or continue when you are ready.<br/>密码设置将在三分钟后打开，您也可以准备好后立即继续。</p><button className="publicRegistrationSubmit registrationContinueButton" type="button" onClick={()=>setShowPassword(true)}>Create password now / 立即设置密码</button></>:<p>Sign in with your contact number to view the registered event date in Your Appointments.<br/>请使用联络号码登录，并在“您的预约”查看登记日期。</p>}{!accountCreated&&<Link to="/login" state={{from:"/newsroom/appointments"}}>Sign in / 登录</Link>}</main>}
+    {form && done && !showPassword && <main className="publicRegistrationCard registrationThanks"><CheckCircle2 /><small>PRE-REGISTRATION RECEIVED / 已收到预登记</small><h1>Thank you / 谢谢您，{values.registrantName}.</h1><p>Your registration for / 您的登记已记录：<b>{form.eventName}</b></p>{accountCreated?<><p>A new DADE account has been created. Create your password to access your account.<br/>已为您建立慈济人账户。请设置新密码以使用您的账户。</p><p className="registrationRedirectNotice">Password setup will open in 3 minutes, or continue when you are ready.<br/>密码设置将在三分钟后打开，您也可以准备好后立即继续。</p><button className="publicRegistrationSubmit registrationContinueButton" type="button" onClick={()=>setShowPassword(true)}>Create password now / 立即设置密码</button></>:<p>Your registration has been received.<br/>您的登记已收到。</p>}{!accountCreated&&<Link to="/login">Sign in / 登录</Link>}</main>}
     {form && done && showPassword && <main className="publicRegistrationCard registrationPasswordCard"><small>CREATE YOUR PASSWORD / 设置新密码</small><h1>Activate your DADE account / 启用您的慈济人账户</h1><p>After saving, Your Appointments will open automatically.<br/>保存后将自动打开“您的预约”。</p>{error&&<div className="registrationError">{error}</div>}<form onSubmit={savePassword}><label>New password / 新密码<input autoFocus required minLength={8} maxLength={72} type="password" value={passwords.newPassword} onChange={event=>setPasswords({...passwords,newPassword:event.target.value})}/></label><label>Confirm password / 确认密码<input required minLength={8} maxLength={72} type="password" value={passwords.confirmPassword} onChange={event=>setPasswords({...passwords,confirmPassword:event.target.value})}/></label><button className="publicRegistrationSubmit" disabled={busy}>{busy?"Saving… / 正在保存…":"Save password and view appointments / 保存并查看预约"}</button></form></main>}
     {form && !done && <main className="publicRegistrationCard">
       {form.photoUrl && <img className="publicRegistrationPhoto" src={form.photoUrl} alt={`${form.eventName} event`} />}
@@ -152,13 +162,6 @@ export default function PublicRegistration() {
         <label>From / 来自地区<select required value={values.area} onChange={(event) => setValues({ ...values, area: event.target.value, otherArea: event.target.value === "OTHERS" ? values.otherArea : "" })}><option value="">Select area / 选择地区</option>{values.area&&values.area!=="OTHERS"&&!areas.some(area=>area.name===values.area)&&<option value={values.area}>{values.area} (current)</option>}{areas.map((area) => <option key={area.id} value={area.name}>{area.name} : {area.mutualLove.name}</option>)}<option value="OTHERS">Others / 其他地区</option></select></label>
         {values.area === "OTHERS" && <label>Other area / 其他地区<input autoFocus required minLength={2} maxLength={160} value={values.otherArea} onChange={(event) => setValues({ ...values, otherArea: event.target.value })} /></label>}
         {form.customFields?.map(renderCustomField)}
-        <fieldset><legend>Select event date(s) / 选择活动日期</legend>{form.eventDates.map((item) => {
-          const value = attendance[item.id];
-          return <div className={`publicDateChoice ${value?.selected ? "selected" : ""}`} key={item.id}>
-            <label className="dateSelect"><input type="checkbox" checked={value?.selected || false} onChange={(event) => setAttendance({ ...attendance, [item.id]: { ...value, selected: event.target.checked } })} /><CalendarDays /><b>{new Date(item.eventDate).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</b></label>
-            {value?.selected && <div className="dateDetails"><label>Total persons / 总人数<input required type="number" min={1} max={999} value={value.totalPersons} onChange={(event) => setAttendance({ ...attendance, [item.id]: { ...value, totalPersons: Number(event.target.value) } })} /></label><label>Meal / 用餐<select value={value.meal ? "yes" : "no"} onChange={(event) => setAttendance({ ...attendance, [item.id]: { ...value, meal: event.target.value === "yes" } })}><option value="no">No / 否</option><option value="yes">Yes / 是</option></select></label></div>}
-          </div>;
-        })}</fieldset>
         <button className="publicRegistrationSubmit" disabled={busy}>{busy ? "Submitting… / 正在提交…" : "Submit pre-registration / 提交预登记"}</button>
       </form>
     </main>}

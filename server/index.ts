@@ -3496,9 +3496,31 @@ const migrateLegacyArticlePhotos = async () => {
       data: { articleId: article.id, url: article.imageUrl!, sortOrder: 0 },
     });
 };
+const removeLegacyRegistrationAttendance = async () => {
+  const marker = await db.auditLog.findFirst({
+    where: { action: "LEGACY_REGISTRATION_ATTENDANCE_REMOVED" },
+    select: { id: true },
+  });
+  if (marker) return;
+  const [attendanceCount, eventDateCount] = await Promise.all([
+    db.registrationAttendance.count(),
+    db.registrationEventDate.count(),
+  ]);
+  await db.$transaction([
+    db.registrationAttendance.deleteMany(),
+    db.registrationEventDate.deleteMany(),
+    db.auditLog.create({
+      data: {
+        action: "LEGACY_REGISTRATION_ATTENDANCE_REMOVED",
+        metadata: { attendanceCount, eventDateCount },
+      },
+    }),
+  ]);
+};
 const port = Number(process.env.PORT || 4000);
 migrateLegacyArticlePhotos()
   .then(async () => {
+    await removeLegacyRegistrationAttendance();
     await expirePublishedArticles();
     const expiryTimer = setInterval(
       () =>

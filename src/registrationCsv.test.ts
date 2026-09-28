@@ -15,6 +15,7 @@ const form = {
   customFields: [
     { id: "transport", title: "Transport" },
     { id: "skills", title: "Skills" },
+    { id: "tickets", title: "Tickets" },
   ],
   submissions: [
     {
@@ -24,7 +25,7 @@ const form = {
       origin: "Puchong",
       createdAt: "2026-08-18T09:30:00.000Z",
       unregisteredAt: null,
-      customAnswers: { transport: "Bus", skills: ["Food", "First aid"] },
+      customAnswers: { transport: "Bus", skills: ["Food", "First aid"], tickets: { Adult: 2, Child: 1 } },
       attendances: [
         {
           totalPersons: 2,
@@ -50,6 +51,7 @@ describe("registration CSV export", () => {
     expect(headers).toContain("2026-08-21 Checked in at / 签到时间");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toContain("Food, First aid");
+    expect(rows[0]).toContain("Adult × 2, Child × 1");
     expect(rows[0]).toContain(2);
     expect(rows[0]).toContain("Yes / 是");
     expect(rows[0]).toContain("2026-08-21T08:15:00.000Z");

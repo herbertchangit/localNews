@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { HealthAppointmentStatus, PrismaClient, Role } from "@prisma/client";
 import { z } from "zod";
 import { isContactMatch } from "./loginIdentifier.js";
+import { compatibleRegistrationAnswers } from "./registrationAnswerCompatibility.js";
 import { appointmentExpired } from "./appointmentExpiry.js";
 
 const eventSelect = {
@@ -508,19 +509,42 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
           orderBy: { createdAt: "desc" },
         }),
       ]);
-      const registrationAppointments = account?.phone ? registrationSubmissions
+      const registrationAppointments: any[] = account?.phone ? registrationSubmissions
         .filter((submission) => isContactMatch(account.phone!, submission.contact))
-        .flatMap((submission) => submission.attendances.map((attendance) => ({
-          id: `registration-${attendance.id}`,
-          startTime: "Pre-registration",
-          endTime: "Confirmed",
-          status: "REGISTERED",
-          reason: `Total persons: ${attendance.totalPersons} · Meal: ${attendance.meal ? "Yes" : "No"}`,
-          createdAt: submission.createdAt,
-          registration: { attendanceId: attendance.id, submissionId: submission.id, totalPersons: attendance.totalPersons, meal: attendance.meal, checkedInAt: attendance.checkedInAt },
-          event: { id: submission.form.id, name: submission.form.eventName, eventDate: attendance.eventDate.eventDate, location: submission.origin, address: "Event pre-registration" },
-          doctor: { specialization: "Registered event date", qualification: "Local News Registration", experienceYears: 0, bio: submission.form.description, profileImage: submission.form.photoUrl, consultationFee: 0, user: { name: "Event Registration", email: "", phone: null, avatarUrl: null } },
-        }))) : [];
+        .flatMap((submission): any[] => {
+          const customFields: any[] = Array.isArray(submission.form.customFields) ? submission.form.customFields : [];
+          const storedAnswers = submission.customAnswers && typeof submission.customAnswers === "object" && !Array.isArray(submission.customAnswers)
+            ? submission.customAnswers as Record<string, unknown>
+            : {};
+          const registrationDetails = {
+            submissionId: submission.id,
+            customFields,
+            customAnswers: compatibleRegistrationAnswers(customFields, storedAnswers),
+          };
+          const doctor = { specialization: "Event registration", qualification: "Local News Registration", experienceYears: 0, bio: submission.form.description, profileImage: submission.form.photoUrl, consultationFee: 0, user: { name: "Event Registration", email: "", phone: null, avatarUrl: null } };
+          if (!submission.attendances.length) return [{
+            id: `registration-submission-${submission.id}`,
+            startTime: "Registration",
+            endTime: "Submitted",
+            status: "REGISTERED",
+            reason: "Event registration submitted",
+            createdAt: submission.createdAt,
+            registration: { ...registrationDetails, attendanceId: null, dateFree: true, totalPersons: 0, meal: false, checkedInAt: null },
+            event: { id: submission.form.id, name: submission.form.eventName, eventDate: submission.createdAt, location: submission.origin, address: "Event registration" },
+            doctor,
+          }];
+          return submission.attendances.map((attendance) => ({
+            id: `registration-${attendance.id}`,
+            startTime: "Pre-registration",
+            endTime: "Confirmed",
+            status: "REGISTERED",
+            reason: `Total persons: ${attendance.totalPersons} · Meal: ${attendance.meal ? "Yes" : "No"}`,
+            createdAt: submission.createdAt,
+            registration: { ...registrationDetails, attendanceId: attendance.id, dateFree: false, totalPersons: attendance.totalPersons, meal: attendance.meal, checkedInAt: attendance.checkedInAt },
+            event: { id: submission.form.id, name: submission.form.eventName, eventDate: attendance.eventDate.eventDate, location: submission.origin, address: "Event pre-registration" },
+            doctor,
+          }));
+        }) : [];
       res.json([...healthAppointments, ...registrationAppointments].sort((left, right) => new Date(right.event.eventDate).getTime() - new Date(left.event.eventDate).getTime()));
     } catch {
       res.status(401).json({ error: "Invalid token" });

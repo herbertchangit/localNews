@@ -127,6 +127,7 @@ export const routeMenu = (path: string, method = "GET") => {
   if (method === "DELETE" && /^\/api\/me\/photos\/[^/]+\/?$/.test(path)) return null;
   if (/^\/api\/me\/photos(?:\/|$)/.test(path)) return "photos";
   if (path.toLowerCase() === "/api/registrations/mine/check-in") return null;
+  if (/^\/api\/registrations\/mine\/submissions\/[^/]+\/?$/.test(path)) return null;
   if (/^\/api\/(?:admin\/)?(?:accounts|users)|^\/api\/people\//.test(path)) return "people";
   if (method === "GET" && (/^\/api\/articles(?:\/[^/]+)?\/?$/.test(path) || /^\/api\/articles\/[^/]+\/discussion\/?$/.test(path))) return "overview";
   if (/^\/api\/(?:newsroom\/)?articles|^\/api\/editor\/articles/.test(path)) return "stories";

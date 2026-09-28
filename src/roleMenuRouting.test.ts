@@ -17,6 +17,7 @@ describe("role menu request routing", () => {
 
   it("authorizes a user's registration appointment changes through Appointments", () => {
     expect(routeMenu("/api/registrations/mine/check-in", "POST")).toBeNull();
+    expect(routeMenu("/api/registrations/mine/submissions/submission-id", "PATCH")).toBeNull();
     expect(routeMenu("/api/registrations/mine/attendance-id", "PATCH")).toBe(
       "appointments",
     );

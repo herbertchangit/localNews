@@ -11,7 +11,8 @@ it("counts only active, unexpired and unattended appointments", () => {
     { event, status: "REGISTERED", registration: {} },
     { event, status: "REGISTERED", registration: { checkedInAt: now.toISOString() } },
     { event: { eventDate: "2026-09-04" }, status: "REGISTERED", registration: {} },
-  ], now)).toBe(2);
+    { event: { eventDate: "2026-08-01" }, status: "REGISTERED", registration: { dateFree: true } },
+  ], now)).toBe(3);
 });
 it("returns zero when there are no active appointments", () => {
   expect(activeAppointmentCount([])).toBe(0);

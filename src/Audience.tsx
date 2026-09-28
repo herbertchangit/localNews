@@ -43,6 +43,10 @@ import ShareStoryButton from "./ShareStoryButton";
 import { attendanceTokenFromQr } from "./attendanceQr";
 import { appointmentExpired } from "../server/appointmentExpiry";
 import { useActiveAppointmentCount } from "./useActiveAppointmentCount";
+import RegistrationAnswersEditor, {
+  type EditableRegistrationAnswer,
+  type EditableRegistrationField,
+} from "./RegistrationAnswersEditor";
 type Story = {
   id: string;
   title: string;
@@ -75,11 +79,14 @@ type Appointment = {
   reason?: string | null;
   createdAt: string;
   registration?: {
-    attendanceId: string;
+    attendanceId: string | null;
     submissionId: string;
+    dateFree?: boolean;
     totalPersons: number;
     meal: boolean;
     checkedInAt?: string | null;
+    customFields: EditableRegistrationField[];
+    customAnswers: Record<string, EditableRegistrationAnswer>;
   };
   event: { name: string; eventDate: string; location: string; address: string };
   doctor: {
@@ -649,7 +656,7 @@ export function AudienceAppointments() {
     );
   };
   const saveRegistration = async (item: Appointment) => {
-    if (!item.registration) return;
+    if (!item.registration?.attendanceId) return;
     if (appointmentExpired(item.event.eventDate)) return setNotice("This appointment has expired.");
     setSavingRegistration(item.id);
     setNotice("");
@@ -680,6 +687,53 @@ export function AudienceAppointments() {
             : existing,
         ),
       );
+      setNotice(
+        "Registration appointment updated. Admin Registration has been synchronized.",
+      );
+    } catch (error: any) {
+      setNotice(error.message);
+    } finally {
+      setSavingRegistration("");
+    }
+  };
+  const editRegistrationAnswer = (
+    itemId: string,
+    fieldId: string,
+    value: EditableRegistrationAnswer,
+  ) => {
+    const changes = (registration: NonNullable<Appointment["registration"]>) => ({
+      ...registration,
+      customAnswers: { ...registration.customAnswers, [fieldId]: value },
+    });
+    setAppointments((current) =>
+      current.map((item) =>
+        item.id === itemId && item.registration
+          ? { ...item, registration: changes(item.registration) }
+          : item,
+      ),
+    );
+    setSelected((current) =>
+      current?.id === itemId && current.registration
+        ? { ...current, registration: changes(current.registration) }
+        : current,
+    );
+  };
+  const saveRegistrationAnswers = async (item: Appointment) => {
+    if (!item.registration) return;
+    setSavingRegistration(item.id);
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/registrations/mine/submissions/${item.registration.submissionId}`,
+        {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ customAnswers: item.registration.customAnswers }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.error || "Could not update registration details");
       setNotice(
         "Registration appointment updated. Admin Registration has been synchronized.",
       );
@@ -753,7 +807,9 @@ export function AudienceAppointments() {
         ) : appointments.length ? (
           <div className="audienceAppointmentList">
             {appointments.map((item) => {
-              const expired = appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime);
+              const expired = item.registration?.dateFree
+                ? false
+                : appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime);
               const doctorPhoto =
                 item.doctor.profileImage || item.doctor.user.avatarUrl;
               return (
@@ -816,7 +872,7 @@ export function AudienceAppointments() {
                       <small>{item.doctor.specialization}</small>
                     </span>
                   </div>
-                  {item.registration && (
+                  {item.registration?.attendanceId && (
                     <div
                       className="audienceRegistrationEditor"
                       onClick={(event) => event.stopPropagation()}
@@ -890,6 +946,31 @@ export function AudienceAppointments() {
                           Attended {new Date(item.registration.checkedInAt).toLocaleString()}
                         </span>
                       )}
+                    </div>
+                  )}
+                  {item.registration && item.registration.customFields.length > 0 && (
+                    <div
+                      className="audienceRegistrationCustomEditor"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <strong>Additional registration details / 其他登记资料</strong>
+                      <RegistrationAnswersEditor
+                        fields={item.registration.customFields}
+                        answers={item.registration.customAnswers}
+                        disabled={savingRegistration === item.id}
+                        onChange={(fieldId, value) =>
+                          editRegistrationAnswer(item.id, fieldId, value)
+                        }
+                      />
+                      <button
+                        type="button"
+                        disabled={savingRegistration === item.id}
+                        onClick={() => saveRegistrationAnswers(item)}
+                      >
+                        <Save />
+                        {savingRegistration === item.id ? "Saving…" : "Save additional fields"}
+                      </button>
                     </div>
                   )}
                   <div className="audienceAppointmentControls">
@@ -1065,7 +1146,7 @@ export function AudienceAppointments() {
                 <button
                   className="danger"
                   type="button"
-                  disabled={appointmentExpired(selected.event.eventDate, selected.registration ? null : selected.endTime) || cancelling === selected.id}
+                  disabled={(!selected.registration?.dateFree && appointmentExpired(selected.event.eventDate, selected.registration ? null : selected.endTime)) || cancelling === selected.id}
                   onClick={() => cancelAppointment(selected)}
                 >
                   <CalendarX2 />

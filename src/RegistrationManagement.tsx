@@ -14,7 +14,6 @@ import {
   Pencil,
   Plus,
   QrCode,
-  Search,
   Settings,
   Trash2,
   Users,
@@ -23,9 +22,14 @@ import {
 import { useAuthorities } from "./menuAccess";
 import { registrationCsv, registrationCsvFilename } from "./registrationCsv";
 import { buildAttendanceQrUrl } from "./attendanceQr";
+import {
+  cleanRegistrationOptionLines,
+  splitRegistrationOptionLines,
+} from "./registrationFieldOptions";
+import { registrationAnswerText, type RegistrationQuantityAnswer } from "./registrationAnswers";
+import { registrationFieldSummaries } from "./registrationSummary";
 
 type EventDate = { id: string; eventDate: string };
-type Viewer = { id: string; name: string; email: string; role?: string };
 type CustomField = {
   id: string;
   title: string;
@@ -36,8 +40,11 @@ type CustomField = {
     | "DATE"
     | "SELECT"
     | "RADIO"
-    | "CHECKBOX";
+    | "CHECKBOX"
+    | "RADIO_QUANTITY"
+    | "CHECKBOX_QUANTITY";
   required: boolean;
+  countInSummary?: boolean;
   options: string[];
 };
 type RegistrationForm = {
@@ -49,7 +56,6 @@ type RegistrationForm = {
   active: boolean;
   eventDates: EventDate[];
   creator: { id: string; name: string };
-  viewers: Viewer[];
   customFields: CustomField[];
   _count: { submissions: number };
 };
@@ -61,7 +67,7 @@ type Submission = {
   origin: string;
   createdAt: string;
   unregisteredAt: string | null;
-  customAnswers: Record<string, string | number | boolean | string[]>;
+  customAnswers: Record<string, string | number | boolean | string[] | RegistrationQuantityAnswer>;
   attendances: {
     id: string;
     totalPersons: number;
@@ -83,8 +89,7 @@ const empty = {
   photoDataUrl: "",
   removePhoto: false,
   active: true,
-  eventDates: [""],
-  viewerIds: [] as string[],
+  eventDates: [],
   customFields: [] as CustomField[],
 };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
@@ -129,9 +134,7 @@ export default function RegistrationManagement() {
   const [notice, setNotice] = useState(""),
     [loading, setLoading] = useState(true);
   const [canManage, setCanManage] = useState(false),
-    [viewerOptions, setViewerOptions] = useState<Viewer[]>([]),
     [hideUnregistered, setHideUnregistered] = useState(true);
-  const [viewerQuery, setViewerQuery] = useState("");
   const headers = useMemo(
     () => ({
       "Content-Type": "application/json",
@@ -159,8 +162,6 @@ export default function RegistrationManagement() {
       setCanManage(capability.canManage);
       const assignedForms = await api("/api/registrations/admin/forms");
       setForms(assignedForms);
-      if (capability.canManage)
-        setViewerOptions(await api("/api/registrations/admin/viewer-options"));
     } catch (error: any) {
       flash(error.message);
     } finally {
@@ -172,7 +173,6 @@ export default function RegistrationManagement() {
   }, []);
   const open = (form?: RegistrationForm) => {
     if (!canManage) return;
-    setViewerQuery("");
     setEditor(
       form
         ? {
@@ -180,7 +180,6 @@ export default function RegistrationManagement() {
             customFields: Array.isArray(form.customFields)
               ? form.customFields
               : [],
-            viewerIds: form.viewers.map((viewer) => viewer.id),
             photoDataUrl: "",
             removePhoto: false,
             eventDates: form.eventDates.map((item) => day(item.eventDate)),
@@ -188,7 +187,6 @@ export default function RegistrationManagement() {
         : {
             ...empty,
             eventDates: [...empty.eventDates],
-            viewerIds: [],
             customFields: [],
           },
     );
@@ -203,6 +201,7 @@ export default function RegistrationManagement() {
           title: "",
           type: "TEXT",
           required: false,
+          countInSummary: false,
           options: [],
         },
       ],
@@ -243,8 +242,10 @@ export default function RegistrationManagement() {
           description: editor.description,
           active: editor.active,
           eventDates: editor.eventDates.filter(Boolean),
-          viewerIds: editor.viewerIds,
-          customFields: editor.customFields,
+          customFields: editor.customFields.map((field: CustomField) => ({
+            ...field,
+            options: cleanRegistrationOptionLines(field.options),
+          })),
         };
       let saved = await api(
         `/api/registrations/admin/forms${editing ? `/${editor.id}` : ""}`,
@@ -434,11 +435,6 @@ export default function RegistrationManagement() {
     detail?.submissions.filter(
       (submission) => !hideUnregistered || !submission.unregisteredAt,
     ) || [];
-  const filteredViewerOptions = viewerOptions.filter((viewer) =>
-    `${viewer.name} ${viewer.email} ${viewer.role || ""}`
-      .toLowerCase()
-      .includes(viewerQuery.trim().toLowerCase()),
-  );
   const registeredPersons = activeSubmissions.reduce(
     (total, submission) =>
       total +
@@ -478,6 +474,10 @@ export default function RegistrationManagement() {
         },
       ),
     ) || [];
+  const customFieldSummaries = registrationFieldSummaries(
+    detail?.customFields || [],
+    activeSubmissions,
+  );
   return (
     <div className="dash registrationAdmin">
       <aside>
@@ -524,20 +524,13 @@ export default function RegistrationManagement() {
           <div>
             <small>ADMINISTRATION / REGISTRATION · 管理 / 登记</small>
             <h1>Registration forms / 登记表格</h1>
-            <p>
-              {canManage
-                ? "Create event forms, share public links and review pre-registrations."
-                : "View registrations for forms assigned to you."}
-            </p>
+            <p>Create event forms, share public links and review pre-registrations.</p>
           </div>
-          {allowed("new") && (
+          {canManage && allowed("new") && (
             <button
               className="new"
-              disabled={!canManage}
               onClick={() => open()}
-              title={
-                canManage ? "Create registration form" : "View-only access"
-              }
+              title="Create registration form"
             >
               <Plus />
               New form / 新建表格
@@ -573,20 +566,11 @@ export default function RegistrationManagement() {
           {!loading && !forms.length && (
             <div className="registrationEmpty">
               <ClipboardList />
-              <h2>
-                {canManage
-                  ? "No registration forms yet"
-                  : "No registration forms assigned"}
-              </h2>
-              <p>
-                {canManage
-                  ? "Create the first form to receive outsider pre-registrations."
-                  : "Registration will appear here after an administrator assigns a form to you."}
-              </p>
-              {allowed("new") && (
+              <h2>No registration forms yet</h2>
+              <p>Create the first form to receive outsider pre-registrations.</p>
+              {canManage && allowed("new") && (
                 <button
                   className="new"
-                  disabled={!canManage}
                   onClick={() => open()}
                 >
                   <Plus />
@@ -639,30 +623,27 @@ export default function RegistrationManagement() {
                     <QrCode />
                   </button>
                 )}
-                {allowed("copy_link") && (
+                {canManage && allowed("copy_link") && (
                   <button
-                    disabled={!canManage}
-                    onClick={() => canManage && copyLink(form)}
-                    title={canManage ? "Copy public link" : "View-only access"}
+                    onClick={() => copyLink(form)}
+                    title="Copy public link"
                   >
                     <Copy />
                   </button>
                 )}
-                {allowed("edit") && (
+                {canManage && allowed("edit") && (
                   <button
-                    disabled={!canManage}
                     onClick={() => open(form)}
-                    title={canManage ? "Edit form" : "View-only access"}
+                    title="Edit form"
                   >
                     <Pencil />
                   </button>
                 )}
-                {allowed("delete") && (
+                {canManage && allowed("delete") && (
                   <button
-                    disabled={!canManage}
                     className="danger"
-                    onClick={() => canManage && remove(form)}
-                    title={canManage ? "Delete form" : "View-only access"}
+                    onClick={() => remove(form)}
+                    title="Delete form"
                   >
                     <Trash2 />
                   </button>
@@ -769,54 +750,6 @@ export default function RegistrationManagement() {
                 }
               />
             </label>
-            <fieldset>
-              <legend>Event dates</legend>
-              {editor.eventDates.map((value: string, index: number) => (
-                <div className="registrationDateInput" key={index}>
-                  <input
-                    type="date"
-                    required
-                    value={value}
-                    onChange={(event) =>
-                      setEditor({
-                        ...editor,
-                        eventDates: editor.eventDates.map(
-                          (item: string, itemIndex: number) =>
-                            itemIndex === index ? event.target.value : item,
-                        ),
-                      })
-                    }
-                  />
-                  <button
-                    type="button"
-                    disabled={editor.eventDates.length === 1}
-                    onClick={() =>
-                      setEditor({
-                        ...editor,
-                        eventDates: editor.eventDates.filter(
-                          (_: string, itemIndex: number) => itemIndex !== index,
-                        ),
-                      })
-                    }
-                  >
-                    <Trash2 />
-                  </button>
-                </div>
-              ))}
-              <button
-                className="addDate"
-                type="button"
-                onClick={() =>
-                  setEditor({
-                    ...editor,
-                    eventDates: [...editor.eventDates, ""],
-                  })
-                }
-              >
-                <Plus />
-                Add another date
-              </button>
-            </fieldset>
             <fieldset className="registrationCustomFields">
               <legend>Additional form fields</legend>
               <p>
@@ -847,7 +780,10 @@ export default function RegistrationManagement() {
                       onChange={(event) =>
                         updateCustomField(field.id, {
                           type: event.target.value as CustomField["type"],
-                          options: ["SELECT", "RADIO", "CHECKBOX"].includes(
+                          countInSummary: ["NUMBER", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(event.target.value)
+                            ? Boolean(field.countInSummary)
+                            : false,
+                          options: ["SELECT", "RADIO", "CHECKBOX", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(
                             event.target.value,
                           )
                             ? field.options
@@ -862,9 +798,11 @@ export default function RegistrationManagement() {
                       <option value="SELECT">Dropdown</option>
                       <option value="RADIO">Multiple choice</option>
                       <option value="CHECKBOX">Checkboxes</option>
+                      <option value="RADIO_QUANTITY">Multiple choice with Quantity</option>
+                      <option value="CHECKBOX_QUANTITY">Checkboxes with Quantity</option>
                     </select>
                   </label>
-                  {["SELECT", "RADIO", "CHECKBOX"].includes(field.type) && (
+                  {["SELECT", "RADIO", "CHECKBOX", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type) && (
                     <label className="registrationFieldOptions">
                       Options
                       <textarea
@@ -873,10 +811,9 @@ export default function RegistrationManagement() {
                         value={field.options.join("\n")}
                         onChange={(event) =>
                           updateCustomField(field.id, {
-                            options: event.target.value
-                              .split("\n")
-                              .map((item) => item.trim())
-                              .filter(Boolean),
+                            options: splitRegistrationOptionLines(
+                              event.target.value,
+                            ),
                           })
                         }
                         placeholder={"One option per line\nOption 1\nOption 2"}
@@ -895,6 +832,20 @@ export default function RegistrationManagement() {
                     />
                     Required
                   </label>
+                  {["NUMBER", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type) && (
+                    <label className="registrationFieldRequired registrationFieldSummaryCount">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(field.countInSummary)}
+                        onChange={(event) =>
+                          updateCustomField(field.id, {
+                            countInSummary: event.target.checked,
+                          })
+                        }
+                      />
+                      Count in summary
+                    </label>
+                  )}
                   <button
                     type="button"
                     className="danger"
@@ -932,51 +883,6 @@ export default function RegistrationManagement() {
               <span />
               Public form is open
             </label>
-            <fieldset className="registrationViewerAssignment">
-              <legend>View-only users</legend>
-              <p>Assigned users can only view registrations for this form.</p>
-              <label className="registrationViewerSearch">
-                <Search />
-                <input
-                  type="search"
-                  value={viewerQuery}
-                  onChange={(event) => setViewerQuery(event.target.value)}
-                  placeholder="Search by name, email or role"
-                  aria-label="Search view-only users"
-                />
-              </label>
-              <div>
-                {filteredViewerOptions.map((viewer) => (
-                  <label key={viewer.id}>
-                    <input
-                      type="checkbox"
-                      checked={editor.viewerIds.includes(viewer.id)}
-                      onChange={(event) =>
-                        setEditor({
-                          ...editor,
-                          viewerIds: event.target.checked
-                            ? [...editor.viewerIds, viewer.id]
-                            : editor.viewerIds.filter(
-                                (id: string) => id !== viewer.id,
-                              ),
-                        })
-                      }
-                    />
-                    <span>
-                      <b>{viewer.name}</b>
-                      <small>
-                        {viewer.email} · {viewer.role}
-                      </small>
-                    </span>
-                  </label>
-                ))}
-                {!filteredViewerOptions.length && (
-                  <small className="registrationViewerEmpty">
-                    No users match your search.
-                  </small>
-                )}
-              </div>
-            </fieldset>
             <div className="modalActions">
               <button type="button" onClick={() => setEditor(null)}>
                 Cancel
@@ -1017,6 +923,49 @@ export default function RegistrationManagement() {
               <span>Total persons registered / 已登记总人数</span>
               <strong>{registeredPersons}</strong>
             </div>
+            {customFieldSummaries.length > 0 && (
+              <section
+                className="registrationCustomSummary"
+                aria-label="Custom field totals"
+              >
+                {customFieldSummaries.map((summary) => (
+                  <article key={summary.id}>
+                    <header>
+                      <span>Total {summary.title}</span>
+                      <strong>{summary.total}</strong>
+                    </header>
+                    <div className="registrationCustomSummaryIdentity">
+                      <span>
+                        Volunteer / 志工
+                        <b>{summary.volunteers}</b>
+                      </span>
+                      <span>
+                        Non-Volunteer / 非志工
+                        <b>{summary.nonVolunteers}</b>
+                      </span>
+                    </div>
+                    {summary.breakdown.length > 0 && (
+                      <div className="registrationCustomSummaryOptions">
+                        {summary.breakdown.map((option) => (
+                          <span key={option.label}>
+                            <span>
+                              {option.label}
+                              <b>{option.total}</b>
+                            </span>
+                            <small>
+                              Volunteer / 志工 <b>{option.volunteers}</b>
+                            </small>
+                            <small>
+                              Non-Volunteer / 非志工 <b>{option.nonVolunteers}</b>
+                            </small>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </section>
+            )}
             <label className="registrationResponseFilter">
               <input
                 type="checkbox"
@@ -1101,13 +1050,9 @@ export default function RegistrationManagement() {
                         <div key={field.id}>
                           <dt>{field.title}</dt>
                           <dd>
-                            {Array.isArray(submission.customAnswers?.[field.id])
-                              ? (
-                                  submission.customAnswers[field.id] as string[]
-                                ).join(", ")
-                              : String(
-                                  submission.customAnswers?.[field.id] ?? "—",
-                                )}
+                            {registrationAnswerText(
+                              submission.customAnswers?.[field.id] ?? "—",
+                            )}
                           </dd>
                         </div>
                       ))}
@@ -1169,7 +1114,7 @@ export default function RegistrationManagement() {
                       Un-registered{" "}
                       {new Date(submission.unregisteredAt).toLocaleString()}
                     </small>
-                  ) : canManage ? (
+                  ) : (
                     <div className="responseActions">
                       <button
                         type="button"
@@ -1186,10 +1131,6 @@ export default function RegistrationManagement() {
                         Un-register / 取消登记
                       </button>
                     </div>
-                  ) : (
-                    <small className="registrationViewOnlyNote">
-                      View-only access
-                    </small>
                   )}
                 </article>
               ))}
