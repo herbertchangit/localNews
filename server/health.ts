@@ -509,6 +509,12 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
           orderBy: { createdAt: "desc" },
         }),
       ]);
+      const registeredNamesByForm = new Map<string, string[]>();
+      for (const submission of registrationSubmissions) {
+        const names = registeredNamesByForm.get(submission.formId) || [];
+        names.unshift(submission.registrantName);
+        registeredNamesByForm.set(submission.formId, names);
+      }
       const registrationAppointments: any[] = account?.phone ? registrationSubmissions
         .filter((submission) => isContactMatch(account.phone!, submission.contact))
         .flatMap((submission): any[] => {
@@ -520,6 +526,9 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
             submissionId: submission.id,
             customFields,
             customAnswers: compatibleRegistrationAnswers(customFields, storedAnswers),
+            registeredNames: submission.form.showRegistrantList
+              ? registeredNamesByForm.get(submission.formId) || []
+              : [],
           };
           const doctor = { specialization: "Event registration", qualification: "Local News Registration", experienceYears: 0, bio: submission.form.description, profileImage: submission.form.photoUrl, consultationFee: 0, user: { name: "Event Registration", email: "", phone: null, avatarUrl: null } };
           if (!submission.attendances.length) return [{

@@ -87,6 +87,7 @@ type Appointment = {
     checkedInAt?: string | null;
     customFields: EditableRegistrationField[];
     customAnswers: Record<string, EditableRegistrationAnswer>;
+    registeredNames: string[];
   };
   event: { name: string; eventDate: string; location: string; address: string };
   doctor: {
@@ -996,6 +997,16 @@ export function AudienceAppointments() {
                     <p className="audienceAppointmentReason">
                       <b>Reason:</b> {item.reason}
                     </p>
+                  )}
+                  {item.registration?.registeredNames?.length > 0 && (
+                    <section className="appointmentRegistrantList">
+                      <strong>Registered participants / 已登记名单</strong>
+                      <ol>
+                        {item.registration.registeredNames.map((name, index) => (
+                          <li key={`${index}-${name}`}>{name}</li>
+                        ))}
+                      </ol>
+                    </section>
                   )}
                 </article>
               );

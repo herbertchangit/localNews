@@ -105,6 +105,7 @@ model RegistrationForm {
   photoUrl     String?
   slug         String                   @unique
   active       Boolean                  @default(true)
+  showRegistrantList Boolean            @default(false)
   customFields Json                     @default("[]")
   creatorId    String
   creator      User                     @relation("RegistrationFormCreator", fields: [creatorId], references: [id])

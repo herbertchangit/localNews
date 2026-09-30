@@ -59,6 +59,7 @@ type RegistrationForm = {
   photoUrl: string | null;
   slug: string;
   active: boolean;
+  showRegistrantList: boolean;
   eventDates: EventDate[];
   creator: { id: string; name: string };
   customFields: CustomField[];
@@ -72,6 +73,7 @@ type Submission = {
   origin: string;
   createdAt: string;
   unregisteredAt: string | null;
+  roles: string[];
   customAnswers: Record<string, string | number | boolean | string[] | RegistrationQuantityAnswer>;
   attendances: {
     id: string;
@@ -94,11 +96,17 @@ const empty = {
   photoDataUrl: "",
   removePhoto: false,
   active: true,
+  showRegistrantList: false,
   eventDates: [],
   customFields: [] as CustomField[],
 };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const day = (value: string) => value.slice(0, 10);
+const roleLabel = (role: string) =>
+  role
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 const submissionSignature = (submission: Submission) =>
   JSON.stringify({
     registrantName: submission.registrantName,
@@ -262,6 +270,7 @@ export default function RegistrationManagement() {
           eventName: editor.eventName,
           description: editor.description,
           active: editor.active,
+          showRegistrantList: Boolean(editor.showRegistrantList),
           eventDates: editor.eventDates.filter(Boolean),
           customFields: editor.customFields.map((field: CustomField) => ({
             ...field,
@@ -917,6 +926,19 @@ export default function RegistrationManagement() {
                 Add field
               </button>
             </fieldset>
+            <label className="registrationRegistrantVisibility">
+              <input
+                type="checkbox"
+                checked={Boolean(editor.showRegistrantList)}
+                onChange={(event) =>
+                  setEditor({
+                    ...editor,
+                    showRegistrantList: event.target.checked,
+                  })
+                }
+              />
+              Allow registrants to see the registered-name list
+            </label>
             <label className="registrationSwitch">
               <input
                 type="checkbox"
@@ -1079,6 +1101,14 @@ export default function RegistrationManagement() {
                     <div className="responseRegistrantDetails">
                       <span>
                         Name / 姓名: <b>{submission.registrantName}</b>
+                      </span>
+                      <span>
+                        Role / 角色:{" "}
+                        <b>
+                          {submission.roles?.length
+                            ? submission.roles.map(roleLabel).join(", ")
+                            : "—"}
+                        </b>
                       </span>
                       <span className="responseRegistrantMobile">
                         Mobile number / 手机号码: <b>{submission.contact}</b>

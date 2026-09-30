@@ -33,6 +33,7 @@ const formInput = z.object({
   eventName: z.string().trim().min(2).max(160),
   description: z.string().trim().min(2).max(5000),
   active: z.boolean().optional().default(true),
+  showRegistrantList: z.boolean().optional().default(false),
   eventDates: z.array(dateValue).max(60).transform((dates) => [...new Set(dates)]),
   customFields: z.array(customFieldInput).max(100).optional().default([])
     .refine((fields) => new Set(fields.map((field) => field.id)).size === fields.length, "Custom field IDs must be unique")
@@ -329,6 +330,7 @@ export function createRegistrationRouter(db: any, secret: string) {
         eventName: data.eventName,
         description: data.description,
         active: data.active,
+        showRegistrantList: data.showRegistrantList,
         customFields: data.customFields,
         slug: await availableSlug(data.eventName),
         creatorId: req.user.id,
@@ -350,7 +352,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.$transaction([
       db.registrationEventDate.deleteMany({ where: { formId: current.id, eventDate: { notIn: data.eventDates.map(dateAtUtcMidnight) } } }),
       db.registrationEventDate.createMany({ data: data.eventDates.filter((date) => !existing.has(date)).map((eventDate) => ({ formId: current.id, eventDate: dateAtUtcMidnight(eventDate) })) }),
-      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, customFields: data.customFields } }),
+      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, showRegistrantList: data.showRegistrantList, customFields: data.customFields } }),
     ]);
     const form = await db.registrationForm.findUnique({ where: { id: current.id }, include });
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
@@ -395,7 +397,25 @@ export function createRegistrationRouter(db: any, secret: string) {
         submissions: { orderBy: { createdAt: "desc" }, include: { attendances: { include: { eventDate: true }, orderBy: { eventDate: { eventDate: "asc" } } } } },
       },
     });
-    form ? res.json(form) : res.status(404).json({ error: "Registration form not found" });
+    if (!form) return res.status(404).json({ error: "Registration form not found" });
+    const accountUsers = await db.user.findMany({
+      where: { phone: { not: null } },
+      select: { phone: true, role: true, roles: true, customRoles: true },
+    });
+    res.json({
+      ...form,
+      submissions: form.submissions.map((submission: any) => {
+        const account = accountUsers.find((user: any) =>
+          isContactMatch(submission.contact, user.phone),
+        );
+        return {
+          ...submission,
+          roles: account
+            ? [...new Set([account.role, ...(account.roles || []), ...(account.customRoles || [])])]
+            : [],
+        };
+      }),
+    });
   });
   router.get("/admin/forms/:id/attendance-codes", authenticate, manage, async (req: any, res) => {
     const form = await db.registrationForm.findUnique({
