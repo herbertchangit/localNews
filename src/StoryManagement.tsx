@@ -44,6 +44,7 @@ import { openStoryComposer } from "./StoryComposer";
 import { useAuthorities } from "./menuAccess";
 
 type Category = { id: string; name: string };
+type RegistrationOption = { id: string; eventName: string; slug: string };
 type StoryPhoto = {
   id: string;
   url: string;
@@ -71,6 +72,7 @@ type Story = {
   category: Category;
   categoryId: string;
   storyDate?: string | null;
+  registrationFormId?: string | null;
 };
 type Session = { token: string; user: { name: string; role: string } };
 
@@ -100,6 +102,7 @@ export default function StoryManagement() {
   const maxMediaItems = isAdmin || isEditor ? 100 : 12;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [registrationForms, setRegistrationForms] = useState<RegistrationOption[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [editing, setEditing] = useState<Story | null>(null);
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
@@ -141,6 +144,7 @@ export default function StoryManagement() {
       ]);
       setStories(items);
       setCategories(options.categories);
+      setRegistrationForms(options.registrationForms || []);
       setCanCreate(Boolean(options.canCreate));
     } catch (error: any) {
       setNotice(error.message);
@@ -286,6 +290,7 @@ export default function StoryManagement() {
           content,
           categoryId: draft.categoryId,
           storyDate: draft.storyDate || null,
+          registrationFormId: draft.registrationFormId || null,
           ...(canManageVisibility ? { isPublic: draft.isPublic } : {}),
         }),
       });
@@ -1018,6 +1023,22 @@ export default function StoryManagement() {
                   updateEditing({ storyDate: event.target.value || null })
                 }
               />
+            </label>
+            <label>
+              Link to open registration / 連結開放報名
+              <select
+                value={editing.registrationFormId || ""}
+                onChange={(event) =>
+                  updateEditing({ registrationFormId: event.target.value || null })
+                }
+              >
+                <option value="">No linked registration / 不連結報名</option>
+                {registrationForms.map((registration) => (
+                  <option key={registration.id} value={registration.id}>
+                    {registration.eventName}
+                  </option>
+                ))}
+              </select>
             </label>
             {canManageVisibility && (
               <div className="storyVisibilityControl">

@@ -7,7 +7,7 @@ import { isRegistrationQuantityAnswer, type RegistrationQuantityAnswer } from ".
 
 type EventDate = { id: string; eventDate: string };
 type CustomField = { id: string; title: string; type: "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "RADIO" | "CHECKBOX" | "RADIO_QUANTITY" | "CHECKBOX_QUANTITY"; required: boolean; options: string[] };
-type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; eventDates: EventDate[]; customFields: CustomField[] };
+type Form = { id: string; eventName: string; description: string; photoUrl: string | null; slug: string; fromEventDate: string | null; toEventDate: string | null; eventType: "APPOINTMENT" | "ORDER"; eventDates: EventDate[]; customFields: CustomField[] };
 type AreaOption = { id: string; name: string; mutualLove: { id: string; name: string; harmony: { id: string; name: string } } };
 type Session = { token: string; user: { name?: string; role?: string } };
 
@@ -151,9 +151,17 @@ export default function PublicRegistration() {
     {form && done && showPassword && <main className="publicRegistrationCard registrationPasswordCard"><small>CREATE YOUR PASSWORD / 设置新密码</small><h1>Activate your DADE account / 启用您的慈济人账户</h1><p>After saving, Your Appointments will open automatically.<br/>保存后将自动打开“您的预约”。</p>{error&&<div className="registrationError">{error}</div>}<form onSubmit={savePassword}><label>New password / 新密码<input autoFocus required minLength={8} maxLength={72} type="password" value={passwords.newPassword} onChange={event=>setPasswords({...passwords,newPassword:event.target.value})}/></label><label>Confirm password / 确认密码<input required minLength={8} maxLength={72} type="password" value={passwords.confirmPassword} onChange={event=>setPasswords({...passwords,confirmPassword:event.target.value})}/></label><button className="publicRegistrationSubmit" disabled={busy}>{busy?"Saving… / 正在保存…":"Save password and view appointments / 保存并查看预约"}</button></form></main>}
     {form && !done && <main className="publicRegistrationCard">
       {form.photoUrl && <img className="publicRegistrationPhoto" src={form.photoUrl} alt={`${form.eventName} event`} />}
-      <small>EVENT PRE-REGISTRATION FORM / 活动预登记表格</small>
+      <small>{form.eventType === "ORDER" ? "EVENT ORDER FORM / 活动订购表格" : "EVENT PRE-REGISTRATION FORM / 活动预登记表格"}</small>
       <h1>{form.eventName}</h1>
       <p className="registrationDescription">{form.description}</p>
+      {form.fromEventDate && form.toEventDate && (
+        <p className="publicRegistrationEventRange">
+          <b>Event date / 活动日期:</b>{" "}
+          {new Date(form.fromEventDate).toLocaleDateString()}
+          {form.toEventDate.slice(0, 10) !== form.fromEventDate.slice(0, 10) &&
+            ` – ${new Date(form.toEventDate).toLocaleDateString()}`}
+        </p>
+      )}
       {error && <div className="registrationError">{error}</div>}
       <form onSubmit={submit}>
         <label>Registrant name / 登记人姓名<input required minLength={2} maxLength={120} value={values.registrantName} onChange={(event) => setValues({ ...values, registrantName: event.target.value })} /></label>

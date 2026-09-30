@@ -60,6 +60,9 @@ type RegistrationForm = {
   slug: string;
   active: boolean;
   showRegistrantList: boolean;
+  fromEventDate: string | null;
+  toEventDate: string | null;
+  eventType: "APPOINTMENT" | "ORDER";
   eventDates: EventDate[];
   creator: { id: string; name: string };
   customFields: CustomField[];
@@ -97,6 +100,9 @@ const empty = {
   removePhoto: false,
   active: true,
   showRegistrantList: false,
+  fromEventDate: "",
+  toEventDate: "",
+  eventType: "APPOINTMENT",
   eventDates: [],
   customFields: [] as CustomField[],
 };
@@ -211,6 +217,8 @@ export default function RegistrationManagement() {
               : [],
             photoDataUrl: "",
             removePhoto: false,
+            fromEventDate: form.fromEventDate ? day(form.fromEventDate) : "",
+            toEventDate: form.toEventDate ? day(form.toEventDate) : "",
             eventDates: form.eventDates.map((item) => day(item.eventDate)),
           }
         : {
@@ -271,6 +279,9 @@ export default function RegistrationManagement() {
           description: editor.description,
           active: editor.active,
           showRegistrantList: Boolean(editor.showRegistrantList),
+          fromEventDate: editor.fromEventDate,
+          toEventDate: editor.toEventDate,
+          eventType: editor.eventType,
           eventDates: editor.eventDates.filter(Boolean),
           customFields: editor.customFields.map((field: CustomField) => ({
             ...field,
@@ -803,6 +814,53 @@ export default function RegistrationManagement() {
                   setEditor({ ...editor, description: event.target.value })
                 }
               />
+            </label>
+            <div className="registrationEventDateRange">
+              <label>
+                From Event Date
+                <input
+                  required
+                  type="date"
+                  value={editor.fromEventDate}
+                  onChange={(event) =>
+                    setEditor({
+                      ...editor,
+                      fromEventDate: event.target.value,
+                      toEventDate:
+                        editor.toEventDate && editor.toEventDate < event.target.value
+                          ? event.target.value
+                          : editor.toEventDate,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                To Event Date
+                <input
+                  required
+                  type="date"
+                  min={editor.fromEventDate || undefined}
+                  value={editor.toEventDate}
+                  onChange={(event) =>
+                    setEditor({ ...editor, toEventDate: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <label className="registrationEventType">
+              Event Type
+              <select
+                value={editor.eventType}
+                onChange={(event) =>
+                  setEditor({
+                    ...editor,
+                    eventType: event.target.value as "APPOINTMENT" | "ORDER",
+                  })
+                }
+              >
+                <option value="APPOINTMENT">Appointment</option>
+                <option value="ORDER">Order</option>
+              </select>
             </label>
             <fieldset className="registrationCustomFields">
               <legend>Additional form fields</legend>

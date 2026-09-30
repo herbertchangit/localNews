@@ -106,6 +106,9 @@ model RegistrationForm {
   slug         String                   @unique
   active       Boolean                  @default(true)
   showRegistrantList Boolean            @default(false)
+  fromEventDate DateTime?
+  toEventDate   DateTime?
+  eventType     String                   @default("APPOINTMENT")
   customFields Json                     @default("[]")
   creatorId    String
   creator      User                     @relation("RegistrationFormCreator", fields: [creatorId], references: [id])
@@ -113,6 +116,7 @@ model RegistrationForm {
   eventDates   RegistrationEventDate[]
   submissions  RegistrationSubmission[]
   invitations RegistrationInvitation[]
+  linkedArticles Article[]
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
 
@@ -303,6 +307,8 @@ model Article {
   author      User            @relation(fields: [authorId], references: [id])
   categoryId  String
   category    Category        @relation(fields: [categoryId], references: [id])
+  registrationFormId String?
+  registrationForm RegistrationForm? @relation(fields: [registrationFormId], references: [id], onDelete: SetNull)
   storyDate   DateTime?
   publishedAt DateTime?
   createdAt   DateTime        @default(now())
@@ -310,6 +316,8 @@ model Article {
   comments    Comment[]
   responses   StoryResponse[]
   photos      ArticlePhoto[]
+
+  @@index([registrationFormId])
 }
 
 model ArticlePhoto {

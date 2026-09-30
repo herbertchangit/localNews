@@ -11,6 +11,7 @@ import { isContactMatch, loginEmailForContact } from "./loginIdentifier.js";
 import { findContactRegistration, findRegistrationConflicts } from "./registrationDuplicate.js";
 import { attendanceDateError } from "./attendanceDate.js";
 import { appointmentExpired } from "./appointmentExpiry.js";
+import { validRegistrationEventRange } from "./registrationEventRange.js";
 
 const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
@@ -34,11 +35,17 @@ const formInput = z.object({
   description: z.string().trim().min(2).max(5000),
   active: z.boolean().optional().default(true),
   showRegistrantList: z.boolean().optional().default(false),
+  fromEventDate: dateValue,
+  toEventDate: dateValue,
+  eventType: z.enum(["APPOINTMENT", "ORDER"]).default("APPOINTMENT"),
   eventDates: z.array(dateValue).max(60).transform((dates) => [...new Set(dates)]),
   customFields: z.array(customFieldInput).max(100).optional().default([])
     .refine((fields) => new Set(fields.map((field) => field.id)).size === fields.length, "Custom field IDs must be unique")
     .refine((fields) => fields.every((field) => !["SELECT", "RADIO", "CHECKBOX", "RADIO_QUANTITY", "CHECKBOX_QUANTITY"].includes(field.type) || field.options.length > 0), "Choice fields require at least one option"),
-});
+}).refine(
+  (form) => validRegistrationEventRange(form.fromEventDate, form.toEventDate),
+  { path: ["toEventDate"], message: "To Event Date cannot be earlier than From Event Date" },
+);
 const customAnswerValue = z.union([z.string().max(5000), z.number().finite(), z.boolean(), z.array(z.string().max(120)).max(50), z.record(z.coerce.number().int().min(0).max(999))]);
 const submissionInput = z.object({
   registrantName: z.string().trim().min(2).max(120),
@@ -331,6 +338,9 @@ export function createRegistrationRouter(db: any, secret: string) {
         description: data.description,
         active: data.active,
         showRegistrantList: data.showRegistrantList,
+        fromEventDate: dateAtUtcMidnight(data.fromEventDate),
+        toEventDate: dateAtUtcMidnight(data.toEventDate),
+        eventType: data.eventType,
         customFields: data.customFields,
         slug: await availableSlug(data.eventName),
         creatorId: req.user.id,
@@ -352,7 +362,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     await db.$transaction([
       db.registrationEventDate.deleteMany({ where: { formId: current.id, eventDate: { notIn: data.eventDates.map(dateAtUtcMidnight) } } }),
       db.registrationEventDate.createMany({ data: data.eventDates.filter((date) => !existing.has(date)).map((eventDate) => ({ formId: current.id, eventDate: dateAtUtcMidnight(eventDate) })) }),
-      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, showRegistrantList: data.showRegistrantList, customFields: data.customFields } }),
+      db.registrationForm.update({ where: { id: current.id }, data: { eventName: data.eventName, description: data.description, active: data.active, showRegistrantList: data.showRegistrantList, fromEventDate: dateAtUtcMidnight(data.fromEventDate), toEventDate: dateAtUtcMidnight(data.toEventDate), eventType: data.eventType, customFields: data.customFields } }),
     ]);
     const form = await db.registrationForm.findUnique({ where: { id: current.id }, include });
     await db.auditLog.create({ data: { action: "REGISTRATION_FORM_UPDATED", actorId: req.user.id, metadata: { formId: current.id } } });
@@ -504,7 +514,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     });
   });
   router.get("/public/:slug", async (req, res) => {
-    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, photoUrl: true, slug: true, customFields: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
+    const form = await db.registrationForm.findFirst({ where: { slug: req.params.slug, active: true }, select: { id: true, eventName: true, description: true, photoUrl: true, slug: true, fromEventDate: true, toEventDate: true, eventType: true, customFields: true, eventDates: { select: { id: true, eventDate: true }, orderBy: { eventDate: "asc" } } } });
     form ? res.json(form) : res.status(404).json({ error: "This registration form is unavailable" });
   });
   router.post("/public/:slug/submissions", async (req, res) => {

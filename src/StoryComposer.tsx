@@ -14,6 +14,7 @@ import RichTextEditor from "./RichTextEditor";
 import { richTextToPlainText } from "./richTextUtils";
 
 type Category = { id: string; name: string };
+type RegistrationOption = { id: string; eventName: string; slug: string };
 type DraftPhoto = { id: string; dataUrl: string; caption: string };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const OPEN_STORY_COMPOSER_EVENT = "localnews:open-story-composer";
@@ -34,6 +35,7 @@ export default function StoryComposer() {
     token = session()?.token;
   const [canCreate, setCanCreate] = useState(false),
     [categories, setCategories] = useState<Category[]>([]),
+    [registrationForms, setRegistrationForms] = useState<RegistrationOption[]>([]),
     [host, setHost] = useState<HTMLElement | null>(null),
     [open, setOpen] = useState(false),
     [notice, setNotice] = useState("");
@@ -50,6 +52,7 @@ export default function StoryComposer() {
       .then((data) => {
         setCanCreate(data.canCreate);
         setCategories(data.categories);
+        setRegistrationForms(data.registrationForms || []);
       })
       .catch(() => setCanCreate(false));
   }, [token]);
@@ -105,6 +108,7 @@ export default function StoryComposer() {
         createPortal(
           <StoryModal
             categories={categories}
+            registrationForms={registrationForms}
             token={token}
             onClose={() => setOpen(false)}
             onCreated={created}
@@ -117,11 +121,13 @@ export default function StoryComposer() {
 
 function StoryModal({
   categories,
+  registrationForms,
   token,
   onClose,
   onCreated,
 }: {
   categories: Category[];
+  registrationForms: RegistrationOption[];
   token: string;
   onClose: () => void;
   onCreated: (title: string) => void;
@@ -135,6 +141,7 @@ function StoryModal({
       content: "",
       categoryId: categories[0]?.id || "",
       storyDate: "",
+      registrationFormId: "",
       isPublic: true,
     }),
     [photos, setPhotos] = useState<DraftPhoto[]>([]),
@@ -186,7 +193,11 @@ function StoryModal({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...form, storyDate: form.storyDate || null }),
+        body: JSON.stringify({
+          ...form,
+          storyDate: form.storyDate || null,
+          registrationFormId: form.registrationFormId || null,
+        }),
       });
       const story = await response.json();
       if (!response.ok) throw new Error(story.error || "Could not save story");
@@ -358,6 +369,22 @@ function StoryModal({
               setForm({ ...form, storyDate: event.target.value })
             }
           />
+        </label>
+        <label>
+          Link to open registration / 連結開放報名
+          <select
+            value={form.registrationFormId}
+            onChange={(event) =>
+              setForm({ ...form, registrationFormId: event.target.value })
+            }
+          >
+            <option value="">No linked registration / 不連結報名</option>
+            {registrationForms.map((registration) => (
+              <option key={registration.id} value={registration.id}>
+                {registration.eventName}
+              </option>
+            ))}
+          </select>
         </label>
         {canManageVisibility && (
           <div className="storyVisibilityControl">

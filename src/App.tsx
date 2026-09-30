@@ -755,7 +755,7 @@ function SessionSidebarMenu({ current }: { current: Session }) {
           onClick={() => go(appointmentPath)}
         >
           <CalendarCheck2 />
-          Appointments
+          Appointments/Orders
           {appointmentCount > 0 && <em>{appointmentCount}</em>}
         </button>
       )}

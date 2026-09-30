@@ -61,7 +61,38 @@ type Story = {
   publishedAt?: string;
   category: { name: string };
   author: { name: string };
+  registrationForm?: {
+    id: string;
+    eventName: string;
+    slug: string;
+    active: boolean;
+    submissions: { id: string; registrantName: string }[];
+  } | null;
 };
+function StoryRegistrationParticipants({ story }: { story: Story }) {
+  const registration = story.registrationForm;
+  if (!registration) return null;
+  return (
+    <section className="storyRegistrationParticipants">
+      <div>
+        <b>Registered participants / 已報名參與者</b>
+        <span>{registration.submissions.length}</span>
+      </div>
+      {registration.submissions.length > 0 && (
+        <ol>
+          {registration.submissions.map((submission) => (
+            <li key={submission.id}>{submission.registrantName}</li>
+          ))}
+        </ol>
+      )}
+      {registration.active && (
+        <Link to={`/registration/${registration.slug}`}>
+          Open registration / 開啟報名
+        </Link>
+      )}
+    </section>
+  );
+}
 type NewsCategory = { id: string; name: string; slug: string };
 type Me = {
   id: string;
@@ -88,8 +119,9 @@ type Appointment = {
     customFields: EditableRegistrationField[];
     customAnswers: Record<string, EditableRegistrationAnswer>;
     registeredNames: string[];
+    eventType: "APPOINTMENT" | "ORDER";
   };
-  event: { name: string; eventDate: string; location: string; address: string };
+  event: { name: string; eventDate: string; toEventDate?: string | null; location: string; address: string };
   doctor: {
     specialization: string;
     qualification: string;
@@ -292,7 +324,7 @@ export function AudienceSidebar({
           onClick={() => setMenuOpen(false)}
         >
           <CalendarCheck2 />
-          Appointments{appointmentCount > 0 && <em>{appointmentCount}</em>}
+          Appointments/Orders{appointmentCount > 0 && <em>{appointmentCount}</em>}
         </Link>}
         {visible("settings") && <Link
           className={`audienceSidebarLink${active === "settings" ? " active" : ""}`}
@@ -394,6 +426,7 @@ export function AudienceDashboard() {
                       value={s.excerpt}
                       className="audienceRichSummary"
                     />
+                    <StoryRegistrationParticipants story={s} />
                     <Link
                       className="audienceReadStory"
                       to={`/stories/${s.slug}`}
@@ -786,9 +819,9 @@ export function AudienceAppointments() {
         <div className="top">
           <div>
             <small>AUDIENCE / TALK WITH DOC</small>
-            <h1>Your appointments</h1>
+            <h1>Your appointments/orders</h1>
             <p>
-              Review your upcoming and previous health-service appointments.
+              Review your appointments and event orders.
             </p>
           </div>
           <button className="new appointmentScanButton" onClick={openScanner}>
@@ -811,11 +844,23 @@ export function AudienceAppointments() {
               const expired = item.registration?.dateFree
                 ? false
                 : appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime);
+              const registrationStartDate = item.registration
+                ? new Date(item.event.eventDate)
+                : null;
+              const registrationEndDate = item.registration && item.event.toEventDate
+                ? new Date(item.event.toEventDate)
+                : null;
+              const registrationIsMultiDay = Boolean(
+                registrationStartDate &&
+                  registrationEndDate &&
+                  registrationStartDate.toISOString().slice(0, 10) !==
+                    registrationEndDate.toISOString().slice(0, 10),
+              );
               const doctorPhoto =
                 item.doctor.profileImage || item.doctor.user.avatarUrl;
               return (
                 <article
-                  className={`panel audienceAppointmentCard${item.status === "CANCELLED" ? " isCancelled" : ""}`}
+                  className={`panel audienceAppointmentCard${item.registration ? " registrationAppointmentCard" : ""}${item.status === "CANCELLED" ? " isCancelled" : ""}`}
                   key={item.id}
                   role="button"
                   tabIndex={0}
@@ -832,31 +877,47 @@ export function AudienceAppointments() {
                     <CalendarCheck2 />
                     <span>
                       <b>
-                        {new Date(item.event.eventDate).toLocaleDateString(
+                        {item.registration ? (
+                          <>
+                            <span>
+                              From: {registrationStartDate?.toLocaleDateString(
+                                undefined,
+                                { weekday: "short", day: "numeric", month: "short", year: "numeric" },
+                              )}
+                            </span>
+                            {registrationIsMultiDay && (
+                              <span>
+                                To: {registrationEndDate?.toLocaleDateString(
+                                  undefined,
+                                  { weekday: "short", day: "numeric", month: "short", year: "numeric" },
+                                )}
+                              </span>
+                            )}
+                          </>
+                        ) : new Date(item.event.eventDate).toLocaleDateString(
                           undefined,
-                          {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          },
+                          { weekday: "short", day: "numeric", month: "short", year: "numeric" },
                         )}
                       </b>
-                      <small>
-                        <Clock />
-                        {item.startTime}–{item.endTime}
-                      </small>
+                      {!item.registration && (
+                        <small>
+                          <Clock />
+                          {item.startTime}–{item.endTime}
+                        </small>
+                      )}
                     </span>
                   </div>
                   <div className="audienceAppointmentEvent">
-                    <small>HEALTH EVENT</small>
+                    {!item.registration && <small>HEALTH EVENT</small>}
                     <h2>{item.event.name}</h2>
-                    <p>
-                      <MapPin />
-                      {item.event.location} · {item.event.address}
-                    </p>
+                    {!item.registration && (
+                      <p>
+                        <MapPin />
+                        {item.event.location} · {item.event.address}
+                      </p>
+                    )}
                   </div>
-                  <div className="audienceAppointmentDoctor">
+                  {!item.registration && <div className="audienceAppointmentDoctor">
                     {doctorPhoto ? (
                       <img src={doctorPhoto} alt="" />
                     ) : (
@@ -872,7 +933,7 @@ export function AudienceAppointments() {
                       <b>{item.doctor.user.name}</b>
                       <small>{item.doctor.specialization}</small>
                     </span>
-                  </div>
+                  </div>}
                   {item.registration?.attendanceId && (
                     <div
                       className="audienceRegistrationEditor"
@@ -1567,6 +1628,7 @@ export function AudienceHomepageDashboard() {
                         value={story.excerpt}
                         className="cardRichSummary"
                       />
+                      <StoryRegistrationParticipants story={story} />
                       <div className="dailyBriefStoryFooter">
                         <div className="storyPrimaryActions">
                           <Link

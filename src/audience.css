@@ -32,3 +32,42 @@
 .audienceRegistrationEditor input:disabled,.audienceRegistrationEditor select:disabled{cursor:not-allowed;background:#e2e7e3;color:#78827c}.audienceRegistrationEditor button:disabled{cursor:not-allowed;filter:grayscale(.35);opacity:.42}
 .audienceRegistrationCustomEditor{grid-column:1/-1;padding:16px;background:#f7f4eb;border:1px solid #ded7c6;cursor:default}.audienceRegistrationCustomEditor>strong{display:block;margin-bottom:12px;color:#204d3a;font-size:11px}.audienceRegistrationCustomEditor>button{display:flex;align-items:center;justify-content:center;gap:6px;margin:12px 0 0 auto;border:0;background:#236047;padding:10px 14px;color:#fff;font-size:10px;font-weight:800;cursor:pointer}.audienceRegistrationCustomEditor>button:disabled{opacity:.5;cursor:wait}.audienceRegistrationCustomEditor>button svg{width:14px}.registrationAnswersEditor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.registrationAnswersEditor>label,.registrationAnswersEditor fieldset{display:flex;flex-direction:column;gap:6px;margin:0;padding:11px;border:1px solid #d7ddd7;color:#33493e;font-size:9px;font-weight:800}.registrationAnswersEditor fieldset label{display:flex;align-items:center;gap:7px}.registrationAnswersEditor input,.registrationAnswersEditor select,.registrationAnswersEditor textarea{width:100%;border:1px solid #c8d1cb;background:#fff;padding:9px;color:#16241d;font:600 11px inherit}.registrationAnswersEditor input[type=checkbox],.registrationAnswersEditor input[type=radio]{width:auto}.registrationAnswerQuantities>div{display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center}.registrationAnswerQuantities>div>input{padding:7px}.registrationAnswersEditor :disabled{cursor:not-allowed;background:#e5e9e6;color:#77827b}@media(max-width:600px){.registrationAnswersEditor{grid-template-columns:1fr}.audienceRegistrationCustomEditor>button{width:100%;margin-left:0}}
 .appointmentRegistrantList{grid-column:1/-1;padding:14px 16px;border-top:1px solid #dde3dd;background:#f6f8f5;cursor:default}.appointmentRegistrantList>strong{display:block;margin-bottom:9px;color:#214f3c;font-size:10px}.appointmentRegistrantList ol{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:5px 24px;margin:0;padding-left:24px}.appointmentRegistrantList li{color:#536159;font-size:10px;line-height:1.5}@media(max-width:600px){.appointmentRegistrantList{grid-column:auto}.appointmentRegistrantList ol{grid-template-columns:1fr}}
+.registrationAppointmentCard{grid-template-columns:minmax(235px,270px) 1fr auto}.registrationAppointmentCard .audienceAppointmentDate>span>b{display:flex;flex-direction:column;gap:4px}.registrationAppointmentCard .audienceAppointmentDate{min-height:92px}@media(max-width:900px){.registrationAppointmentCard{grid-template-columns:1fr 1fr}}@media(max-width:600px){.registrationAppointmentCard{grid-template-columns:1fr}}
+.storyRegistrationParticipants {
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(20, 75, 59, 0.2);
+  background: rgba(20, 75, 59, 0.05);
+}
+
+.storyRegistrationParticipants > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.storyRegistrationParticipants > div span {
+  min-width: 1.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--green, #144b3b);
+  color: #fff;
+  text-align: center;
+}
+
+.storyRegistrationParticipants ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.35rem 1.5rem;
+  margin: 0.75rem 0;
+  padding-left: 1.3rem;
+}
+
+.storyRegistrationParticipants > a {
+  display: inline-block;
+  margin-top: 0.65rem;
+  color: var(--green, #144b3b);
+  font-weight: 700;
+  text-decoration: underline;
+}

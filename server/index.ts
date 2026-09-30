@@ -705,16 +705,28 @@ app.get("/api/categories", async (_q, r) =>
     }),
   ),
 );
-app.get("/api/story-options", auth(), async (q: Req, r) =>
-  r.json({
-    canCreate: await canCreateStory(q.user!.id),
-    categories: await db.category.findMany({
+app.get("/api/story-options", auth(), async (q: Req, r) => {
+  const [canCreate, categories, registrationForms] = await Promise.all([
+    canCreateStory(q.user!.id),
+    db.category.findMany({
       where: { archived: false },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-  }),
-);
+    db.registrationForm.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        eventName: true,
+        slug: true,
+        fromEventDate: true,
+        toEventDate: true,
+      },
+      orderBy: [{ fromEventDate: "asc" }, { eventName: "asc" }],
+    }),
+  ]);
+  r.json({ canCreate, categories, registrationForms });
+});
 const jingSiInput = z.object({ content: z.string().trim().min(2).max(500) });
 app.get("/api/jingsi/current", async (_q, r) => {
   r.set("Cache-Control", "no-store");
@@ -829,7 +841,27 @@ const articleInclude = {
   photos: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
   },
+  registrationForm: {
+    select: {
+      id: true,
+      eventName: true,
+      slug: true,
+      active: true,
+      submissions: {
+        where: { unregisteredAt: null },
+        select: { id: true, registrantName: true },
+        orderBy: { createdAt: "asc" as const },
+      },
+    },
+  },
 };
+const articleForViewer = (article: any, user?: { id: string }) =>
+  user || !article.registrationForm
+    ? article
+    : {
+        ...article,
+        registrationForm: { ...article.registrationForm, submissions: [] },
+      };
 const richTextOptions = {
   allowedTags: [
     "p",
@@ -896,7 +928,16 @@ const newsroomArticleInput = z.object({
   categoryId: z.string().optional(),
   storyDate: storyDateField,
   isPublic: z.boolean().optional(),
+  registrationFormId: z.string().min(1).nullable().optional(),
 });
+const validateOpenRegistrationLink = async (registrationFormId?: string | null) => {
+  if (!registrationFormId) return true;
+  const form = await db.registrationForm.findFirst({
+    where: { id: registrationFormId, active: true },
+    select: { id: true },
+  });
+  return Boolean(form);
+};
 const storyImageBody = z.object({
   dataUrl: z.string().max(7_500_000),
   caption: z.string().trim().max(240).optional().default(""),
@@ -981,6 +1022,8 @@ app.patch(
         .status(403)
         .json({ error: "You can only edit your own stories" });
     const changes = newsroomArticleInput.parse(q.body);
+    if (!(await validateOpenRegistrationLink(changes.registrationFormId)))
+      return r.status(400).json({ error: "Select an open registration form" });
     if (changes.isPublic !== undefined && !hasConfiguredStoryAccess(q) && !hasFullStoryAccess(q.user!.role))
       return r
         .status(403)
@@ -1456,7 +1499,7 @@ app.get("/api/articles", optionalAuth, async (q: Req, r) => {
       { publishedAt: "desc" },
     ],
   });
-  r.json(articles);
+  r.json(articles.map((article) => articleForViewer(article, q.user)));
 });
 app.get(
   "/api/editor/articles",
@@ -1497,7 +1540,7 @@ app.get("/api/articles/:slug", optionalAuth, async (q: Req, r) => {
     data: { views: { increment: 1 } },
     include: articleInclude,
   });
-  r.json(article);
+  r.json(articleForViewer(article, q.user));
 });
 const responseCategories = Object.values(ResponseCategory),
   responseCounts = (grouped: any[]) =>
@@ -1973,6 +2016,7 @@ const articleInput = z.object({
   isBreaking: z.boolean().optional(),
   isTrending: z.boolean().optional(),
   isPublic: z.boolean().optional(),
+  registrationFormId: z.string().min(1).nullable().optional(),
 });
 app.post("/api/articles", auth(), async (q: Req, r) => {
   if (!(await canCreateStory(q.user!.id)))
@@ -1982,8 +2026,10 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
         error:
           "Only administrators and Humanistic Mission members can create stories",
       });
-  const x = articleInput.parse(q.body),
-    slug =
+  const x = articleInput.parse(q.body);
+  if (!(await validateOpenRegistrationLink(x.registrationFormId)))
+    return r.status(400).json({ error: "Select an open registration form" });
+  const slug =
       x.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")

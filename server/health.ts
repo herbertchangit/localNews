@@ -529,6 +529,7 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
             registeredNames: submission.form.showRegistrantList
               ? registeredNamesByForm.get(submission.formId) || []
               : [],
+            eventType: submission.form.eventType,
           };
           const doctor = { specialization: "Event registration", qualification: "Local News Registration", experienceYears: 0, bio: submission.form.description, profileImage: submission.form.photoUrl, consultationFee: 0, user: { name: "Event Registration", email: "", phone: null, avatarUrl: null } };
           if (!submission.attendances.length) return [{
@@ -539,7 +540,7 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
             reason: "Event registration submitted",
             createdAt: submission.createdAt,
             registration: { ...registrationDetails, attendanceId: null, dateFree: true, totalPersons: 0, meal: false, checkedInAt: null },
-            event: { id: submission.form.id, name: submission.form.eventName, eventDate: submission.createdAt, location: submission.origin, address: "Event registration" },
+            event: { id: submission.form.id, name: submission.form.eventName, eventDate: submission.form.fromEventDate || submission.createdAt, toEventDate: submission.form.toEventDate, location: submission.origin, address: "Event registration" },
             doctor,
           }];
           return submission.attendances.map((attendance) => ({
