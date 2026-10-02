@@ -3,4 +3,5 @@ import'./whatsapp-invite.css';
 import'./registration.css';
 import'./area-management.css';
 import'./area-select.css';
+import'./grouping-management.css';
 createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><I18n/><Terminology/><RoleOptions/><App/><PwaControls/><FooterVersionControls/><NewsNotifications/></BrowserRouter></React.StrictMode>);

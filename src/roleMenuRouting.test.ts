@@ -28,4 +28,10 @@ describe("role menu request routing", () => {
       "registrations",
     );
   });
+
+  it("authorizes grouping CRUD through the Grouping settings submenu", () => {
+    expect(routeMenu("/api/admin/groupings", "GET")).toBe("settings_grouping");
+    expect(routeMenu("/api/admin/groupings/users", "GET")).toBe("settings_grouping");
+    expect(routeMenu("/api/admin/groupings/group-id", "PATCH")).toBe("settings_grouping");
+  });
 });

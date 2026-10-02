@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Languages } from "lucide-react";
+import { GENERATED_LANGUAGE_CATALOG } from "./generatedLanguageCatalog";
 const zh: Record<string, string> = {
   BREAKING: "突发",
   "Riverside renewal plan approved after landmark council vote":
@@ -603,12 +604,16 @@ export function LanguageDropdown({ className = "" }: { className?: string }) {
   );
 }
 export type TranslationMapping = { source: string; zhCn: string; zhTw: string };
+const generatedCatalogBySource = new Map(GENERATED_LANGUAGE_CATALOG.map((item) => [item.source, item]));
+export const TRANSLATION_SOURCE_PAGES: Record<string, string[]> = Object.fromEntries(
+  GENERATED_LANGUAGE_CATALOG.map((item) => [item.source, item.pages]),
+);
 export const DEFAULT_TRANSLATION_MAPPINGS: TranslationMapping[] = Array.from(
-  new Set([...Object.keys(zh), ...Object.keys(zhTw)]),
+  new Set([...Object.keys(zh), ...Object.keys(zhTw), ...GENERATED_LANGUAGE_CATALOG.map((item) => item.source)]),
 ).sort((a, b) => a.localeCompare(b)).map((source) => ({
   source,
-  zhCn: zh[source] || "",
-  zhTw: zhTw[source] || zh[source] || "",
+  zhCn: zh[source] || generatedCatalogBySource.get(source)?.inlineChinese || "",
+  zhTw: zhTw[source] || zh[source] || generatedCatalogBySource.get(source)?.inlineChinese || "",
 }));
 let remoteZhCn: Record<string, string> = {};
 let remoteZhTw: Record<string, string> = {};

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { HEALTH_TERM_TRANSLATIONS, splitBilingualLabel } from "./I18n";
+import { DEFAULT_TRANSLATION_MAPPINGS, HEALTH_TERM_TRANSLATIONS, TRANSLATION_SOURCE_PAGES, splitBilingualLabel } from "./I18n";
+import { GENERATED_LANGUAGE_CATALOG } from "./generatedLanguageCatalog";
 
 describe("bilingual UI labels", () => {
   it("splits slash-separated labels", () => {
@@ -25,5 +26,13 @@ describe("bilingual UI labels", () => {
     expect(HEALTH_TERM_TRANSLATIONS.Appointments).toEqual({ "zh-cn": "预约", "zh-tw": "預約" });
     expect(HEALTH_TERM_TRANSLATIONS.Doctors).toEqual({ "zh-cn": "医生", "zh-tw": "醫生" });
     expect(HEALTH_TERM_TRANSLATIONS["Health Events"]).toEqual({ "zh-cn": "健康活动", "zh-tw": "健康活動" });
+  });
+
+  it("consolidates interface wording from every React page into the mapping catalogue", () => {
+    const sources = new Set(DEFAULT_TRANSLATION_MAPPINGS.map((item) => item.source));
+    expect(GENERATED_LANGUAGE_CATALOG.length).toBeGreaterThan(500);
+    expect(new Set(GENERATED_LANGUAGE_CATALOG.flatMap((item) => item.pages)).size).toBeGreaterThan(30);
+    expect(GENERATED_LANGUAGE_CATALOG.every((item) => sources.has(item.source))).toBe(true);
+    expect(TRANSLATION_SOURCE_PAGES["Create group"]).toContain("Grouping Management");
   });
 });

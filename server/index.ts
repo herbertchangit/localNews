@@ -3432,6 +3432,109 @@ app.get("/api/areas", auth(), async (_q, r) =>
   ),
 );
 app.use("/api/admin/areas", createAreaRouter(db, secret));
+const userGroupingInput = z.object({
+  name: z.string().trim().min(2).max(100),
+  description: z.string().trim().max(500).nullable().optional(),
+  userIds: z.array(z.string().min(1)).max(500).default([]),
+});
+const userGroupingInclude = {
+  users: {
+    select: { id: true, name: true, email: true, phone: true, role: true },
+    orderBy: [{ name: "asc" as const }, { id: "asc" as const }],
+  },
+};
+app.get("/api/admin/groupings/users", auth([Role.ADMIN]), async (_q, r) =>
+  r.json(
+    await db.user.findMany({
+      where: { suspended: false },
+      select: { id: true, name: true, email: true, phone: true, role: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    }),
+  ),
+);
+app.get("/api/admin/groupings", auth([Role.ADMIN]), async (_q, r) =>
+  r.json(
+    await db.userGroup.findMany({
+      include: userGroupingInclude,
+      orderBy: { name: "asc" },
+    }),
+  ),
+);
+app.post("/api/admin/groupings", auth([Role.ADMIN]), async (q: Req, r) => {
+  const data = userGroupingInput.parse(q.body);
+  const duplicate = await db.userGroup.findFirst({
+    where: { name: { equals: data.name, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (duplicate) return r.status(409).json({ error: "A group with that name already exists" });
+  const userIds = [...new Set(data.userIds)];
+  const matched = await db.user.count({ where: { id: { in: userIds } } });
+  if (matched !== userIds.length)
+    return r.status(400).json({ error: "One or more selected users no longer exist" });
+  const group = await db.userGroup.create({
+    data: {
+      name: data.name,
+      description: data.description || null,
+      users: { connect: userIds.map((id) => ({ id })) },
+    },
+    include: userGroupingInclude,
+  });
+  await db.auditLog.create({
+    data: {
+      action: "USER_GROUP_CREATED",
+      actorId: q.user!.id,
+      metadata: { groupId: group.id, name: group.name, members: userIds.length },
+    },
+  });
+  r.status(201).json(group);
+});
+app.patch("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
+  const data = userGroupingInput.partial().parse(q.body);
+  if (data.name) {
+    const duplicate = await db.userGroup.findFirst({
+      where: {
+        name: { equals: data.name, mode: "insensitive" },
+        NOT: { id: q.params.id },
+      },
+      select: { id: true },
+    });
+    if (duplicate) return r.status(409).json({ error: "A group with that name already exists" });
+  }
+  const userIds = data.userIds ? [...new Set(data.userIds)] : undefined;
+  if (userIds) {
+    const matched = await db.user.count({ where: { id: { in: userIds } } });
+    if (matched !== userIds.length)
+      return r.status(400).json({ error: "One or more selected users no longer exist" });
+  }
+  const group = await db.userGroup.update({
+    where: { id: q.params.id },
+    data: {
+      name: data.name,
+      description: data.description === undefined ? undefined : data.description || null,
+      users: userIds ? { set: userIds.map((id) => ({ id })) } : undefined,
+    },
+    include: userGroupingInclude,
+  });
+  await db.auditLog.create({
+    data: {
+      action: "USER_GROUP_UPDATED",
+      actorId: q.user!.id,
+      metadata: { groupId: group.id, name: group.name, members: group.users.length },
+    },
+  });
+  r.json(group);
+});
+app.delete("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
+  const group = await db.userGroup.delete({ where: { id: q.params.id } });
+  await db.auditLog.create({
+    data: {
+      action: "USER_GROUP_DELETED",
+      actorId: q.user!.id,
+      metadata: { groupId: group.id, name: group.name },
+    },
+  });
+  r.status(204).end();
+});
 app.use("/api/role-menus", createRoleMenuRouter(db, secret));
 const openapi = {
   openapi: "3.0.3",

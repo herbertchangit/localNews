@@ -42,6 +42,7 @@ import {
   RefreshCw,
   ShieldCheck,
   MapPinned,
+  ChevronDown,
 } from "lucide-react";
 import AccountManagement from "./AccountManagement";
 import DepartmentManagement from "./DepartmentManagement";
@@ -50,6 +51,7 @@ import NewsCategoryManagement from "./NewsCategoryManagement";
 import JingSiManagement from "./JingSiManagement";
 import LanguageMappingManagement from "./LanguageMappingManagement";
 import AreaManagement from "./AreaManagement";
+import GroupingManagement from "./GroupingManagement";
 import ReaderSettings from "./ReaderSettings";
 import MyPhotos from "./MyPhotos";
 import { useTaggedPhotos } from "./useTaggedPhotos";
@@ -614,6 +616,22 @@ function SessionSidebarMenu({ current }: { current: Session }) {
   const appointmentCount = useActiveAppointmentCount(current.token, current.user.role === "DOCTOR");
   const hasTaggedPhotos = useTaggedPhotos(current.token, where.pathname);
   const visible = useMenuAccess();
+  const settingsPaths = [
+    "/newsroom/settings",
+    "/newsroom/departments",
+    "/newsroom/org-chart",
+    "/newsroom/areas",
+    "/newsroom/grouping",
+    "/newsroom/categories",
+    "/newsroom/jingsi",
+    "/newsroom/languages",
+    "/newsroom/roles",
+  ];
+  const settingsActive = settingsPaths.includes(where.pathname);
+  const [settingsOpen, setSettingsOpen] = useState(settingsActive);
+  useEffect(() => {
+    if (settingsActive) setSettingsOpen(true);
+  }, [settingsActive]);
   useEffect(() => {
     const receive = (event: Event) =>
       setUpdateResult((event as CustomEvent<AppUpdateResult>).detail);
@@ -775,15 +793,19 @@ function SessionSidebarMenu({ current }: { current: Session }) {
       )}
       {visible("settings") && (
         <button
-          className={
-            where.pathname === "/newsroom/settings"
-              ? "sessionCommonSidebarButton active"
-              : "sessionCommonSidebarButton"
-          }
-          onClick={() => go("/newsroom/settings")}
+          className={`sessionCommonSidebarButton settingsCollapseButton${settingsActive ? " active" : ""}`}
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen((open) => !open)}
         >
           <Settings />
           Settings
+          <ChevronDown className="settingsChevron" />
+        </button>
+      )}
+      {settingsOpen && <div className="settingsSubmenuGroup">
+      {visible("settings") && (
+        <button className="sessionCommonSidebarButton adminUnifiedSubnav" onClick={() => go("/newsroom/settings")}>
+          <Settings />Account settings
         </button>
       )}
       {visible("settings_organizations") && (
@@ -811,6 +833,15 @@ function SessionSidebarMenu({ current }: { current: Session }) {
         >
           <MapPinned />
           Areas
+        </button>
+      )}
+      {visible("settings_grouping") && (
+        <button
+          className="sessionCommonSidebarButton adminUnifiedSubnav"
+          onClick={() => go("/newsroom/grouping")}
+        >
+          <Users />
+          Grouping
         </button>
       )}
       {visible("settings_categories") && (
@@ -849,6 +880,7 @@ function SessionSidebarMenu({ current }: { current: Session }) {
           Roles
         </button>
       )}
+      </div>}
       {visible("logout") && (
         <button
           className="sessionCommonSidebarButton sessionCommonLogout"
@@ -899,11 +931,17 @@ function AdminSidebarMenu({ current }: { current: Session }) {
     "/newsroom/departments",
     "/newsroom/org-chart",
     "/newsroom/areas",
+    "/newsroom/grouping",
     "/newsroom/categories",
     "/newsroom/jingsi",
     "/newsroom/languages",
     "/newsroom/roles",
   ];
+  const settingsActive = settingsPaths.includes(where.pathname);
+  const [settingsOpen, setSettingsOpen] = useState(settingsActive);
+  useEffect(() => {
+    if (settingsActive) setSettingsOpen(true);
+  }, [settingsActive]);
   const updating = ["checking", "updating"].includes(
     updateResult?.status || "",
   );
@@ -1016,16 +1054,20 @@ function AdminSidebarMenu({ current }: { current: Session }) {
             </button>
           )}
           {visible("settings") && (
-            <Link
-              className={
-                settingsPaths.includes(where.pathname)
-                  ? "sessionCommonSidebarButton active"
-                  : "sessionCommonSidebarButton"
-              }
-              to="/newsroom/settings"
+            <button
+              className={`sessionCommonSidebarButton settingsCollapseButton${settingsActive ? " active" : ""}`}
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((open) => !open)}
             >
               <Settings />
               Settings
+              <ChevronDown className="settingsChevron" />
+            </button>
+          )}
+          {settingsOpen && <div className="settingsSubmenuGroup">
+          {visible("settings") && (
+            <Link className={active("/newsroom/settings") + " adminUnifiedSubnav"} to="/newsroom/settings">
+              <Settings />Account settings
             </Link>
           )}
           {visible("settings_organizations") && (
@@ -1055,6 +1097,15 @@ function AdminSidebarMenu({ current }: { current: Session }) {
             >
               <MapPinned />
               Areas
+            </Link>
+          )}
+          {visible("settings_grouping") && (
+            <Link
+              className={active("/newsroom/grouping") + " adminUnifiedSubnav"}
+              to="/newsroom/grouping"
+            >
+              <Users />
+              Grouping
             </Link>
           )}
           {visible("settings_categories") && (
@@ -1093,6 +1144,7 @@ function AdminSidebarMenu({ current }: { current: Session }) {
               Roles
             </Link>
           )}
+          </div>}
         </>
       )}
       {visible("logout") && (
@@ -2428,6 +2480,14 @@ export default function App() {
           element={
             <RequireAuth>
               <RequireMenu id="settings_areas"><AreaManagement /></RequireMenu>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/newsroom/grouping"
+          element={
+            <RequireAuth>
+              <RequireMenu id="settings_grouping"><GroupingManagement /></RequireMenu>
             </RequireAuth>
           }
         />

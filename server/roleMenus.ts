@@ -18,6 +18,7 @@ export const MENU_DEFINITIONS = [
   { id: "settings_organizations", label: "Organizations", group: "Settings submenus" },
   { id: "settings_org_chart", label: "Organization Chart", group: "Settings submenus" },
   { id: "settings_areas", label: "Areas", group: "Settings submenus" },
+  { id: "settings_grouping", label: "Grouping", group: "Settings submenus" },
   { id: "settings_categories", label: "News Categories", group: "Settings submenus" },
   { id: "settings_jingsi", label: "JingSi", group: "Settings submenus" },
   { id: "settings_languages", label: "Language Mapping", group: "Settings submenus" },
@@ -139,6 +140,7 @@ export const routeMenu = (path: string, method = "GET") => {
   if (/^\/api\/admin\/departments/.test(path)) return "settings_organizations";
   if (/^\/api\/admin\/(?:org-chart|org-structure|harmony-groups|mutual-love-groups|cooperation-units)/.test(path)) return "settings_org_chart";
   if (/^\/api\/admin\/areas/.test(path)) return "settings_areas";
+  if (/^\/api\/admin\/groupings/.test(path)) return "settings_grouping";
   if (/^\/api\/admin\/categories/.test(path)) return "settings_categories";
   if (/^\/api\/admin\/jingsi/.test(path)) return "settings_jingsi";
   if (/^\/api\/admin\/languages/.test(path)) return "settings_languages";

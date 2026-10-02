@@ -18,9 +18,9 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { DEFAULT_TRANSLATION_MAPPINGS, TranslationMapping } from "./I18n";
+import { DEFAULT_TRANSLATION_MAPPINGS, TRANSLATION_SOURCE_PAGES, TranslationMapping } from "./I18n";
 
-type EditableMapping = TranslationMapping & { overridden: boolean };
+type EditableMapping = TranslationMapping & { overridden: boolean; pages: string[] };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 
 export default function LanguageMappingManagement() {
@@ -28,6 +28,7 @@ export default function LanguageMappingManagement() {
   const [overrides, setOverrides] = useState<TranslationMapping[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Pick<TranslationMapping, "zhCn" | "zhTw">>>({});
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"ALL" | "NEEDS_TRANSLATION" | "TRANSLATED" | "OVERRIDDEN">("ALL");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState("");
@@ -51,10 +52,21 @@ export default function LanguageMappingManagement() {
     overrides.forEach((item) => defaults.set(item.source, item));
     const overrideKeys = new Set(overrides.map((item) => item.source));
     return [...defaults.values()]
-      .map((item) => ({ ...item, overridden: overrideKeys.has(item.source) }))
-      .filter((item) => `${item.source} ${item.zhCn} ${item.zhTw}`.toLowerCase().includes(query.toLowerCase()))
+      .map((item) => ({ ...item, overridden: overrideKeys.has(item.source), pages: TRANSLATION_SOURCE_PAGES[item.source] || ["Shared"] }))
+      .filter((item) => `${item.source} ${item.zhCn} ${item.zhTw} ${item.pages.join(" ")}`.toLowerCase().includes(query.toLowerCase()))
+      .filter((item) => filter === "ALL"
+        || (filter === "NEEDS_TRANSLATION" && (!item.zhCn.trim() || !item.zhTw.trim()))
+        || (filter === "TRANSLATED" && Boolean(item.zhCn.trim() && item.zhTw.trim()))
+        || (filter === "OVERRIDDEN" && item.overridden))
       .sort((a, b) => a.source.localeCompare(b.source));
-  }, [overrides, query]);
+  }, [overrides, query, filter]);
+  const translatedCount = useMemo(() => {
+    const overridesBySource = new Map(overrides.map((item) => [item.source, item]));
+    return DEFAULT_TRANSLATION_MAPPINGS.filter((item) => {
+      const current = overridesBySource.get(item.source) || item;
+      return current.zhCn.trim() && current.zhTw.trim();
+    }).length;
+  }, [overrides]);
   const values = (item: EditableMapping) => drafts[item.source] || item;
   const updateDraft = (item: EditableMapping, field: "zhCn" | "zhTw", value: string) =>
     setDrafts((current) => ({ ...current, [item.source]: { zhCn: values(item).zhCn, zhTw: values(item).zhTw, [field]: value } }));
@@ -119,17 +131,17 @@ export default function LanguageMappingManagement() {
     <button className="settingsSubnavButton active"><Languages />Language Mapping</button>
     <div className="profile sidebarProfileLast"><div>{initials}</div><span><b>{session()?.user?.name || "Administrator"}</b><small>Administrator</small></span></div>
   </aside><section className="content languageMappingPage">
-    <div className="top"><div><small>SETTINGS / LANGUAGE MAPPING</small><h1>Language Mapping</h1><p>Modify the simplified and traditional Chinese labels used across every page.</p></div><button className="new" disabled={refreshing} onClick={refresh}><RefreshCw className={refreshing ? "spinning" : ""} />{refreshing ? "Refreshing…" : "Refresh"}</button><button className="new" onClick={() => setAdding({ source: "", zhCn: "", zhTw: "" })}><Plus />Add Mapping</button></div>
+    <div className="top"><div><small>SETTINGS / LANGUAGE MAPPING</small><h1>Language Mapping</h1><p>All interface wording and sentences from every page, consolidated in one catalogue.</p></div><button className="new" disabled={refreshing} onClick={refresh}><RefreshCw className={refreshing ? "spinning" : ""} />{refreshing ? "Refreshing…" : "Refresh"}</button><button className="new" onClick={() => setAdding({ source: "", zhCn: "", zhTw: "" })}><Plus />Add Mapping</button></div>
     {notice && <div className="toast">{notice}<button onClick={() => setNotice("")}><X /></button></div>}
-    <div className="languageMappingSummary"><div><Languages /><span><b>{DEFAULT_TRANSLATION_MAPPINGS.length}</b><small>Built-in mappings</small></span></div><div><Check /><span><b>{overrides.length}</b><small>Admin overrides</small></span></div></div>
+    <div className="languageMappingSummary"><div><Languages /><span><b>{DEFAULT_TRANSLATION_MAPPINGS.length}</b><small>Total wordings</small></span></div><div><Check /><span><b>{translatedCount}</b><small>Translated</small></span></div><div><Languages /><span><b>{DEFAULT_TRANSLATION_MAPPINGS.length - translatedCount}</b><small>Need translation</small></span></div><div><Check /><span><b>{overrides.length}</b><small>Admin overrides</small></span></div></div>
     <div className="panel languageMappingPanel">
-      <div className="languageMappingTools"><div className="userSearch"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search English or Chinese labels" /></div><span>{rows.length} mappings</span></div>
+      <div className="languageMappingTools"><div className="userSearch"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording, translation or page" /></div><select aria-label="Filter language mappings" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="ALL">All wordings</option><option value="NEEDS_TRANSLATION">Needs translation</option><option value="TRANSLATED">Translated</option><option value="OVERRIDDEN">Admin overrides</option></select><span>{rows.length} mappings</span></div>
       <div className="languageMappingTable">
         <div className="languageMappingRow languageMappingHeader"><span>English source</span><span>简体中文</span><span>繁體中文</span><span>Actions</span></div>
         {busy ? <div className="emptyState">Loading language mappings…</div> : rows.map((item) => {
           const current = values(item), changed = Boolean(drafts[item.source]);
           return <div className={`languageMappingRow${item.overridden ? " isOverridden" : ""}`} key={item.source}>
-            <div className="languageSource"><b>{item.source}</b><small>{item.overridden ? "Admin override" : "Built in"}</small></div>
+            <div className="languageSource"><b>{item.source}</b><small>{item.overridden ? "Admin override" : (!item.zhCn.trim() || !item.zhTw.trim()) ? "Needs translation" : "Built in"}</small><em title={item.pages.join(", ")}>{item.pages.join(" · ")}</em></div>
             <input aria-label={`Simplified Chinese for ${item.source}`} value={current.zhCn} onChange={(event) => updateDraft(item, "zhCn", event.target.value)} />
             <input aria-label={`Traditional Chinese for ${item.source}`} value={current.zhTw} onChange={(event) => updateDraft(item, "zhTw", event.target.value)} />
             <div className="languageMappingActions"><button title="Save mapping" disabled={!changed || saving === item.source || !current.zhCn.trim() || !current.zhTw.trim()} onClick={() => save({ source: item.source, ...current })}><Check /></button><button title="Restore built-in mapping" disabled={!item.overridden || saving === item.source} onClick={() => reset(item)}><RotateCcw /></button></div>
