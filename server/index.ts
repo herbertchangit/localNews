@@ -706,7 +706,7 @@ app.get("/api/categories", async (_q, r) =>
   ),
 );
 app.get("/api/story-options", auth(), async (q: Req, r) => {
-  const [canCreate, categories, registrationForms] = await Promise.all([
+  const [canCreate, categories, registrationForms, creator] = await Promise.all([
     canCreateStory(q.user!.id),
     db.category.findMany({
       where: { archived: false },
@@ -724,8 +724,17 @@ app.get("/api/story-options", auth(), async (q: Req, r) => {
       },
       orderBy: [{ fromEventDate: "asc" }, { eventName: "asc" }],
     }),
+    db.user.findUnique({
+      where: { id: q.user!.id },
+      select: { harmonyGroup: { select: { name: true } } },
+    }),
   ]);
-  r.json({ canCreate, categories, registrationForms });
+  r.json({
+    canCreate,
+    categories,
+    registrationForms,
+    creatorHarmony: creator?.harmonyGroup?.name || null,
+  });
 });
 const jingSiInput = z.object({ content: z.string().trim().min(2).max(500) });
 app.get("/api/jingsi/current", async (_q, r) => {
@@ -2029,6 +2038,10 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
   const x = articleInput.parse(q.body);
   if (!(await validateOpenRegistrationLink(x.registrationFormId)))
     return r.status(400).json({ error: "Select an open registration form" });
+  const creator = await db.user.findUnique({
+    where: { id: q.user!.id },
+    select: { harmonyGroup: { select: { name: true } } },
+  });
   const slug =
       x.title
         .toLowerCase()
@@ -2044,6 +2057,7 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
           : true,
         slug,
         authorId: q.user!.id,
+        harmony: creator?.harmonyGroup?.name || null,
       },
     });
   await db.auditLog.create({
@@ -3029,7 +3043,7 @@ const areaOptionSelect = {
 app.get("/api/admin/accounts/options", auth([Role.ADMIN]), async (q: Req, r) => {
   const scope = await requirePeopleScope(q, r);
   if (!scope) return;
-  const profiles = await db.roleMenuAccess.findMany({ select: { role: true, roleKey: true } });
+  const profiles = await db.roleMenuAccess.findMany({ select: { role: true, roleKey: true, name: true } });
   const structureWhere = scope.admin ? {} : { id: scope.harmonyGroupId! };
   const mutualWhere = scope.admin ? {} : { mutualLoveId: scope.mutualLoveGroupId! };
   const [departments, categories, structure, areas] = await Promise.all([
@@ -3054,6 +3068,11 @@ app.get("/api/admin/accounts/options", auth([Role.ADMIN]), async (q: Req, r) => 
     structure,
     areas,
     roles: [...new Set([...(scope.admin ? Object.values(Role) : Object.values(Role).filter((role) => role !== Role.ADMIN)), ...profiles.map((profile) => profile.roleKey).filter(Boolean)])],
+    roleLabels: Object.fromEntries(
+      profiles
+        .filter((profile) => profile.name)
+        .map((profile) => [profile.roleKey || profile.role!, profile.name!]),
+    ),
     scope: { admin: scope.admin, harmonyGroupId: scope.harmonyGroupId, mutualLoveGroupId: scope.mutualLoveGroupId },
   });
 });
@@ -3645,6 +3664,24 @@ const migrateLegacyArticlePhotos = async () => {
       data: { articleId: article.id, url: article.imageUrl!, sortOrder: 0 },
     });
 };
+const backfillArticleHarmony = async () => {
+  const articles = await db.article.findMany({
+    where: { harmony: null },
+    select: {
+      id: true,
+      author: { select: { harmonyGroup: { select: { name: true } } } },
+    },
+  });
+  const updates = articles
+    .filter((article) => article.author.harmonyGroup?.name)
+    .map((article) =>
+      db.article.update({
+        where: { id: article.id },
+        data: { harmony: article.author.harmonyGroup!.name },
+      }),
+    );
+  if (updates.length) await db.$transaction(updates);
+};
 const removeLegacyRegistrationAttendance = async () => {
   const marker = await db.auditLog.findFirst({
     where: { action: "LEGACY_REGISTRATION_ATTENDANCE_REMOVED" },
@@ -3669,6 +3706,7 @@ const removeLegacyRegistrationAttendance = async () => {
 const port = Number(process.env.PORT || 4000);
 migrateLegacyArticlePhotos()
   .then(async () => {
+    await backfillArticleHarmony();
     await removeLegacyRegistrationAttendance();
     await expirePublishedArticles();
     const expiryTimer = setInterval(

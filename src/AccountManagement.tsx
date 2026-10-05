@@ -98,6 +98,7 @@ export default function AccountManagement() {
     [structure, setStructure] = useState<Harmony[]>([]),
     [areas, setAreas] = useState<AreaOption[]>([]),
     [availableRoles, setAvailableRoles] = useState<string[]>([]),
+    [roleLabels, setRoleLabels] = useState<Record<string, string>>({}),
     [edit, setEdit] = useState<any | null>(null),
     [accountEvents, setAccountEvents] = useState<AccountEvents | null>(null),
     [invitingFormId, setInvitingFormId] = useState(""),
@@ -135,6 +136,7 @@ export default function AccountManagement() {
       setStructure(options.structure);
       setAreas(options.areas);
       setAvailableRoles(options.roles);
+      setRoleLabels(options.roleLabels || {});
     } catch (e: any) {
       setNotice(e.message);
     }
@@ -147,12 +149,12 @@ export default function AccountManagement() {
     setTimeout(() => setNotice(""), 3000);
   };
   const roleLabel = (role: string) =>
-    role === "ADMIN_MEDICAL"
+    roleLabels[role] || (role === "ADMIN_MEDICAL"
       ? "Admin Medical"
       : role
           .replaceAll("_", " ")
           .toLowerCase()
-          .replace(/\b\w/g, (letter) => letter.toUpperCase());
+          .replace(/\b\w/g, (letter) => letter.toUpperCase()));
   const mutualLoveOptions = useMemo(
     () =>
       harmonyFilter

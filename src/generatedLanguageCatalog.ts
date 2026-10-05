@@ -684,6 +684,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Assigned from the story creator",
+    "pages": [
+      "Story Management"
+    ],
+    "inlineChinese": "根據新聞建立者指派"
+  },
+  {
     "source": "Assigned news categories",
     "pages": [
       "User Management Full"
@@ -757,6 +764,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "pages": [
       "App"
     ]
+  },
+  {
+    "source": "Automatically assigned from the story creator",
+    "pages": [
+      "Story Composer"
+    ],
+    "inlineChinese": "根據新聞建立者自動指派"
   },
   {
     "source": "Available",
@@ -1875,12 +1889,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Edit authorities",
-    "pages": [
-      "Role Management"
-    ]
-  },
-  {
     "source": "Edit category",
     "pages": [
       "News Category Management"
@@ -1978,6 +1986,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Edit registration form",
     "pages": [
       "Registration Management"
+    ]
+  },
+  {
+    "source": "Edit role",
+    "pages": [
+      "Role Management"
     ]
   },
   {
@@ -2459,8 +2473,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Area Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
-      "Reader Settings"
-    ]
+      "Reader Settings",
+      "Role Management",
+      "Story Composer",
+      "Story Management"
+    ],
+    "inlineChinese": "和氣"
   },
   {
     "source": "HARMONY",
@@ -2485,6 +2503,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Harmony Leader",
     "pages": [
       "Account Management"
+    ]
+  },
+  {
+    "source": "Harmony:",
+    "pages": [
+      "Role Management"
     ]
   },
   {
@@ -3825,6 +3849,18 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Only administrators can assign Harmony to roles.",
+    "pages": [
+      "Role Management"
+    ]
+  },
+  {
+    "source": "Only administrators can change this assignment.",
+    "pages": [
+      "Role Management"
+    ]
+  },
+  {
     "source": "Open",
     "pages": [
       "Registration Management"
@@ -4950,12 +4986,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Save authorities",
-    "pages": [
-      "Role Management"
-    ]
-  },
-  {
     "source": "Save changes",
     "pages": [
       "Account Management",
@@ -4965,6 +4995,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Org Chart Maintenance",
       "Org Structure Normalized",
       "Registration Management",
+      "Role Management",
       "Story Management",
       "User Management Full"
     ],
@@ -5982,6 +6013,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Today&apos;s headline",
+    "pages": [
+      "Audience"
+    ]
+  },
+  {
     "source": "Total",
     "pages": [
       "Registration Management"
@@ -6062,6 +6099,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "pages": [
       "Account Management",
       "Reader Settings",
+      "Role Management",
       "User Management Full"
     ]
   },

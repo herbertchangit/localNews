@@ -36,6 +36,7 @@ export default function StoryComposer() {
   const [canCreate, setCanCreate] = useState(false),
     [categories, setCategories] = useState<Category[]>([]),
     [registrationForms, setRegistrationForms] = useState<RegistrationOption[]>([]),
+    [creatorHarmony, setCreatorHarmony] = useState<string | null>(null),
     [host, setHost] = useState<HTMLElement | null>(null),
     [open, setOpen] = useState(false),
     [notice, setNotice] = useState("");
@@ -53,6 +54,7 @@ export default function StoryComposer() {
         setCanCreate(data.canCreate);
         setCategories(data.categories);
         setRegistrationForms(data.registrationForms || []);
+        setCreatorHarmony(data.creatorHarmony || null);
       })
       .catch(() => setCanCreate(false));
   }, [token]);
@@ -109,6 +111,7 @@ export default function StoryComposer() {
           <StoryModal
             categories={categories}
             registrationForms={registrationForms}
+            creatorHarmony={creatorHarmony}
             token={token}
             onClose={() => setOpen(false)}
             onCreated={created}
@@ -122,12 +125,14 @@ export default function StoryComposer() {
 function StoryModal({
   categories,
   registrationForms,
+  creatorHarmony,
   token,
   onClose,
   onCreated,
 }: {
   categories: Category[];
   registrationForms: RegistrationOption[];
+  creatorHarmony: string | null;
   token: string;
   onClose: () => void;
   onCreated: (title: string) => void;
@@ -359,6 +364,11 @@ function StoryModal({
               </option>
             ))}
           </select>
+        </label>
+        <label>
+          Harmony / 和氣
+          <input readOnly value={creatorHarmony || "Unassigned / 未分配"} />
+          <small>Automatically assigned from the story creator / 根據新聞建立者自動指派</small>
         </label>
         <label>
           Story / event date / 新聞或活動日期

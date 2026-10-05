@@ -21,6 +21,10 @@
 .dailyBriefStoryFooter .articleFoot{flex:1;max-width:310px}
 .dailyBriefTrack article+article{position:relative}
 .dailyBriefTrack article+article:before{content:'';position:absolute;left:-1px;top:20px;bottom:20px;width:3px;background:#d0b474}
+.audienceHeadlineBrief{padding-top:0;margin-bottom:12px}
+.audienceHeadlineBrief .sectionTitle span{color:#9e3e35}
+.audienceHeadlineBrief .dailyBriefTrack article.headlineStory{border-color:#d0b474;box-shadow:inset 4px 0 0 #d0b474}
+.audienceHeadlineBrief .dailyBriefTrack .thumb span{background:#d0b474;color:#173a2e}
 
 @media(max-width:850px){
   .dailyBriefTrack article{grid-template-columns:minmax(220px,34%) 1fr;gap:24px}

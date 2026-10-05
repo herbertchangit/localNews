@@ -36,10 +36,18 @@ const roleKey = z.string().trim().min(2).max(50).transform((value) =>
 ).refine((value) => value.length >= 2, "Enter a valid role name");
 const authorityAction = z.enum(ROLE_ACTIONS);
 const authorities = z.record(menuId, z.array(authorityAction));
-const body = z.object({ role: roleKey, menuIds: z.array(menuId).max(menuIds.length), authorities });
+const body = z.object({
+  role: roleKey,
+  name: z.string().trim().min(2).max(80).optional(),
+  harmonyGroupId: z.string().trim().min(1).nullable().optional(),
+  menuIds: z.array(menuId).max(menuIds.length),
+  authorities,
+});
 type RequestWithUser = Request & { user?: { id: string; role: Role; roles?: Role[]; customRoles?: string[] } };
 const effectiveRoles = (user: { role: Role; roles?: Role[] | null; customRoles?: string[] | null }) =>
   [...new Set([...(user.roles || []), user.role, ...(user.customRoles || [])])];
+export const canAssignRoleHarmony = (user: { role: Role; roles?: Role[] | null }) =>
+  [user.role, ...(user.roles || [])].includes(Role.ADMIN);
 const profileKey = (profile: { role: Role | null; roleKey?: string | null }) => profile.roleKey || profile.role!;
 const profileWhere = (roles: string[]) => ({
   OR: [
@@ -56,6 +64,17 @@ const normalizedAuthorities = (profile: { authorities: unknown; menuIds: string[
 
 export function createRoleMenuRouter(db: PrismaClient, secret: string) {
   const router = Router();
+  const administratorState = async (userId: string) => {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { role: true, roles: true },
+    });
+    return Boolean(user && canAssignRoleHarmony(user));
+  };
+  const validateHarmony = async (harmonyGroupId?: string | null) => {
+    if (!harmonyGroupId) return true;
+    return Boolean(await db.harmonyGroup.findUnique({ where: { id: harmonyGroupId }, select: { id: true } }));
+  };
   const authenticate = (adminOnly = false) => (req: RequestWithUser, res: any, next: any) => {
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");
@@ -85,26 +104,63 @@ export function createRoleMenuRouter(db: PrismaClient, secret: string) {
     res.json({ role: current.role, roles, configured: profiles.length > 0, menuIds: profiles.length ? menuIds : null, authorities: profiles.length ? combinedAuthorities : null });
   });
 
-  router.get("/admin", authenticate(true), async (_req, res) => {
-    const profiles = await db.roleMenuAccess.findMany({ orderBy: [{ roleKey: "asc" }, { role: "asc" }] });
+  router.get("/admin", authenticate(true), async (req: RequestWithUser, res) => {
+    const canAssignHarmony = await administratorState(req.user!.id);
+    const [profiles, harmonyGroups] = await Promise.all([
+      db.roleMenuAccess.findMany({
+        include: { harmonyGroup: { select: { id: true, name: true } } },
+        orderBy: [{ roleKey: "asc" }, { role: "asc" }],
+      }),
+      canAssignHarmony
+        ? db.harmonyGroup.findMany({ select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] })
+        : Promise.resolve([]),
+    ]);
     const customRoles = profiles.filter((profile) => profile.roleKey).map(profileKey);
-    res.json({ roles: [...Object.values(Role), ...customRoles], definitions: MENU_DEFINITIONS, actions: ROLE_ACTIONS, profiles: profiles.map((profile) => ({ ...profile, role: profileKey(profile), custom: Boolean(profile.roleKey), authorities: normalizedAuthorities(profile) })) });
+    res.json({ roles: [...Object.values(Role), ...customRoles], definitions: MENU_DEFINITIONS, actions: ROLE_ACTIONS, canAssignHarmony, harmonyGroups, profiles: profiles.map((profile) => ({ ...profile, role: profileKey(profile), custom: Boolean(profile.roleKey), authorities: normalizedAuthorities(profile) })) });
   });
 
   router.post("/admin", authenticate(true), async (req: RequestWithUser, res) => {
     const data = body.parse(req.body);
+    const canAssignHarmony = await administratorState(req.user!.id);
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "harmonyGroupId") && !canAssignHarmony)
+      return res.status(403).json({ error: "Only administrators can assign Harmony to roles" });
+    if (!(await validateHarmony(data.harmonyGroupId)))
+      return res.status(400).json({ error: "Select a valid Harmony" });
     const isBuiltIn = builtInRoles.has(data.role);
     const duplicate = await db.roleMenuAccess.findFirst({ where: { OR: [{ roleKey: data.role }, ...(isBuiltIn ? [{ role: data.role as Role }] : [])] } });
     if (duplicate) return res.status(409).json({ error: "That role already exists" });
-    const profile = await db.roleMenuAccess.create({ data: { role: isBuiltIn ? data.role as Role : null, roleKey: isBuiltIn ? null : data.role, menuIds: [...new Set(data.menuIds)], authorities: data.authorities } });
-    await db.auditLog.create({ data: { action: "ROLE_MENU_CREATED", actorId: req.user!.id, metadata: { role: data.role, menuIds: profile.menuIds } } });
+    const profile = await db.roleMenuAccess.create({
+      data: {
+        role: isBuiltIn ? data.role as Role : null,
+        roleKey: isBuiltIn ? null : data.role,
+        name: data.name || data.role.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        harmonyGroupId: canAssignHarmony ? data.harmonyGroupId : undefined,
+        menuIds: [...new Set(data.menuIds)],
+        authorities: data.authorities,
+      },
+      include: { harmonyGroup: { select: { id: true, name: true } } },
+    });
+    await db.auditLog.create({ data: { action: "ROLE_MENU_CREATED", actorId: req.user!.id, metadata: { role: data.role, name: profile.name, harmonyGroupId: profile.harmonyGroupId, menuIds: profile.menuIds } } });
     res.status(201).json({ ...profile, role: profileKey(profile), custom: Boolean(profile.roleKey), authorities: normalizedAuthorities(profile) });
   });
 
   router.patch("/admin/:id", authenticate(true), async (req: RequestWithUser, res) => {
     const data = body.omit({ role: true }).partial().parse(req.body);
-    const profile = await db.roleMenuAccess.update({ where: { id: String(req.params.id) }, data: { ...data, menuIds: data.menuIds ? [...new Set(data.menuIds)] : undefined } });
-    await db.auditLog.create({ data: { action: "ROLE_MENU_UPDATED", actorId: req.user!.id, metadata: { role: profileKey(profile), menuIds: profile.menuIds } } });
+    const canAssignHarmony = await administratorState(req.user!.id);
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "harmonyGroupId") && !canAssignHarmony)
+      return res.status(403).json({ error: "Only administrators can assign Harmony to roles" });
+    if (!(await validateHarmony(data.harmonyGroupId)))
+      return res.status(400).json({ error: "Select a valid Harmony" });
+    const profile = await db.roleMenuAccess.update({
+      where: { id: String(req.params.id) },
+      data: {
+        ...data,
+        harmonyGroupId: canAssignHarmony ? data.harmonyGroupId : undefined,
+        menuIds: data.menuIds ? [...new Set(data.menuIds)] : undefined,
+      },
+      include: { harmonyGroup: { select: { id: true, name: true } } },
+    });
+    await db.auditLog.create({ data: { action: "ROLE_MENU_UPDATED", actorId: req.user!.id, metadata: { role: profileKey(profile), name: profile.name, harmonyGroupId: profile.harmonyGroupId, menuIds: profile.menuIds } } });
     res.json({ ...profile, role: profileKey(profile), custom: Boolean(profile.roleKey), authorities: normalizedAuthorities(profile) });
   });
 

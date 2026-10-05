@@ -1489,6 +1489,74 @@ export function AudienceSettings() {
     </div>
   );
 }
+function AudienceDailyBriefStory({
+  story,
+  index,
+  headline = false,
+}: {
+  story: Story;
+  index: number;
+  headline?: boolean;
+}) {
+  const contentUrl = firstHttpUrl(story.content),
+    contentPreview = contentUrl ? previewImageForUrl(contentUrl) : null,
+    photo = firstPhotoUrl(story.photos) || story.imageUrl || contentPreview,
+    dateValue = story.storyDate || story.publishedAt,
+    storyDateLabel = dateValue
+      ? new Date(dateValue).toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "Date not set";
+  return (
+    <article className={headline ? "headlineStory" : ""}>
+      <Link
+        className="dailyBriefThumbLink"
+        to={`/stories/${story.slug}`}
+        aria-label={`Read ${story.title}`}
+      >
+        <div
+          className={`thumb t${index % 3}${photo ? " hasImage" : ""}`}
+          style={photo ? { backgroundImage: `url(${photo})` } : undefined}
+        >
+          <span>{headline ? "HEADLINE / 頭條" : story.category.name}</span>
+        </div>
+      </Link>
+      <div className="dailyBriefStoryBody">
+        <div className="dailyBriefStoryMeta">
+          <span>STORY DATE · {storyDateLabel}</span>
+          <div className="meta">
+            {story.category.name} ·{" "}
+            {Math.max(2, Math.round(story.content.length / 500))} min read
+          </div>
+        </div>
+        <h3>
+          <Link to={`/stories/${story.slug}`}>{story.title}</Link>
+        </h3>
+        <RichText value={story.excerpt} className="cardRichSummary" />
+        <StoryRegistrationParticipants story={story} />
+        <div className="dailyBriefStoryFooter">
+          <div className="storyPrimaryActions">
+            <Link className="cardReadStory" to={`/stories/${story.slug}`}>
+              Read Story <ArrowUpRight />
+            </Link>
+            <ShareStoryButton
+              title={story.title}
+              slug={story.slug}
+              previewImage={photo}
+            />
+          </div>
+          <div className="articleFoot">
+            <b>{story.author.name}</b>
+            <span>{story.views.toLocaleString()} views</span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function AudienceHomepageDashboard() {
   const [stories, setStories] = useState<Story[]>([]),
     [categories, setCategories] = useState<NewsCategory[]>([]),
@@ -1531,6 +1599,10 @@ export function AudienceHomepageDashboard() {
       current = false;
     };
   }, [selectedCategory]);
+  const headline = stories.find((story) => story.isHeadline),
+    regularStories = headline
+      ? stories.filter((story) => story.id !== headline.id)
+      : stories;
   return (
     <div className="dash audienceDash">
       <AudienceSidebar active="overview" />
@@ -1570,86 +1642,43 @@ export function AudienceHomepageDashboard() {
             No published stories in this category.
           </div>
         ) : (
-          <section className="latest dailyBrief audienceDailyBrief">
+          <>
+            {headline && (
+              <section className="latest dailyBrief audienceDailyBrief audienceHeadlineBrief">
+                <div className="sectionTitle">
+                  <div>
+                    <span>HEADLINE / 頭條</span>
+                    <h2>Today&apos;s headline</h2>
+                  </div>
+                </div>
+                <div className="dailyBriefTrack">
+                  <AudienceDailyBriefStory story={headline} index={0} headline />
+                </div>
+              </section>
+            )}
+            {regularStories.length > 0 && (
+              <section className="latest dailyBrief audienceDailyBrief">
             <div className="sectionTitle">
               <div>
                 <span>THE DAILY BRIEF</span>
                 <h2>What your city is talking about</h2>
               </div>
               <div className="dailyBriefActions">
-                <small>{stories.length} published stories</small>
+                <small>{regularStories.length} published stories</small>
               </div>
             </div>
             <div className="dailyBriefTrack">
-              {stories.map((story, index) => {
-                const contentUrl = firstHttpUrl(story.content),
-                  contentPreview = contentUrl
-                    ? previewImageForUrl(contentUrl)
-                    : null,
-                  photo =
-                    firstPhotoUrl(story.photos) ||
-                    story.imageUrl ||
-                    contentPreview,
-                  dateValue = story.storyDate || story.publishedAt,
-                  storyDateLabel = dateValue
-                    ? new Date(dateValue).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "Date not set";
-                return (
-                  <article key={story.id}>
-                    <Link
-                      className="dailyBriefThumbLink"
-                      to={`/stories/${story.slug}`}
-                      aria-label={`Read ${story.title}`}
-                    >
-                      <div
-                        className={`thumb t${index % 3}${photo ? " hasImage" : ""}`}
-                        style={photo ? { backgroundImage: `url(${photo})` } : undefined}
-                      >
-                        <span>{story.category.name}</span>
-                      </div>
-                    </Link>
-                    <div className="dailyBriefStoryBody">
-                      <div className="dailyBriefStoryMeta">
-                        <span>STORY DATE · {storyDateLabel}</span>
-                        <div className="meta">
-                          {story.category.name} ·{" "}
-                          {Math.max(2, Math.round(story.content.length / 500))}{" "}
-                          min read
-                        </div>
-                      </div>
-                      <h3>
-                        <Link to={`/stories/${story.slug}`}>{story.title}</Link>
-                      </h3>
-                      <RichText
-                        value={story.excerpt}
-                        className="cardRichSummary"
-                      />
-                      <StoryRegistrationParticipants story={story} />
-                      <div className="dailyBriefStoryFooter">
-                        <div className="storyPrimaryActions">
-                          <Link
-                            className="cardReadStory"
-                            to={`/stories/${story.slug}`}
-                          >
-                            Read Story <ArrowUpRight />
-                          </Link>
-                          <ShareStoryButton title={story.title} slug={story.slug} previewImage={photo} />
-                        </div>
-                        <div className="articleFoot">
-                          <b>{story.author.name}</b>
-                          <span>{story.views.toLocaleString()} views</span>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+              {regularStories.map((story, index) => (
+                <AudienceDailyBriefStory
+                  key={story.id}
+                  story={story}
+                  index={index}
+                />
+              ))}
             </div>
           </section>
+            )}
+          </>
         )}
       </section>
     </div>

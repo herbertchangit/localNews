@@ -91,12 +91,16 @@ model RoleMenuAccess {
   id          String   @id @default(cuid())
   role        Role?    @unique
   roleKey     String?
+  name        String?
+  harmonyGroupId String?
+  harmonyGroup HarmonyGroup? @relation(fields: [harmonyGroupId], references: [id], onDelete: SetNull)
   menuIds     String[] @default([])
   authorities Json     @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([roleKey])
+  @@index([harmonyGroupId])
 }
 
 model RegistrationForm {
@@ -257,6 +261,7 @@ model HarmonyGroup {
   sortOrder   Int               @default(0)
   mutualLoves MutualLoveGroup[]
   users       User[]
+  roleProfiles RoleMenuAccess[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -315,6 +320,7 @@ model Article {
   views       Int             @default(0)
   authorId    String
   author      User            @relation(fields: [authorId], references: [id])
+  harmony     String?
   categoryId  String
   category    Category        @relation(fields: [categoryId], references: [id])
   registrationFormId String?

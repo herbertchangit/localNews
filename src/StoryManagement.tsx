@@ -69,6 +69,7 @@ type Story = {
   photos: StoryPhoto[];
   updatedAt: string;
   author: { name: string };
+  harmony: string | null;
   category: Category;
   categoryId: string;
   storyDate?: string | null;
@@ -563,6 +564,7 @@ export default function StoryManagement() {
           <div className="storyManagerHeader">
             <span>Photos / 照片</span>
             <span>Story / 新聞</span>
+            <span>Harmony / 和氣</span>
             <span>Status / 狀態</span>
             <span>Updated / 更新</span>
             <span>Action / 操作</span>
@@ -614,6 +616,7 @@ export default function StoryManagement() {
                         : ""}
                     </small>
                   </div>
+                  <span className="storyHarmony">{story.harmony || "Unassigned / 未分配"}</span>
                   <div className="storyStatus">
                     <span className={`status ${story.status.toLowerCase()}`}>
                       {story.status === "ARCHIVED" ? "EXPIRED" : story.status}
@@ -1013,6 +1016,11 @@ export default function StoryManagement() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              Harmony / 和氣
+              <input readOnly value={editing.harmony || "Unassigned / 未分配"} />
+              <small>Assigned from the story creator / 根據新聞建立者指派</small>
             </label>
             <label>
               Story / event date / 新聞或活動日期
