@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { activeAppointmentCount } from "./activeAppointments";
 
-export function useActiveAppointmentCount(token: string | undefined, isDoctor: boolean) {
+export function useActiveAppointmentCount(token: string | undefined, isDoctor: boolean, enabled = true) {
   const [count, setCount] = useState(0);
   useEffect(() => {
-    if (!token) { setCount(0); return; }
+    if (!token || !enabled) { setCount(0); return; }
     let active = true;
     const refresh = () => fetch(isDoctor ? "/api/doctor/health/appointments" : "/api/health-events/appointments/mine", {
       headers: { Authorization: `Bearer ${token}` },
@@ -21,6 +21,6 @@ export function useActiveAppointmentCount(token: string | undefined, isDoctor: b
       window.removeEventListener("focus", refresh);
       window.removeEventListener("localnews:appointments-updated", refresh);
     };
-  }, [token, isDoctor]);
+  }, [token, isDoctor, enabled]);
   return count;
 }

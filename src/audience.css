@@ -71,3 +71,31 @@
   font-weight: 700;
   text-decoration: underline;
 }
+
+.audienceAppointmentCard.isDisabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  filter: grayscale(0.35);
+}
+
+.audienceAppointmentCard.isDisabled:hover,
+.audienceAppointmentCard.isDisabled:focus-visible {
+  border-color: #d8ddd8;
+  box-shadow: none;
+  transform: none;
+}
+
+.audienceAppointmentCard.isDisabled .audienceAppointmentDate {
+  border-left-color: #9aa29d;
+  background: #66736c;
+}
+
+.audienceAppointmentCard.isDisabled .audienceAppointmentDate > svg {
+  background: #d9ddda;
+  color: #66736c;
+}
+
+.statusPill.disabled {
+  background: #e1e4e1;
+  color: #59645e;
+}

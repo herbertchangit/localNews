@@ -613,9 +613,10 @@ function SessionSidebarMenu({ current }: { current: Session }) {
     [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(null),
     [canViewPeople, setCanViewPeople] = useState(false),
     [canManageRegistrations, setCanManageRegistrations] = useState(false);
-  const appointmentCount = useActiveAppointmentCount(current.token, current.user.role === "DOCTOR");
-  const hasTaggedPhotos = useTaggedPhotos(current.token, where.pathname);
   const visible = useMenuAccess();
+  const appointmentsVisible = !visible.loading && visible("appointments");
+  const appointmentCount = useActiveAppointmentCount(current.token, current.user.role === "DOCTOR", appointmentsVisible);
+  const hasTaggedPhotos = useTaggedPhotos(current.token, where.pathname);
   const settingsPaths = [
     "/newsroom/settings",
     "/newsroom/departments",
@@ -2403,7 +2404,7 @@ export default function App() {
           path="/newsroom/health-services"
           element={
             <RequireAuth>
-              <AudienceHealthServices />
+              <RequireMenu id="talk_with_doc"><AudienceHealthServices /></RequireMenu>
             </RequireAuth>
           }
         />
@@ -2411,7 +2412,7 @@ export default function App() {
           path="/newsroom/appointments"
           element={
             <RequireAuth>
-              <AudienceAppointments />
+              <RequireMenu id="appointments"><AudienceAppointments /></RequireMenu>
             </RequireAuth>
           }
         />
@@ -2419,7 +2420,7 @@ export default function App() {
           path="/newsroom/doctor/appointments"
           element={
             <RequireAuth roles={["DOCTOR"]}>
-              <DoctorAppointments />
+              <RequireMenu id="appointments"><DoctorAppointments /></RequireMenu>
             </RequireAuth>
           }
         />

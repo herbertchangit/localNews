@@ -99,7 +99,6 @@ export default function StoryManagement() {
   const current = session();
   const isAdmin = current?.user.role === "ADMIN";
   const isEditor = current?.user.role === "EDITOR";
-  const canManageVisibility = isAdmin || isEditor;
   const maxMediaItems = isAdmin || isEditor ? 100 : 12;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -292,7 +291,7 @@ export default function StoryManagement() {
           categoryId: draft.categoryId,
           storyDate: draft.storyDate || null,
           registrationFormId: draft.registrationFormId || null,
-          ...(canManageVisibility ? { isPublic: draft.isPublic } : {}),
+          isPublic: draft.isPublic,
         }),
       });
       const activeMedia = photos.filter((photo) => !photo.removed);
@@ -539,13 +538,9 @@ export default function StoryManagement() {
       </aside>
       <section className="content storyManagement">
         <div className="top">
-          <div>
-            <small>NEWSROOM / STORIES · 新聞中心 / 新聞</small>
+          <div className="storyManagementHeading">
+            <small>NEWSROOM / STORIES /</small>
             <h1>Stories and verification / 新聞管理及審核</h1>
-            <p>
-              Manage, preview, verify and publish newsroom stories in one place.
-              / 在同一頁面管理、預覽、審核及發布新聞。
-            </p>
           </div>
           {canCreate && allowed("new") && (
             <button className="new" onClick={openStoryComposer}>
@@ -564,7 +559,6 @@ export default function StoryManagement() {
           <div className="storyManagerHeader">
             <span>Photos / 照片</span>
             <span>Story / 新聞</span>
-            <span>Harmony / 和氣</span>
             <span>Status / 狀態</span>
             <span>Updated / 更新</span>
             <span>Action / 操作</span>
@@ -610,13 +604,13 @@ export default function StoryManagement() {
                   <div className="storyManagerTitle">
                     <b>{story.title}</b>
                     <small>
-                      {story.author.name} · {story.category.name}
+                      <strong>{story.harmony || "Unassigned / 未分配"}</strong>
+                      {` · ${story.author.name} · ${story.category.name}`}
                       {story.storyDate
                         ? ` · ${new Date(story.storyDate).toLocaleDateString()}`
                         : ""}
                     </small>
                   </div>
-                  <span className="storyHarmony">{story.harmony || "Unassigned / 未分配"}</span>
                   <div className="storyStatus">
                     <span className={`status ${story.status.toLowerCase()}`}>
                       {story.status === "ARCHIVED" ? "EXPIRED" : story.status}
@@ -1048,31 +1042,29 @@ export default function StoryManagement() {
                 ))}
               </select>
             </label>
-            {canManageVisibility && (
-              <div className="storyVisibilityControl">
-                <div>
-                  <Globe2 />
-                  <span>
-                    <b>Public</b>
-                    <small>
-                      Visible to DADE readers and on the public story board
-                    </small>
-                  </span>
-                </div>
-                <label>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-label="Public story"
-                    checked={editing.isPublic}
-                    onChange={(event) =>
-                      updateEditing({ isPublic: event.target.checked })
-                    }
-                  />
-                  <i />
-                </label>
+            <div className="storyVisibilityControl">
+              <div>
+                <Globe2 />
+                <span>
+                  <b>Public</b>
+                  <small>
+                    Visible to DADE readers and on the public story board
+                  </small>
+                </span>
               </div>
-            )}
+              <label>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Public story"
+                  checked={editing.isPublic}
+                  onChange={(event) =>
+                    updateEditing({ isPublic: event.target.checked })
+                  }
+                />
+                <i />
+              </label>
+            </div>
             <div className="storyRichTextField">
               <span>Summary / 摘要</span>
               <RichTextEditor

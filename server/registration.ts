@@ -12,6 +12,10 @@ import { findContactRegistration, findRegistrationConflicts } from "./registrati
 import { attendanceDateError } from "./attendanceDate.js";
 import { appointmentExpired } from "./appointmentExpiry.js";
 import { validRegistrationEventRange } from "./registrationEventRange.js";
+import {
+  registrationFormWhereForHarmony,
+  registrationSubmissionWhereForHarmony,
+} from "./registrationHarmony.js";
 
 const MANAGE_PERMISSION = "registrations.manage";
 const uploadDirectory = path.resolve("uploads");
@@ -130,7 +134,7 @@ export function createRegistrationRouter(db: any, secret: string) {
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) return res.status(401).json({ error: "Authentication required" });
       req.user = jwt.verify(token, secret);
-      const account = await db.user.findUnique({ where: { id: req.user.id }, select: { role: true, roles: true, permissions: true, locked: true, suspended: true } });
+      const account = await db.user.findUnique({ where: { id: req.user.id }, select: { role: true, roles: true, permissions: true, harmonyGroupId: true, locked: true, suspended: true } });
       if (!account || account.locked || account.suspended) return res.status(401).json({ error: "Inactive account" });
       req.registrationAccount = account;
       next();
@@ -140,6 +144,12 @@ export function createRegistrationRouter(db: any, secret: string) {
   };
   const canManage = (req: any) => Boolean(req.roleAuthorityConfigured) || [req.registrationAccount?.role, ...(req.registrationAccount?.roles || [])].includes(Role.ADMIN) || req.registrationAccount?.permissions?.includes(MANAGE_PERMISSION);
   const manage = (req: any, res: any, next: any) => canManage(req) ? next() : res.status(403).json({ error: "Registration management permission required" });
+  const harmonyScope = (req: any) => ({
+    harmonyGroupId: req.registrationAccount?.harmonyGroupId,
+    userId: req.user.id,
+  });
+  const formWhere = (req: any) => registrationFormWhereForHarmony(harmonyScope(req));
+  const submissionWhere = (req: any) => registrationSubmissionWhereForHarmony(harmonyScope(req));
   const include = {
     creator: { select: { id: true, name: true } },
     eventDates: { orderBy: { eventDate: "asc" } },
@@ -306,10 +316,12 @@ export function createRegistrationRouter(db: any, secret: string) {
     if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
     const submission = await db.registrationSubmission.findUnique({
       where: { id: req.params.submissionId },
-      include: { form: { select: { id: true, customFields: true } } },
+      include: { form: { select: { id: true, customFields: true, fromEventDate: true, toEventDate: true } } },
     });
     if (!submission || submission.unregisteredAt || !isContactMatch(account.phone, submission.contact))
       return res.status(404).json({ error: "Registration appointment not found" });
+    if (appointmentExpired(submission.form.toEventDate || submission.form.fromEventDate))
+      return res.status(409).json({ error: "Expired registrations can no longer be changed" });
     const fields = Array.isArray(submission.form.customFields) ? submission.form.customFields : [];
     const customAnswerError = validateCustomAnswers(fields, data.customAnswers);
     if (customAnswerError) return res.status(400).json({ error: customAnswerError });
@@ -327,8 +339,37 @@ export function createRegistrationRouter(db: any, secret: string) {
     });
     res.json(updated);
   });
-  router.get("/admin/forms", authenticate, manage, async (_req, res) => {
-    res.json(await db.registrationForm.findMany({ include, orderBy: { updatedAt: "desc" } }));
+  router.delete("/mine/submissions/:submissionId", authenticate, async (req: any, res) => {
+    const account = await db.user.findUnique({ where: { id: req.user.id }, select: { phone: true } });
+    if (!account?.phone) return res.status(404).json({ error: "Registration appointment not found" });
+    const submission = await db.registrationSubmission.findUnique({
+      where: { id: req.params.submissionId },
+      include: {
+        attendances: { select: { id: true } },
+        form: { select: { id: true, fromEventDate: true, toEventDate: true } },
+      },
+    });
+    if (!submission || submission.unregisteredAt || !isContactMatch(account.phone, submission.contact))
+      return res.status(404).json({ error: "Registration appointment not found" });
+    if (submission.attendances.length)
+      return res.status(409).json({ error: "Delete each dated appointment from its own card" });
+    if (appointmentExpired(submission.form.toEventDate || submission.form.fromEventDate))
+      return res.status(409).json({ error: "Expired registrations can no longer be deleted" });
+    await db.registrationSubmission.update({
+      where: { id: submission.id },
+      data: { unregisteredAt: new Date() },
+    });
+    await db.auditLog.create({
+      data: {
+        action: "REGISTRATION_UNREGISTERED",
+        actorId: req.user.id,
+        metadata: { formId: submission.form.id, submissionId: submission.id },
+      },
+    });
+    res.status(204).end();
+  });
+  router.get("/admin/forms", authenticate, manage, async (req: any, res) => {
+    res.json(await db.registrationForm.findMany({ where: formWhere(req), include, orderBy: { updatedAt: "desc" } }));
   });
   router.post("/admin/forms", authenticate, manage, async (req: any, res) => {
     const data = formInput.parse(req.body);
@@ -353,7 +394,7 @@ export function createRegistrationRouter(db: any, secret: string) {
   });
   router.patch("/admin/forms/:id", authenticate, manage, async (req: any, res) => {
     const data = formInput.parse(req.body);
-    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, include: { eventDates: { include: { _count: { select: { attendances: true } } } } } });
+    const current = await db.registrationForm.findFirst({ where: { id: req.params.id, ...formWhere(req) }, include: { eventDates: { include: { _count: { select: { attendances: true } } } } } });
     if (!current) return res.status(404).json({ error: "Registration form not found" });
     const wanted = new Set(data.eventDates);
     const blocked = current.eventDates.find((item: any) => !wanted.has(isoDate(item.eventDate)) && item._count.attendances > 0);
@@ -370,7 +411,7 @@ export function createRegistrationRouter(db: any, secret: string) {
   });
   router.post("/admin/forms/:id/photo", authenticate, manage, async (req: any, res) => {
     const { dataUrl } = photoInput.parse(req.body);
-    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, photoUrl: true } });
+    const current = await db.registrationForm.findFirst({ where: { id: req.params.id, ...formWhere(req) }, select: { id: true, photoUrl: true } });
     if (!current) return res.status(404).json({ error: "Registration form not found" });
     const photoUrl = await writeRegistrationPhoto(current.id, dataUrl);
     try {
@@ -384,7 +425,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     }
   });
   router.delete("/admin/forms/:id/photo", authenticate, manage, async (req: any, res) => {
-    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, photoUrl: true } });
+    const current = await db.registrationForm.findFirst({ where: { id: req.params.id, ...formWhere(req) }, select: { id: true, photoUrl: true } });
     if (!current) return res.status(404).json({ error: "Registration form not found" });
     const form = await db.registrationForm.update({ where: { id: current.id }, data: { photoUrl: null }, include });
     await removeRegistrationPhoto(current.photoUrl);
@@ -392,7 +433,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     res.json(form);
   });
   router.delete("/admin/forms/:id", authenticate, manage, async (req: any, res) => {
-    const current = await db.registrationForm.findUnique({ where: { id: req.params.id }, select: { id: true, eventName: true, photoUrl: true } });
+    const current = await db.registrationForm.findFirst({ where: { id: req.params.id, ...formWhere(req) }, select: { id: true, eventName: true, photoUrl: true } });
     if (!current) return res.status(404).json({ error: "Registration form not found" });
     await db.registrationForm.delete({ where: { id: current.id } });
     await removeRegistrationPhoto(current.photoUrl);
@@ -400,8 +441,8 @@ export function createRegistrationRouter(db: any, secret: string) {
     res.status(204).end();
   });
   router.get("/admin/forms/:id/submissions", authenticate, manage, async (req: any, res) => {
-    const form = await db.registrationForm.findUnique({
-      where: { id: req.params.id },
+    const form = await db.registrationForm.findFirst({
+      where: { id: req.params.id, ...formWhere(req) },
       include: {
         eventDates: { orderBy: { eventDate: "asc" } },
         submissions: { orderBy: { createdAt: "desc" }, include: { attendances: { include: { eventDate: true }, orderBy: { eventDate: { eventDate: "asc" } } } } },
@@ -428,8 +469,8 @@ export function createRegistrationRouter(db: any, secret: string) {
     });
   });
   router.get("/admin/forms/:id/attendance-codes", authenticate, manage, async (req: any, res) => {
-    const form = await db.registrationForm.findUnique({
-      where: { id: req.params.id },
+    const form = await db.registrationForm.findFirst({
+      where: { id: req.params.id, ...formWhere(req) },
       select: {
         id: true,
         eventName: true,
@@ -455,7 +496,7 @@ export function createRegistrationRouter(db: any, secret: string) {
   });
   router.patch("/admin/submissions/:id", authenticate, manage, async (req: any, res) => {
     const data = submissionUpdateInput.parse(req.body);
-    const submission = await db.registrationSubmission.findUnique({ where: { id: req.params.id }, include: { attendances: { select: { id: true } }, form: { select: { customFields: true } } } });
+    const submission = await db.registrationSubmission.findFirst({ where: { id: req.params.id, ...submissionWhere(req) }, include: { attendances: { select: { id: true } }, form: { select: { customFields: true } } } });
     if (!submission) return res.status(404).json({ error: "Registration not found" });
     if (submission.unregisteredAt) return res.status(409).json({ error: "Un-registered entries cannot be changed" });
     const customAnswerError = validateCustomAnswers(Array.isArray(submission.form.customFields) ? submission.form.customFields : [], data.customAnswers);
@@ -479,7 +520,7 @@ export function createRegistrationRouter(db: any, secret: string) {
     res.json(await db.registrationSubmission.findUnique({ where: { id: submission.id }, include: { attendances: { include: { eventDate: true }, orderBy: { eventDate: { eventDate: "asc" } } } } }));
   });
   router.delete("/admin/submissions/:id", authenticate, manage, async (req: any, res) => {
-    const submission = await db.registrationSubmission.findUnique({ where: { id: req.params.id }, select: { id: true, formId: true, registrantName: true, unregisteredAt: true } });
+    const submission = await db.registrationSubmission.findFirst({ where: { id: req.params.id, ...submissionWhere(req) }, select: { id: true, formId: true, registrantName: true, unregisteredAt: true } });
     if (!submission) return res.status(404).json({ error: "Registration not found" });
     if (submission.unregisteredAt) return res.status(409).json({ error: "Registrant is already un-registered" });
     const updated = await db.registrationSubmission.update({ where: { id: submission.id }, data: { unregisteredAt: new Date() }, include: { attendances: { include: { eventDate: true }, orderBy: { eventDate: { eventDate: "asc" } } } } });

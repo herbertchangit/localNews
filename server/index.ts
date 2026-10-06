@@ -40,6 +40,10 @@ import {
 } from "./roleMenus.js";
 import { articlePublicationCutoff } from "./articleExpiry.js";
 import { taggedPhotoWhere } from "./taggedPhotos.js";
+import { viewerStoryWhere } from "./storyHarmony.js";
+import { roleProfilesAllowStoryCreation } from "./storyCreationAccess.js";
+import { hasPeopleHarmony, peopleWhereForHarmony } from "./peopleHarmony.js";
+import { registrationFormWhereForHarmony } from "./registrationHarmony.js";
 import {
   absoluteWebUrl,
   injectSocialMeta,
@@ -148,14 +152,33 @@ const optionalAuth = (
 const canCreateStory = async (userId: string) => {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { role: true, department: { select: { name: true } } },
+    select: {
+      role: true,
+      roles: true,
+      customRoles: true,
+      department: { select: { name: true } },
+    },
   });
   if (!user) return false;
-  const profile = await db.roleMenuAccess.findUnique({ where: { role: user.role } });
-  const configured = (profile?.authorities || {}) as Record<string, string[]>;
-  if (profile)
-    return profile.menuIds.includes("stories") && (!Object.keys(configured).length || Boolean(configured.stories?.includes("new")));
-  return user.role === Role.ADMIN || user.department?.name === "Humanistic Mission" || user.department?.name === "人文志業";
+  const roles = effectiveRoles(user);
+  if (roles.includes(Role.ADMIN)) return true;
+  const builtInRoles = roles.filter((role) =>
+    Object.values(Role).includes(role as Role),
+  ) as Role[];
+  const profiles = await db.roleMenuAccess.findMany({
+    where: {
+      OR: [
+        { role: { in: builtInRoles } },
+        { roleKey: { in: roles } },
+      ],
+    },
+    select: { menuIds: true, authorities: true },
+  });
+  if (profiles.length) return roleProfilesAllowStoryCreation(profiles);
+  return (
+    user.department?.name === "Humanistic Mission" ||
+    user.department?.name === "人文志業"
+  );
 };
 app.use(createRoleAuthorityMiddleware(db, secret));
 const saveStoryMedia = async (prefix: string, dataUrl: string) => {
@@ -706,7 +729,14 @@ app.get("/api/categories", async (_q, r) =>
   ),
 );
 app.get("/api/story-options", auth(), async (q: Req, r) => {
-  const [canCreate, categories, registrationForms, creator] = await Promise.all([
+  const creator = await db.user.findUnique({
+    where: { id: q.user!.id },
+    select: {
+      harmonyGroupId: true,
+      harmonyGroup: { select: { name: true } },
+    },
+  });
+  const [canCreate, categories, registrationForms] = await Promise.all([
     canCreateStory(q.user!.id),
     db.category.findMany({
       where: { archived: false },
@@ -714,7 +744,13 @@ app.get("/api/story-options", auth(), async (q: Req, r) => {
       orderBy: { name: "asc" },
     }),
     db.registrationForm.findMany({
-      where: { active: true },
+      where: {
+        active: true,
+        ...registrationFormWhereForHarmony({
+          harmonyGroupId: creator?.harmonyGroupId,
+          userId: q.user!.id,
+        }),
+      },
       select: {
         id: true,
         eventName: true,
@@ -723,10 +759,6 @@ app.get("/api/story-options", auth(), async (q: Req, r) => {
         toEventDate: true,
       },
       orderBy: [{ fromEventDate: "asc" }, { eventName: "asc" }],
-    }),
-    db.user.findUnique({
-      where: { id: q.user!.id },
-      select: { harmonyGroup: { select: { name: true } } },
     }),
   ]);
   r.json({
@@ -841,6 +873,17 @@ const canViewPrivateStories = (role?: Role) =>
   !!role && role !== Role.DADE && role !== Role.AUDIENCE;
 const publishedVisibility = (q: Req) =>
   canViewPrivateStories(q.user?.role) ? {} : { isPublic: true };
+const storyHarmonyVisibility = async (user?: { id: string }) => {
+  if (!user) return viewerStoryWhere();
+  const current = await db.user.findUnique({
+    where: { id: user.id },
+    select: { harmonyGroup: { select: { name: true } } },
+  });
+  return viewerStoryWhere({
+    userId: user.id,
+    harmony: current?.harmonyGroup?.name,
+  });
+};
 const storyMediaLimit = (role: Role) => (hasFullStoryAccess(role) ? 100 : 12);
 const canEditArticle = (q: Req, article: { authorId: string }) =>
   hasConfiguredStoryAccess(q) || hasFullStoryAccess(q.user!.role) || article.authorId === q.user!.id;
@@ -939,10 +982,24 @@ const newsroomArticleInput = z.object({
   isPublic: z.boolean().optional(),
   registrationFormId: z.string().min(1).nullable().optional(),
 });
-const validateOpenRegistrationLink = async (registrationFormId?: string | null) => {
+const validateOpenRegistrationLink = async (
+  registrationFormId: string | null | undefined,
+  userId: string,
+) => {
   if (!registrationFormId) return true;
+  const creator = await db.user.findUnique({
+    where: { id: userId },
+    select: { harmonyGroupId: true },
+  });
   const form = await db.registrationForm.findFirst({
-    where: { id: registrationFormId, active: true },
+    where: {
+      id: registrationFormId,
+      active: true,
+      ...registrationFormWhereForHarmony({
+        harmonyGroupId: creator?.harmonyGroupId,
+        userId,
+      }),
+    },
     select: { id: true },
   });
   return Boolean(form);
@@ -995,7 +1052,7 @@ app.get("/api/newsroom/articles", auth(newsroomRoles), async (q: Req, r) => {
   await expirePublishedArticles();
   r.json(
     await db.article.findMany({
-      where: hasConfiguredStoryAccess(q) || hasFullStoryAccess(q.user!.role) ? {} : { authorId: q.user!.id },
+      where: await storyHarmonyVisibility(q.user),
       include: articleInclude,
       orderBy: { updatedAt: "desc" },
     }),
@@ -1005,8 +1062,11 @@ app.get(
   "/api/newsroom/articles/:id",
   auth(newsroomRoles),
   async (q: Req, r) => {
-    const article = await db.article.findUnique({
-      where: { id: q.params.id },
+    const article = await db.article.findFirst({
+      where: {
+        id: q.params.id,
+        ...(await storyHarmonyVisibility(q.user)),
+      },
       include: articleInclude,
     });
     if (!article) return r.status(404).json({ error: "Story not found" });
@@ -1031,14 +1091,8 @@ app.patch(
         .status(403)
         .json({ error: "You can only edit your own stories" });
     const changes = newsroomArticleInput.parse(q.body);
-    if (!(await validateOpenRegistrationLink(changes.registrationFormId)))
+    if (!(await validateOpenRegistrationLink(changes.registrationFormId, q.user!.id)))
       return r.status(400).json({ error: "Select an open registration form" });
-    if (changes.isPublic !== undefined && !hasConfiguredStoryAccess(q) && !hasFullStoryAccess(q.user!.role))
-      return r
-        .status(403)
-        .json({
-          error: "Only administrators and editors can change public visibility",
-        });
     const requiresReview = reviewChanges(q, current.status);
     const article = await db.article.update({
       where: { id: current.id },
@@ -1501,6 +1555,7 @@ app.get("/api/articles", optionalAuth, async (q: Req, r) => {
       status: ArticleStatus.PUBLISHED,
       categoryId,
       ...publishedVisibility(q),
+      ...(await storyHarmonyVisibility(q.user)),
     },
     include: articleInclude,
     orderBy: [
@@ -1513,7 +1568,7 @@ app.get("/api/articles", optionalAuth, async (q: Req, r) => {
 app.get(
   "/api/editor/articles",
   auth([Role.ADMIN, Role.EDITOR]),
-  async (_q, r) => {
+  async (q: Req, r) => {
     await expirePublishedArticles();
     r.json(
       await db.article.findMany({
@@ -1526,6 +1581,7 @@ app.get(
               ArticleStatus.ARCHIVED,
             ],
           },
+          ...(await storyHarmonyVisibility(q.user)),
         },
         include: articleInclude,
         orderBy: { updatedAt: "desc" },
@@ -1540,6 +1596,7 @@ app.get("/api/articles/:slug", optionalAuth, async (q: Req, r) => {
       slug: q.params.slug,
       status: ArticleStatus.PUBLISHED,
       ...publishedVisibility(q),
+      ...(await storyHarmonyVisibility(q.user)),
     },
     select: { id: true },
   });
@@ -1646,6 +1703,7 @@ app.get("/api/articles/:id/discussion", optionalAuth, async (q: Req, r) => {
       id: q.params.id,
       status: ArticleStatus.PUBLISHED,
       ...publishedVisibility(q),
+      ...(await storyHarmonyVisibility(q.user)),
     },
     select: { id: true, photos: { select: { id: true } } },
   });
@@ -1671,6 +1729,7 @@ app.post("/api/articles/:id/responses", auth(), async (q: Req, r) => {
         id: q.params.id,
         status: ArticleStatus.PUBLISHED,
         ...publishedVisibility(q),
+        ...(await storyHarmonyVisibility(q.user)),
       },
       select: { id: true },
     });
@@ -1691,7 +1750,7 @@ app.post("/api/articles/:id/responses", auth(), async (q: Req, r) => {
 });
 app.get("/api/articles/:articleId/photo-tags/me", auth(), async (q: Req, r) => {
   const article = await db.article.findFirst({
-    where: { id: q.params.articleId, status: ArticleStatus.PUBLISHED, ...publishedVisibility(q) },
+    where: { id: q.params.articleId, status: ArticleStatus.PUBLISHED, ...publishedVisibility(q), ...(await storyHarmonyVisibility(q.user)) },
     select: { photos: { where: { userTags: { some: { userId: q.user!.id } } }, select: { id: true } } },
   });
   if (!article) return r.status(404).json({ error: "Story not found" });
@@ -1699,7 +1758,7 @@ app.get("/api/articles/:articleId/photo-tags/me", auth(), async (q: Req, r) => {
 });
 app.post("/api/articles/:articleId/photo-tags/me/:photoId", auth(), async (q: Req, r) => {
   const photo = await db.articlePhoto.findFirst({
-    where: { id: q.params.photoId, articleId: q.params.articleId, article: { status: ArticleStatus.PUBLISHED, ...publishedVisibility(q) } },
+    where: { id: q.params.photoId, articleId: q.params.articleId, article: { status: ArticleStatus.PUBLISHED, ...publishedVisibility(q), ...(await storyHarmonyVisibility(q.user)) } },
     select: { id: true, url: true },
   });
   if (!photo || isVideoUploadUrl(photo.url)) return r.status(404).json({ error: "Story photo not found" });
@@ -1724,6 +1783,7 @@ app.post(
           article: {
             status: ArticleStatus.PUBLISHED,
             ...publishedVisibility(q),
+            ...(await storyHarmonyVisibility(q.user)),
           },
         },
         select: { id: true },
@@ -1758,6 +1818,7 @@ app.post("/api/articles/:id/comments", auth(), async (q: Req, r) => {
         id: q.params.id,
         status: ArticleStatus.PUBLISHED,
         ...publishedVisibility(q),
+        ...(await storyHarmonyVisibility(q.user)),
       },
       select: { id: true },
     });
@@ -2036,7 +2097,7 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
           "Only administrators and Humanistic Mission members can create stories",
       });
   const x = articleInput.parse(q.body);
-  if (!(await validateOpenRegistrationLink(x.registrationFormId)))
+  if (!(await validateOpenRegistrationLink(x.registrationFormId, q.user!.id)))
     return r.status(400).json({ error: "Select an open registration form" });
   const creator = await db.user.findUnique({
     where: { id: q.user!.id },
@@ -2052,9 +2113,7 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
     article = await db.article.create({
       data: {
         ...x,
-        isPublic: hasFullStoryAccess(q.user!.role)
-          ? (x.isPublic ?? true)
-          : true,
+        isPublic: x.isPublic ?? true,
         slug,
         authorId: q.user!.id,
         harmony: creator?.harmonyGroup?.name || null,
@@ -3003,13 +3062,7 @@ const peopleAccessScope = async (userId: string) => {
     admin,
     harmonyGroupId: user.harmonyGroupId,
     mutualLoveGroupId: user.mutualLoveGroupId,
-    where: admin
-      ? {}
-      : {
-          harmonyGroupId: user.harmonyGroupId || "__unassigned__",
-          mutualLoveGroupId: user.mutualLoveGroupId || "__unassigned__",
-          NOT: { OR: [{ role: Role.ADMIN }, { roles: { has: Role.ADMIN } }] },
-        },
+    where: peopleWhereForHarmony({ admin, harmonyGroupId: user.harmonyGroupId }),
   };
 };
 const requirePeopleScope = async (q: Req, r: express.Response) => {
@@ -3018,8 +3071,8 @@ const requirePeopleScope = async (q: Req, r: express.Response) => {
     r.status(404).json({ error: "User not found" });
     return null;
   }
-  if (!scope.admin && (!scope.harmonyGroupId || !scope.mutualLoveGroupId)) {
-    r.status(403).json({ error: "Harmony and MutualLove assignments are required for People access" });
+  if (!hasPeopleHarmony(scope)) {
+    r.status(403).json({ error: "A Harmony assignment is required for People access" });
     return null;
   }
   return scope;
@@ -3029,10 +3082,48 @@ const requirePersonInScope = async (q: Req, r: express.Response, userId: string)
   if (!scope) return null;
   const user = await db.user.findFirst({ where: { id: userId, ...scope.where }, select: { id: true } });
   if (!user) {
-    r.status(403).json({ error: "This account is outside your Harmony and MutualLove scope" });
+    r.status(403).json({ error: "This account is outside your Harmony scope" });
     return null;
   }
   return scope;
+};
+const hierarchyWithinPeopleHarmony = async (
+  scope: { admin: boolean; harmonyGroupId: string | null },
+  data: {
+    harmonyGroupId?: string | null;
+    mutualLoveGroupId?: string | null;
+    cooperationUnitId?: string | null;
+  },
+) => {
+  if (scope.admin) return true;
+  if (
+    data.harmonyGroupId !== undefined &&
+    data.harmonyGroupId !== scope.harmonyGroupId
+  )
+    return false;
+  if (
+    data.mutualLoveGroupId &&
+    !(await db.mutualLoveGroup.findFirst({
+      where: {
+        id: data.mutualLoveGroupId,
+        harmonyId: scope.harmonyGroupId!,
+      },
+      select: { id: true },
+    }))
+  )
+    return false;
+  if (
+    data.cooperationUnitId &&
+    !(await db.cooperationUnit.findFirst({
+      where: {
+        id: data.cooperationUnitId,
+        mutualLove: { harmonyId: scope.harmonyGroupId! },
+      },
+      select: { id: true },
+    }))
+  )
+    return false;
+  return true;
 };
 const areaOptionSelect = {
   id: true,
@@ -3045,7 +3136,7 @@ app.get("/api/admin/accounts/options", auth([Role.ADMIN]), async (q: Req, r) => 
   if (!scope) return;
   const profiles = await db.roleMenuAccess.findMany({ select: { role: true, roleKey: true, name: true } });
   const structureWhere = scope.admin ? {} : { id: scope.harmonyGroupId! };
-  const mutualWhere = scope.admin ? {} : { mutualLoveId: scope.mutualLoveGroupId! };
+  const areaWhere = scope.admin ? {} : { mutualLove: { harmonyId: scope.harmonyGroupId! } };
   const [departments, categories, structure, areas] = await Promise.all([
     db.department.findMany({ orderBy: { name: "asc" } }),
     db.category.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -3054,13 +3145,12 @@ app.get("/api/admin/accounts/options", auth([Role.ADMIN]), async (q: Req, r) => 
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       include: {
         mutualLoves: {
-          where: scope.admin ? {} : { id: scope.mutualLoveGroupId! },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           include: { cooperations: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
         },
       },
     }),
-    db.area.findMany({ where: mutualWhere, select: areaOptionSelect, orderBy: { name: "asc" } }),
+    db.area.findMany({ where: areaWhere, select: areaOptionSelect, orderBy: { name: "asc" } }),
   ]);
   r.json({
     departments,
@@ -3129,8 +3219,8 @@ app.post("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
   const roles = selected.filter((value): value is Role => Object.values(Role).includes(value as Role));
   const customRoles = selected.filter((value) => !Object.values(Role).includes(value as Role));
   if (!scope.admin && roles.includes(Role.ADMIN)) return r.status(403).json({ error: "Only administrators can assign the Administrator role" });
-  if (!scope.admin && ((data.harmonyGroupId !== undefined && data.harmonyGroupId !== scope.harmonyGroupId) || (data.mutualLoveGroupId !== undefined && data.mutualLoveGroupId !== scope.mutualLoveGroupId)))
-    return r.status(403).json({ error: "New accounts must remain in your Harmony and MutualLove scope" });
+  if (!(await hierarchyWithinPeopleHarmony(scope, data)))
+    return r.status(403).json({ error: "New accounts must remain in your Harmony scope" });
   await validateCustomRoles(customRoles);
   const user = await db.user.create({
     data: {
@@ -3139,7 +3229,7 @@ app.post("/api/admin/accounts", auth([Role.ADMIN]), async (q: Req, r) => {
       roles,
       customRoles,
       harmonyGroupId: scope.admin ? data.harmonyGroupId : scope.harmonyGroupId,
-      mutualLoveGroupId: scope.admin ? data.mutualLoveGroupId : scope.mutualLoveGroupId,
+      mutualLoveGroupId: data.mutualLoveGroupId,
       password: await bcrypt.hash(password, 12),
       assignedCategories: { connect: categoryIds.map((id) => ({ id })) },
     },
@@ -3178,8 +3268,8 @@ app.patch("/api/admin/accounts/:id", auth([Role.ADMIN]), async (q: Req, r) => {
   const roles = selected?.filter((value): value is Role => Object.values(Role).includes(value as Role));
   const customRoles = selected?.filter((value) => !Object.values(Role).includes(value as Role));
   if (!scope.admin && roles?.includes(Role.ADMIN)) return r.status(403).json({ error: "Only administrators can assign the Administrator role" });
-  if (!scope.admin && ((data.harmonyGroupId !== undefined && data.harmonyGroupId !== scope.harmonyGroupId) || (data.mutualLoveGroupId !== undefined && data.mutualLoveGroupId !== scope.mutualLoveGroupId)))
-    return r.status(403).json({ error: "Accounts must remain in your Harmony and MutualLove scope" });
+  if (!(await hierarchyWithinPeopleHarmony(scope, data)))
+    return r.status(403).json({ error: "Accounts must remain in your Harmony scope" });
   await validateCustomRoles(customRoles || []);
   const user = await db.user.update({
     where: { id: q.params.id },
@@ -3317,9 +3407,17 @@ app.post(
     const rows = z.array(importedAccount).min(1).max(1000).parse(q.body?.users),
       [departments, harmonies, mutualLoves, cooperations] = await Promise.all([
         db.department.findMany(),
-        db.harmonyGroup.findMany(),
-        db.mutualLoveGroup.findMany(),
-        db.cooperationUnit.findMany(),
+        db.harmonyGroup.findMany({
+          where: scope.admin ? {} : { id: scope.harmonyGroupId! },
+        }),
+        db.mutualLoveGroup.findMany({
+          where: scope.admin ? {} : { harmonyId: scope.harmonyGroupId! },
+        }),
+        db.cooperationUnit.findMany({
+          where: scope.admin
+            ? {}
+            : { mutualLove: { harmonyId: scope.harmonyGroupId! } },
+        }),
       ]),
       find = (items: any[], name: string) =>
         items.find(
@@ -3354,7 +3452,7 @@ app.post(
         }
         if (current && !scope.admin) {
           const scopedTarget = await db.user.findFirst({ where: { id: current.id, ...scope.where }, select: { id: true } });
-          if (!scopedTarget) throw new Error("Account is outside your Harmony and MutualLove scope");
+          if (!scopedTarget) throw new Error("Account is outside your Harmony scope");
         }
         const labels = [
             ...new Set(
@@ -3378,7 +3476,7 @@ app.post(
               ? find(departments, row.organization)
               : null,
             harmonyGroupId: scope.admin ? (row.harmony ? find(harmonies, row.harmony) : null) : scope.harmonyGroupId,
-            mutualLoveGroupId: scope.admin ? (row.mutualLove ? find(mutualLoves, row.mutualLove) : null) : scope.mutualLoveGroupId,
+            mutualLoveGroupId: row.mutualLove ? find(mutualLoves, row.mutualLove) : null,
             cooperationUnitId: row.cooperation
               ? find(cooperations, row.cooperation)
               : null,

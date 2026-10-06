@@ -1,7 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { routeMenu } from "../server/roleMenus";
+import { Role } from "@prisma/client";
+import {
+  administratorUsesDefaultMenus,
+  combinedMenuIdsForProfiles,
+  routeMenu,
+} from "../server/roleMenus";
 
 describe("role menu request routing", () => {
+  it("uses a saved Admin role profile instead of the unrestricted Admin fallback", () => {
+    expect(administratorUsesDefaultMenus([Role.ADMIN], [])).toBe(true);
+    expect(
+      administratorUsesDefaultMenus(
+        [Role.ADMIN],
+        [{ role: Role.ADMIN }],
+      ),
+    ).toBe(false);
+  });
+
+  it("lets an assigned custom role govern Talk With Doc and Appointments visibility", () => {
+    expect(
+      combinedMenuIdsForProfiles(
+        [
+          {
+            roleKey: null,
+            menuIds: ["overview", "talk_with_doc", "appointments", "settings"],
+          },
+          { roleKey: "AREA_LEADER", menuIds: ["overview", "people"] },
+        ],
+        ["AREA_LEADER"],
+      ),
+    ).toEqual(["overview", "settings", "people"]);
+  });
+
+  it("combines explicitly enabled governed menus across multiple custom roles", () => {
+    expect(
+      combinedMenuIdsForProfiles(
+        [
+          { roleKey: "EVENT_HELPER", menuIds: ["appointments"] },
+          { roleKey: "MEDICAL_HELPER", menuIds: ["talk_with_doc"] },
+        ],
+        ["EVENT_HELPER", "MEDICAL_HELPER"],
+      ),
+    ).toEqual(["appointments", "talk_with_doc"]);
+  });
+
   it("authorizes published story reads through Overview", () => {
     expect(routeMenu("/api/articles", "GET")).toBe("overview");
     expect(routeMenu("/api/articles/a-story", "GET")).toBe("overview");

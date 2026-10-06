@@ -62,6 +62,30 @@ const normalizedAuthorities = (profile: { authorities: unknown; menuIds: string[
   return Object.fromEntries(MENU_DEFINITIONS.map((menu) => [menu.id, profile.menuIds.includes(menu.id) ? [...ROLE_ACTIONS] : []]));
 };
 
+export const administratorUsesDefaultMenus = (
+  roles: string[],
+  profiles: Array<{ role?: Role | null }>,
+) => roles.includes(Role.ADMIN) && !profiles.some((profile) => profile.role === Role.ADMIN);
+
+const customRoleGovernedMenus = new Set(["talk_with_doc", "appointments"]);
+export const combinedMenuIdsForProfiles = (
+  profiles: Array<{ roleKey?: string | null; menuIds: string[] }>,
+  customRoles: string[] = [],
+) => {
+  const selected = new Set(profiles.flatMap((profile) => profile.menuIds));
+  const assignedCustomRoles = new Set(customRoles);
+  const customProfiles = profiles.filter(
+    (profile) => profile.roleKey && assignedCustomRoles.has(profile.roleKey),
+  );
+  if (customProfiles.length) {
+    for (const menu of customRoleGovernedMenus) {
+      if (!customProfiles.some((profile) => profile.menuIds.includes(menu)))
+        selected.delete(menu);
+    }
+  }
+  return [...selected];
+};
+
 export function createRoleMenuRouter(db: PrismaClient, secret: string) {
   const router = Router();
   const administratorState = async (userId: string) => {
@@ -91,10 +115,10 @@ export function createRoleMenuRouter(db: PrismaClient, secret: string) {
     const current = await db.user.findUnique({ where: { id: req.user!.id }, select: { role: true, roles: true, customRoles: true } });
     if (!current) return res.status(404).json({ error: "User not found" });
     const roles = effectiveRoles(current);
-    if (roles.includes(Role.ADMIN))
-      return res.json({ role: current.role, roles, configured: false, menuIds: null, authorities: null });
     const profiles = await db.roleMenuAccess.findMany({ where: profileWhere(roles) });
-    const menuIds = [...new Set(profiles.flatMap((profile) => profile.menuIds))];
+    if (administratorUsesDefaultMenus(roles, profiles))
+      return res.json({ role: current.role, roles, configured: false, menuIds: null, authorities: null });
+    const menuIds = combinedMenuIdsForProfiles(profiles, current.customRoles);
     const combinedAuthorities: Record<string, string[]> = {};
     for (const profile of profiles) {
       const profileAuthorities = normalizedAuthorities(profile) || {};
@@ -227,10 +251,10 @@ export function createRoleAuthorityMiddleware(db: PrismaClient, secret: string) 
       const current = await db.user.findUnique({ where: { id: payload.id }, select: { role: true, roles: true, customRoles: true } });
       if (!current) return next();
       const roles = effectiveRoles(current);
-      if (roles.includes(Role.ADMIN)) return next();
       const profiles = await db.roleMenuAccess.findMany({ where: profileWhere(roles) });
+      if (administratorUsesDefaultMenus(roles, profiles)) return next();
       if (!profiles.length) return next();
-      const menuIds = new Set(profiles.flatMap((profile) => profile.menuIds));
+      const menuIds = new Set(combinedMenuIdsForProfiles(profiles, current.customRoles));
       const configured = profiles.reduce<Record<string, string[]>>((combined, profile) => {
         for (const [menuId, actions] of Object.entries(normalizedAuthorities(profile) || {}))
           combined[menuId] = [...new Set([...(combined[menuId] || []), ...actions])];

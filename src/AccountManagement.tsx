@@ -20,6 +20,9 @@ import {
   CalendarDays,
   Share2,
   RotateCcw,
+  Search,
+  SlidersHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import { csvBoolean, parseCsv, toCsv } from "./userCsv";
 import { pageCount, paginate } from "./pagination";
@@ -106,6 +109,8 @@ export default function AccountManagement() {
     [revertingFormId, setRevertingFormId] = useState(""),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
+    [searchOpen, setSearchOpen] = useState(false),
+    [filtersOpen, setFiltersOpen] = useState(false),
     [roleFilter, setRoleFilter] = useState(""),
     [harmonyFilter, setHarmonyFilter] = useState(""),
     [mutualLoveFilter, setMutualLoveFilter] = useState(""),
@@ -543,10 +548,11 @@ export default function AccountManagement() {
     }
   };
   const canInlineEditHierarchy =
-    allowed("edit") &&
-    [activeSession?.user?.role, ...(activeSession?.user?.roles || [])].includes(
-      "ADMIN",
-    );
+    allowed("edit");
+  const isAdminSession = [
+    activeSession?.user?.role,
+    ...(activeSession?.user?.roles || []),
+  ].includes("ADMIN");
   return (
     <div className="dash">
       <aside>
@@ -589,44 +595,10 @@ export default function AccountManagement() {
         </div>
       </aside>
       <section className="content accountPage">
-        <div className="top">
+        <div className="top accountPageHeader">
           <div>
-            <small>ADMINISTRATION / PEOPLE</small>
-            <h1>User management</h1>
+            <small>ADMINISTRATION / PEOPLE / USER MANAGEMENT [{users.length}]</small>
             <p>Manage accounts and normalized organization assignments.</p>
-          </div>
-          <div className="accountTopActions">
-            <input
-              ref={importInput}
-              type="file"
-              accept=".csv,text/csv"
-              hidden
-              onChange={importUsers}
-            />
-            {allowed("new") && (
-              <button
-                className="accountTransferAction"
-                type="button"
-                onClick={() => importInput.current?.click()}
-              >
-                <Upload />
-                Import CSV
-              </button>
-            )}
-            <a
-              className="accountTransferAction"
-              href={`data:text/csv;charset=utf-8,%EF%BB%BF${encodeURIComponent(exportCsv)}`}
-              download={`local-news-users-${new Date().toISOString().slice(0, 10)}.csv`}
-            >
-              <Download />
-              Export CSV
-            </a>
-            {allowed("new") && (
-              <button className="new" onClick={() => open()}>
-                <Plus />
-                Create user
-              </button>
-            )}
           </div>
         </div>
         {notice && (
@@ -636,24 +608,77 @@ export default function AccountManagement() {
           </div>
         )}
         <div className="panel accountPanel">
-          <div className="userTools">
-            <div className="userSearch">
-              <Users />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search people or organization assignment"
-              />
-            </div>
-            {!!selected.size && allowed("delete") && (
-              <button className="bulkDelete" type="button" onClick={bulkRemove}>
-                <Trash2 />
-                Delete selected ({selected.size})
+          <div className={`accountCollapseCard${searchOpen ? " open" : ""}`}>
+            <div className="accountSearchHeader">
+              <button
+                className="accountCollapseToggle"
+                type="button"
+                aria-expanded={searchOpen}
+                aria-controls="account-search-panel"
+                onClick={() => setSearchOpen((current) => !current)}
+              >
+                <span><Search/><b>Search users</b>{query && <em>Active</em>}</span>
+                <ChevronDown/>
               </button>
-            )}
-            <span>{visible.length} people</span>
+              <div className="accountTopActions">
+                <input
+                  ref={importInput}
+                  type="file"
+                  accept=".csv,text/csv"
+                  hidden
+                  onChange={importUsers}
+                />
+                {allowed("new") && (
+                  <button
+                    className="accountTransferAction"
+                    type="button"
+                    onClick={() => importInput.current?.click()}
+                  >
+                    <Upload />
+                    Import CSV
+                  </button>
+                )}
+                <a
+                  className="accountTransferAction"
+                  href={`data:text/csv;charset=utf-8,%EF%BB%BF${encodeURIComponent(exportCsv)}`}
+                  download={`local-news-users-${new Date().toISOString().slice(0, 10)}.csv`}
+                >
+                  <Download />
+                  Export CSV
+                </a>
+                {allowed("new") && (
+                  <button className="new" onClick={() => open()}>
+                    <Plus />
+                    Create user
+                  </button>
+                )}
+              </div>
+            </div>
+            {searchOpen && <div className="userTools" id="account-search-panel">
+              <div className="userSearch">
+                <Search />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search people or organization assignment"
+                  aria-label="Search users"
+                />
+              </div>
+              {query && <button className="accountClearTool" type="button" onClick={() => setQuery("")}>Clear search</button>}
+            </div>}
           </div>
-          <div className="accountFilters" aria-label="Filter users">
+          <div className={`accountCollapseCard${filtersOpen ? " open" : ""}`}>
+            <button
+              className="accountCollapseToggle"
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-controls="account-filter-panel"
+              onClick={() => setFiltersOpen((current) => !current)}
+            >
+              <span><SlidersHorizontal/><b>Filter users</b>{(roleFilter || harmonyFilter || mutualLoveFilter || cooperationFilter) && <em>Active</em>}</span>
+              <ChevronDown/>
+            </button>
+          {filtersOpen && <div className="accountFilters" id="account-filter-panel" aria-label="Filter users">
             <label>
               Role
               <select
@@ -734,7 +759,16 @@ export default function AccountManagement() {
                 Clear filters
               </button>
             )}
+          </div>}
           </div>
+          {!!selected.size && allowed("delete") && (
+            <div className="accountListSummary">
+              <button className="bulkDelete" type="button" onClick={bulkRemove}>
+                <Trash2 />
+                Delete selected ({selected.size})
+              </button>
+            </div>
+          )}
           <div className="accountRow accountHeader">
             <span className="accountSelectHeader">
               <input
@@ -836,7 +870,7 @@ export default function AccountManagement() {
                 </small>
                 {canInlineEditHierarchy ? <>
                   <select aria-label={`Harmony for ${u.name}`} value={u.harmonyGroup?.id || ""} disabled={hierarchySaving} onChange={(event) => updateHierarchy(u, "harmony", event.target.value)}>
-                    <option value="">—</option>
+                    {isAdminSession && <option value="">—</option>}
                     {structure.map((harmony) => <option value={harmony.id} key={harmony.id}>{harmony.name}</option>)}
                   </select>
                   <b>›</b>

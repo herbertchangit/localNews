@@ -390,9 +390,14 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "ADMINISTRATION / PEOPLE",
     "pages": [
-      "Account Management",
       "App",
       "User Management Full"
+    ]
+  },
+  {
+    "source": "ADMINISTRATION / PEOPLE / USER MANAGEMENT [",
+    "pages": [
+      "Account Management"
     ]
   },
   {
@@ -540,12 +545,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Appointment cancelled. The time slot is now available to other users.",
-    "pages": [
-      "Audience"
-    ]
-  },
-  {
     "source": "Appointment deleted",
     "pages": [
       "Healthcare Admin"
@@ -592,6 +591,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Appointment slots",
     "pages": [
       "Doctor Settings"
+    ]
+  },
+  {
+    "source": "Appointment/order deleted.",
+    "pages": [
+      "Audience"
     ]
   },
   {
@@ -735,6 +740,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Attended registrations cannot be deleted.",
+    "pages": [
+      "Audience"
+    ]
+  },
+  {
     "source": "Audience",
     "pages": [
       "Audience"
@@ -872,7 +883,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Account Management",
       "App",
       "Area Management",
-      "Audience",
       "Department Management",
       "Doctor Settings",
       "Grouping Management",
@@ -890,18 +900,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "User Management Full"
     ],
     "inlineChinese": "取消"
-  },
-  {
-    "source": "Cancel appointment",
-    "pages": [
-      "Audience"
-    ]
-  },
-  {
-    "source": "Cancelling…",
-    "pages": [
-      "Audience"
-    ]
   },
   {
     "source": "Capacity",
@@ -1050,6 +1048,24 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Clear filters",
     "pages": [
       "Account Management"
+    ]
+  },
+  {
+    "source": "Clear search",
+    "pages": [
+      "Account Management"
+    ]
+  },
+  {
+    "source": "Clone role",
+    "pages": [
+      "Role Management"
+    ]
+  },
+  {
+    "source": "CLONE ROLE ACCESS",
+    "pages": [
+      "Role Management"
     ]
   },
   {
@@ -1294,6 +1310,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "inlineChinese": "建立類別"
   },
   {
+    "source": "Create cloned role",
+    "pages": [
+      "Role Management"
+    ]
+  },
+  {
     "source": "Create consecutive slots during",
     "pages": [
       "Doctor Settings"
@@ -1504,6 +1526,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Delete",
     "pages": [
+      "Audience",
       "Grouping Management",
       "Jing Si Management",
       "Story Management",
@@ -1584,6 +1607,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Deleting…",
     "pages": [
+      "Audience",
       "Story Management"
     ]
   },
@@ -1652,6 +1676,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Healthcare Admin",
       "Registration Management"
     ]
+  },
+  {
+    "source": "Disabled",
+    "pages": [
+      "Audience"
+    ],
+    "inlineChinese": "已停用"
   },
   {
     "source": "Dismiss news notification",
@@ -2213,10 +2244,9 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Expired",
     "pages": [
-      "Audience",
       "Editorial Dashboard"
     ],
-    "inlineChinese": "已过期"
+    "inlineChinese": "已到期"
   },
   {
     "source": "EXPIRED",
@@ -2497,6 +2527,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "pages": [
       "Org Chart Maintenance",
       "Org Structure Normalized"
+    ]
+  },
+  {
+    "source": "Harmony is assigned by an administrator.",
+    "pages": [
+      "Reader Settings"
     ]
   },
   {
@@ -3131,13 +3167,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Manage, preview, verify and publish newsroom stories in one place.",
-    "pages": [
-      "Story Management"
-    ],
-    "inlineChinese": "在同一頁面管理、預覽、審核及發布新聞。"
-  },
-  {
     "source": "mappings",
     "pages": [
       "Language Mapping Management"
@@ -3528,11 +3557,10 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "inlineChinese": "新聞審核"
   },
   {
-    "source": "NEWSROOM / STORIES",
+    "source": "NEWSROOM / STORIES /",
     "pages": [
       "Story Management"
-    ],
-    "inlineChinese": "新聞中心 / 新聞"
+    ]
   },
   {
     "source": "Newsroom departments",
@@ -4152,7 +4180,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "people",
     "pages": [
-      "Account Management",
       "App",
       "User Management Full"
     ]
@@ -4627,12 +4654,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Registration appointment un-registered. Admin Registration has been synchronized.",
-    "pages": [
-      "Audience"
-    ]
-  },
-  {
     "source": "Registration appointment updated. Admin Registration has been synchronized.",
     "pages": [
       "Audience"
@@ -4980,12 +5001,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Save additional fields",
-    "pages": [
-      "Audience"
-    ]
-  },
-  {
     "source": "Save changes",
     "pages": [
       "Account Management",
@@ -5197,6 +5212,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Search users",
     "pages": [
+      "Account Management",
       "App"
     ]
   },
@@ -5963,7 +5979,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "This appointment has expired.",
+    "source": "This appointment/order is disabled because it has expired.",
     "pages": [
       "Audience"
     ]
@@ -6263,7 +6279,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "User management",
     "pages": [
-      "Account Management",
       "App",
       "User Management Full"
     ]

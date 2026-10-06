@@ -601,6 +601,37 @@ export function createHealthPublicRouter(db: PrismaClient, secret: string) {
       res.status(400).json({ error: error?.message || "Could not cancel appointment" });
     }
   });
+  router.delete("/appointments/:id", async (req: any, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      if (!token) return res.status(401).json({ error: "Authentication required" });
+      const user = jwt.verify(token, secret) as { id: string };
+      const current = await db.healthAppointment.findFirst({
+        where: { id: req.params.id, patientId: user.id },
+        select: { id: true, slotId: true, eventId: true, endTime: true, event: { select: { eventDate: true } } },
+      });
+      if (!current) return res.status(404).json({ error: "Appointment not found" });
+      if (appointmentExpired(current.event.eventDate, current.endTime))
+        return res.status(409).json({ error: "Expired appointments can no longer be deleted" });
+      await db.$transaction(async (tx) => {
+        await tx.healthAppointment.delete({ where: { id: current.id } });
+        if (current.slotId)
+          await tx.healthTimeSlot.update({ where: { id: current.slotId }, data: { booked: false } });
+      });
+      await db.auditLog.create({
+        data: {
+          action: "PATIENT_APPOINTMENT_DELETED",
+          actorId: user.id,
+          metadata: { appointmentId: current.id, eventId: current.eventId },
+        },
+      });
+      res.status(204).end();
+    } catch (error: any) {
+      if (error?.name === "JsonWebTokenError" || error?.name === "TokenExpiredError")
+        return res.status(401).json({ error: "Invalid token" });
+      res.status(400).json({ error: error?.message || "Could not delete appointment" });
+    }
+  });
   router.post("/:id/appointments", async (req: any, res) => {
     try {
       const token = req.headers.authorization?.replace("Bearer ", "");

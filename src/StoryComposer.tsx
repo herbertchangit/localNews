@@ -137,9 +137,6 @@ function StoryModal({
   onClose: () => void;
   onCreated: (title: string) => void;
 }) {
-  const canManageVisibility = ["ADMIN", "EDITOR"].includes(
-    session()?.user?.role || "",
-  );
   const [form, setForm] = useState({
       title: "",
       excerpt: "",
@@ -396,31 +393,29 @@ function StoryModal({
             ))}
           </select>
         </label>
-        {canManageVisibility && (
-          <div className="storyVisibilityControl">
-            <div>
-              <Globe2 />
-              <span>
-                <b>Public</b>
-                <small>
-                  Visible to DADE readers and on the public story board
-                </small>
-              </span>
-            </div>
-            <label>
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label="Public story"
-                checked={form.isPublic}
-                onChange={(event) =>
-                  setForm({ ...form, isPublic: event.target.checked })
-                }
-              />
-              <i />
-            </label>
+        <div className="storyVisibilityControl">
+          <div>
+            <Globe2 />
+            <span>
+              <b>Public</b>
+              <small>
+                Visible to DADE readers and on the public story board
+              </small>
+            </span>
           </div>
-        )}
+          <label>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Public story"
+              checked={form.isPublic}
+              onChange={(event) =>
+                setForm({ ...form, isPublic: event.target.checked })
+              }
+            />
+            <i />
+          </label>
+        </div>
         <div className="storyRichTextField">
           <span>Summary / 摘要</span>
           <RichTextEditor

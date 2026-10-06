@@ -32,7 +32,7 @@ export default function AreaManagement() {
   };
   const load = async () => {
     try {
-      const [areaItems, hierarchy] = await Promise.all([api("/api/admin/areas"), api("/api/org-structure-options")]);
+      const [areaItems, hierarchy] = await Promise.all([api("/api/admin/areas"), api("/api/admin/areas/options")]);
       setAreas(areaItems);
       setStructure(hierarchy);
     } catch (error: any) { setNotice(error.message); }

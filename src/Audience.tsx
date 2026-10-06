@@ -5,7 +5,6 @@ import {
   ArrowUpRight,
   CalendarCheck2,
   CalendarHeart,
-  CalendarX2,
   Camera,
   CircleCheckBig,
   ClipboardList,
@@ -41,7 +40,7 @@ import { firstHttpUrl, firstPhotoUrl, isVideoUrl, previewImageForUrl } from "./r
 import { useMenuAccess } from "./menuAccess";
 import ShareStoryButton from "./ShareStoryButton";
 import { attendanceTokenFromQr } from "./attendanceQr";
-import { appointmentExpired } from "../server/appointmentExpiry";
+import { appointmentCardExpired } from "./appointmentCardState";
 import { useActiveAppointmentCount } from "./useActiveAppointmentCount";
 import RegistrationAnswersEditor, {
   type EditableRegistrationAnswer,
@@ -157,7 +156,8 @@ export function AudienceSidebar({
   const u = session()?.user;
   const visible = useMenuAccess();
   const isDoctor = u?.role === "DOCTOR";
-  const appointmentCount = useActiveAppointmentCount(token(), isDoctor);
+  const appointmentsVisible = !visible.loading && visible("appointments");
+  const appointmentCount = useActiveAppointmentCount(token(), isDoctor, appointmentsVisible);
   const [account, setAccount] = useState<SidebarAccount | null>(null);
   const [canAccessRegistrations, setCanAccessRegistrations] = useState(false);
   const [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(
@@ -482,7 +482,7 @@ export function AudienceAppointments() {
     window.dispatchEvent(new Event("localnews:appointments-updated"));
   }, [appointments]);
   const [busy, setBusy] = useState(true);
-  const [cancelling, setCancelling] = useState("");
+  const [deleting, setDeleting] = useState("");
   const [savingRegistration, setSavingRegistration] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Appointment | null>(null);
@@ -635,41 +635,32 @@ export function AudienceAppointments() {
     scannerControls.current?.stop();
     setScannerOpen(false);
   };
-  const cancelAppointment = async (item: Appointment) => {
-    if (appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime)) return setNotice("This appointment has expired.");
-    if (
-      !confirm(
-        `Cancel your appointment with ${item.doctor.user.name} on ${new Date(item.event.eventDate).toLocaleDateString()} at ${item.startTime}?`,
-      )
-    )
-      return;
-    setCancelling(item.id);
+  const deleteAppointment = async (item: Appointment) => {
+    if (appointmentCardExpired(item)) return setNotice("This appointment/order is disabled because it has expired.");
+    if (item.registration?.checkedInAt) return setNotice("Attended registrations cannot be deleted.");
+    if (!confirm(`Delete ${item.event.name} from your appointments/orders?`)) return;
+    setDeleting(item.id);
     setNotice("");
     try {
+      const endpoint = item.registration
+        ? item.registration.attendanceId
+          ? `/api/registrations/mine/${item.registration.attendanceId}`
+          : `/api/registrations/mine/submissions/${item.registration.submissionId}`
+        : `/api/health-events/appointments/${item.id}`;
       const response = await fetch(
-        `/api/health-events/appointments/${item.id}/cancel`,
-        { method: "PATCH", headers: authHeaders() },
+        endpoint,
+        { method: "DELETE", headers: authHeaders() },
       );
-      const data = await response.json().catch(() => ({}));
+      const data = response.status === 204 ? null : await response.json().catch(() => ({}));
       if (!response.ok)
-        throw new Error(data.error || "Could not cancel appointment");
-      setAppointments((current) =>
-        current.map((existing) =>
-          existing.id === item.id
-            ? { ...existing, status: "CANCELLED" }
-            : existing,
-        ),
-      );
-      setSelected((current) =>
-        current?.id === item.id ? { ...current, status: "CANCELLED" } : current,
-      );
-      setNotice(
-        "Appointment cancelled. The time slot is now available to other users.",
-      );
+        throw new Error(data?.error || "Could not delete appointment/order");
+      setAppointments((current) => current.filter((existing) => existing.id !== item.id));
+      setSelected((current) => (current?.id === item.id ? null : current));
+      setNotice("Appointment/order deleted.");
     } catch (error: any) {
       setNotice(error.message);
     } finally {
-      setCancelling("");
+      setDeleting("");
     }
   };
   const editRegistration = (
@@ -691,7 +682,7 @@ export function AudienceAppointments() {
   };
   const saveRegistration = async (item: Appointment) => {
     if (!item.registration?.attendanceId) return;
-    if (appointmentExpired(item.event.eventDate)) return setNotice("This appointment has expired.");
+    if (appointmentCardExpired(item)) return setNotice("This appointment/order is disabled because it has expired.");
     setSavingRegistration(item.id);
     setNotice("");
     try {
@@ -754,6 +745,7 @@ export function AudienceAppointments() {
   };
   const saveRegistrationAnswers = async (item: Appointment) => {
     if (!item.registration) return;
+    if (appointmentCardExpired(item)) return setNotice("This appointment/order is disabled because it has expired.");
     setSavingRegistration(item.id);
     setNotice("");
     try {
@@ -770,41 +762,6 @@ export function AudienceAppointments() {
         throw new Error(data.error || "Could not update registration details");
       setNotice(
         "Registration appointment updated. Admin Registration has been synchronized.",
-      );
-    } catch (error: any) {
-      setNotice(error.message);
-    } finally {
-      setSavingRegistration("");
-    }
-  };
-  const unregisterRegistration = async (item: Appointment) => {
-    if (appointmentExpired(item.event.eventDate)) return setNotice("This appointment has expired.");
-    if (
-      !item.registration ||
-      !confirm(
-        `Un-register from ${item.event.name} on ${new Date(item.event.eventDate).toLocaleDateString()}?`,
-      )
-    )
-      return;
-    setSavingRegistration(item.id);
-    setNotice("");
-    try {
-      const response = await fetch(
-        `/api/registrations/mine/${item.registration.attendanceId}`,
-        { method: "DELETE", headers: authHeaders() },
-      );
-      const data =
-        response.status === 204
-          ? null
-          : await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(data?.error || "Could not un-register appointment");
-      setAppointments((current) =>
-        current.filter((existing) => existing.id !== item.id),
-      );
-      setSelected((current) => (current?.id === item.id ? null : current));
-      setNotice(
-        "Registration appointment un-registered. Admin Registration has been synchronized.",
       );
     } catch (error: any) {
       setNotice(error.message);
@@ -841,9 +798,7 @@ export function AudienceAppointments() {
         ) : appointments.length ? (
           <div className="audienceAppointmentList">
             {appointments.map((item) => {
-              const expired = item.registration?.dateFree
-                ? false
-                : appointmentExpired(item.event.eventDate, item.registration ? null : item.endTime);
+              const expired = appointmentCardExpired(item);
               const registrationStartDate = item.registration
                 ? new Date(item.event.eventDate)
                 : null;
@@ -860,14 +815,15 @@ export function AudienceAppointments() {
                 item.doctor.profileImage || item.doctor.user.avatarUrl;
               return (
                 <article
-                  className={`panel audienceAppointmentCard${item.registration ? " registrationAppointmentCard" : ""}${item.status === "CANCELLED" ? " isCancelled" : ""}`}
+                  className={`panel audienceAppointmentCard${item.registration ? " registrationAppointmentCard" : ""}${item.status === "CANCELLED" ? " isCancelled" : ""}${expired ? " isDisabled" : ""}`}
                   key={item.id}
                   role="button"
-                  tabIndex={0}
+                  tabIndex={expired ? -1 : 0}
+                  aria-disabled={expired}
                   aria-label={`View appointment with ${item.doctor.user.name}`}
-                  onClick={() => setSelected(item)}
+                  onClick={() => !expired && setSelected(item)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
+                    if (!expired && (event.key === "Enter" || event.key === " ")) {
                       event.preventDefault();
                       setSelected(item);
                     }
@@ -988,19 +944,6 @@ export function AudienceAppointments() {
                           <Save />
                           {savingRegistration === item.id ? "Saving…" : "Save"}
                         </button>
-                        <button
-                          className="danger"
-                          type="button"
-                          disabled={
-                            expired ||
-                            savingRegistration === item.id ||
-                            Boolean(item.registration.checkedInAt)
-                          }
-                          onClick={() => unregisterRegistration(item)}
-                        >
-                          <CalendarX2 />
-                          Un-register
-                        </button>
                       </div>
                       {item.registration.checkedInAt && (
                         <span className="attendanceCheckedIn">
@@ -1020,37 +963,37 @@ export function AudienceAppointments() {
                       <RegistrationAnswersEditor
                         fields={item.registration.customFields}
                         answers={item.registration.customAnswers}
-                        disabled={savingRegistration === item.id}
+                        disabled={expired || savingRegistration === item.id || Boolean(item.registration.checkedInAt)}
                         onChange={(fieldId, value) =>
                           editRegistrationAnswer(item.id, fieldId, value)
                         }
                       />
                       <button
                         type="button"
-                        disabled={savingRegistration === item.id}
+                        disabled={expired || savingRegistration === item.id || Boolean(item.registration.checkedInAt)}
                         onClick={() => saveRegistrationAnswers(item)}
                       >
                         <Save />
-                        {savingRegistration === item.id ? "Saving…" : "Save additional fields"}
+                        {savingRegistration === item.id ? "Saving…" : "Save"}
                       </button>
                     </div>
                   )}
                   <div className="audienceAppointmentControls">
-                    {expired && <span className="statusPill">Expired / 已过期</span>}
+                    {expired && <span className="statusPill disabled">Disabled / 已停用</span>}
                     <i className={`statusPill ${item.status.toLowerCase()}`}>
                       {item.status.replace("_", " ")}
                     </i>
-                    {["PENDING", "CONFIRMED"].includes(item.status) && (
+                    {!expired && !item.registration?.checkedInAt && (
                       <button
                         className="audienceAppointmentCancel"
-                        disabled={expired || cancelling === item.id}
+                        disabled={deleting === item.id}
                         onClick={(event) => {
                           event.stopPropagation();
-                          cancelAppointment(item);
+                          deleteAppointment(item);
                         }}
                       >
-                        <CalendarX2 />
-                        {cancelling === item.id ? "Cancelling…" : "Cancel"}
+                        <Trash2 />
+                        {deleting === item.id ? "Deleting…" : "Delete"}
                       </button>
                     )}
                   </div>
@@ -1214,17 +1157,15 @@ export function AudienceAppointments() {
               <button type="button" onClick={() => setSelected(null)}>
                 Close
               </button>
-              {["PENDING", "CONFIRMED"].includes(selected.status) && (
+              {!appointmentCardExpired(selected) && !selected.registration?.checkedInAt && (
                 <button
                   className="danger"
                   type="button"
-                  disabled={(!selected.registration?.dateFree && appointmentExpired(selected.event.eventDate, selected.registration ? null : selected.endTime)) || cancelling === selected.id}
-                  onClick={() => cancelAppointment(selected)}
+                  disabled={deleting === selected.id}
+                  onClick={() => deleteAppointment(selected)}
                 >
-                  <CalendarX2 />
-                  {cancelling === selected.id
-                    ? "Cancelling…"
-                    : "Cancel appointment"}
+                  <Trash2 />
+                  {deleting === selected.id ? "Deleting…" : "Delete"}
                 </button>
               )}
             </footer>

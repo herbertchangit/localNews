@@ -2,6 +2,10 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { isContactMatch, normalizeLoginContact } from "./loginIdentifier.js";
+import {
+  areaWhereForHarmony,
+  mutualLoveWhereForHarmony,
+} from "./areaHarmony.js";
 
 const profileSelect = {
   id: true,
@@ -52,6 +56,48 @@ export function createReaderProfileRouter(db: any, secret: string) {
     user ? res.json(user) : res.status(404).json({ error: "User not found" });
   });
 
+  router.get("/options", authenticate, async (req: any, res) => {
+    const current = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: { harmonyGroupId: true },
+    });
+    if (!current) return res.status(404).json({ error: "User not found" });
+    const harmonyGroupId = current.harmonyGroupId;
+    const [structure, areas] = await Promise.all([
+      db.harmonyGroup.findMany({
+        where: harmonyGroupId ? { id: harmonyGroupId } : { id: { in: [] } },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        include: {
+          mutualLoves: {
+            where: mutualLoveWhereForHarmony(harmonyGroupId),
+            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+            include: {
+              cooperations: {
+                orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+              },
+            },
+          },
+        },
+      }),
+      db.area.findMany({
+        where: areaWhereForHarmony(harmonyGroupId),
+        select: {
+          id: true,
+          name: true,
+          mutualLove: {
+            select: {
+              id: true,
+              name: true,
+              harmony: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    res.json({ structure, areas });
+  });
+
   router.patch("/contact", authenticate, async (req: any, res) => {
     const { contact } = contactInput.parse(req.body);
     if (contact) {
@@ -67,6 +113,22 @@ export function createReaderProfileRouter(db: any, secret: string) {
 
   router.patch("/", authenticate, async (req: any, res) => {
     const data = profileInput.parse(req.body);
+    const current = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: { harmonyGroupId: true },
+    });
+    if (!current) return res.status(404).json({ error: "User not found" });
+    if (data.harmonyGroupId !== current.harmonyGroupId)
+      return res.status(403).json({ error: "Harmony can only be changed by an administrator" });
+    const stayArea = await db.area.findFirst({
+      where: {
+        name: data.stayArea,
+        ...areaWhereForHarmony(current.harmonyGroupId),
+      },
+      select: { id: true },
+    });
+    if (!stayArea)
+      return res.status(400).json({ error: "Select a Stay area from your Harmony" });
     if (await db.user.findFirst({ where: { email: data.email, NOT: { id: req.user.id } }, select: { id: true } })) {
       return res.status(409).json({ error: "That email is already in use" });
     }
@@ -77,8 +139,8 @@ export function createReaderProfileRouter(db: any, secret: string) {
       }
     }
     if (data.mutualLoveGroupId) {
-      const mutual = await db.mutualLoveGroup.findUnique({ where: { id: data.mutualLoveGroupId } });
-      if (!mutual || mutual.harmonyId !== data.harmonyGroupId) return res.status(400).json({ error: "MutualLove does not belong to the selected Harmony" });
+      const mutual = await db.mutualLoveGroup.findFirst({ where: { id: data.mutualLoveGroupId, ...mutualLoveWhereForHarmony(current.harmonyGroupId) } });
+      if (!mutual) return res.status(400).json({ error: "MutualLove does not belong to your Harmony" });
     }
     if (data.cooperationUnitId) {
       const unit = await db.cooperationUnit.findUnique({ where: { id: data.cooperationUnitId } });
