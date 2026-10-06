@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Pencil, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { useAuthorities } from "./menuAccess";
+import "./grouping-selected-filter.css";
 
 type GroupUser = {
   id: string;
@@ -14,6 +15,7 @@ type UserGroup = {
   id: string;
   name: string;
   description?: string | null;
+  harmonyGroup?: { id: string; name: string } | null;
   users: GroupUser[];
 };
 type GroupEditor = {
@@ -31,6 +33,7 @@ export default function GroupingManagement() {
   const [users, setUsers] = useState<GroupUser[]>([]);
   const [query, setQuery] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [editing, setEditing] = useState<GroupEditor | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
@@ -77,23 +80,25 @@ export default function GroupingManagement() {
   }, [groups, query]);
   const filteredUsers = useMemo(() => {
     const needle = memberQuery.trim().toLowerCase();
-    if (!needle) return users;
-    return users.filter((user) =>
-      `${user.name} ${user.email} ${user.phone || ""} ${user.role}`
+    return users.filter((user) => {
+      if (showSelectedOnly && !editing?.userIds.includes(user.id)) return false;
+      return !needle || `${user.name} ${user.email} ${user.phone || ""} ${user.role}`
         .toLowerCase()
-        .includes(needle),
-    );
-  }, [users, memberQuery]);
+        .includes(needle);
+    });
+  }, [users, memberQuery, showSelectedOnly, editing?.userIds]);
   const flash = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3500);
   };
   const openNew = () => {
     setMemberQuery("");
+    setShowSelectedOnly(false);
     setEditing({ name: "", description: "", userIds: [] });
   };
   const openEdit = (group: UserGroup) => {
     setMemberQuery("");
+    setShowSelectedOnly(false);
     setEditing({
       id: group.id,
       name: group.name,
@@ -181,7 +186,7 @@ export default function GroupingManagement() {
             <div className="groupingGrid">
               {filteredGroups.map((group) => (
                 <article key={group.id}>
-                  <header><div><h2>{group.name}</h2><p>{group.description || "No description"}</p></div><strong>{group.users.length}</strong></header>
+                  <header><div><h2>{group.name}</h2><p>{group.description || "No description"}</p><small>Harmony: {group.harmonyGroup?.name || "Unassigned"}</small></div><strong>{group.users.length}</strong></header>
                   <div className="groupingMembers">
                     {group.users.slice(0, 8).map((user) => <span key={user.id}>{user.name}</span>)}
                     {group.users.length > 8 && <span>+{group.users.length - 8} more</span>}
@@ -205,7 +210,10 @@ export default function GroupingManagement() {
             <label>Description<textarea rows={3} maxLength={500} value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} /></label>
             <fieldset>
               <legend>Users <span>{editing.userIds.length} selected</span></legend>
-              <label className="groupingUserSearch"><Search /><input aria-label="Search users to add" placeholder="Search name, email or mobile" value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} /></label>
+              <div className="groupingUserFilters">
+                <label className="groupingUserSearch"><Search /><input aria-label="Search users to add" placeholder="Search name, email or mobile" value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} /></label>
+                <label className="groupingSelectedFilter"><input type="checkbox" checked={showSelectedOnly} onChange={(event) => setShowSelectedOnly(event.target.checked)} />Show selected only</label>
+              </div>
               <div className="groupingUserList">
                 {filteredUsers.map((user) => (
                   <label key={user.id}>

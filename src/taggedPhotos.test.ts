@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { taggedPhotoWhere } from "../server/taggedPhotos";
 describe("tagged photos after unpublishing", () => {
+  const visibility = { OR: [{ visibility: "PUBLIC" }, { visibility: "GROUP" }] };
+
   it("does not filter on publication status", () => {
-    expect(taggedPhotoWhere("viewer", true).article).not.toHaveProperty("status");
-    expect(taggedPhotoWhere("viewer", false).article).not.toHaveProperty("status");
+    expect(taggedPhotoWhere("viewer", visibility).article).not.toHaveProperty("status");
   });
   it("always limits photos to the authenticated user's tags", () => {
-    expect(taggedPhotoWhere("viewer", true).userTags).toEqual({ some: { userId: "viewer" } });
+    expect(taggedPhotoWhere("viewer", visibility).userTags).toEqual({ some: { userId: "viewer" } });
   });
-  it("retains private-story restrictions", () => {
-    expect(taggedPhotoWhere("viewer", false).article).toEqual({ isPublic: true });
-    expect(taggedPhotoWhere("viewer", true).article).toEqual({});
+  it("retains the viewer's story audience restrictions", () => {
+    expect(taggedPhotoWhere("viewer", visibility).article).toEqual(visibility);
   });
 });

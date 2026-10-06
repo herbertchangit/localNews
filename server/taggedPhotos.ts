@@ -1,7 +1,10 @@
-// Tag ownership and private-story visibility apply independently of publication.
-export function taggedPhotoWhere(userId: string, canViewPrivate: boolean) {
+// Tag ownership and story audience rules apply independently of publication.
+export function taggedPhotoWhere(
+  userId: string,
+  articleVisibility: Record<string, unknown>,
+) {
   return {
     userTags: { some: { userId } },
-    article: canViewPrivate ? {} : { isPublic: true },
+    article: articleVisibility,
   };
 }

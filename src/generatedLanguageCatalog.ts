@@ -2459,6 +2459,21 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Group",
+    "pages": [
+      "Story Composer",
+      "Story Management"
+    ],
+    "inlineChinese": "群組"
+  },
+  {
+    "source": "Group — selected group members",
+    "pages": [
+      "Story Composer",
+      "Story Management"
+    ]
+  },
+  {
     "source": "Group deleted",
     "pages": [
       "Grouping Management"
@@ -2544,6 +2559,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Harmony:",
     "pages": [
+      "Grouping Management",
       "Role Management"
     ]
   },
@@ -3250,9 +3266,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "min read",
     "pages": [
-      "App",
-      "Article Detail",
-      "Audience"
+      "Article Detail"
     ]
   },
   {
@@ -4389,6 +4403,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Private — Volunteers only",
+    "pages": [
+      "Story Composer",
+      "Story Management"
+    ]
+  },
+  {
     "source": "Professional profiles merged from Talk With Doc",
     "pages": [
       "Healthcare Admin"
@@ -4433,6 +4454,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Public",
     "pages": [
+      "Story Management"
+    ]
+  },
+  {
+    "source": "Public — everyone",
+    "pages": [
       "Story Composer",
       "Story Management"
     ]
@@ -4441,13 +4468,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Public form is open",
     "pages": [
       "Registration Management"
-    ]
-  },
-  {
-    "source": "Public story",
-    "pages": [
-      "Story Composer",
-      "Story Management"
     ]
   },
   {
@@ -5249,6 +5269,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Select a group from your Harmony",
+    "pages": [
+      "Story Composer",
+      "Story Management"
+    ]
+  },
+  {
     "source": "Select a user to save the tag immediately.",
     "pages": [
       "Photo Tags"
@@ -5490,6 +5517,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "pages": [
       "App",
       "Sign Up Form"
+    ]
+  },
+  {
+    "source": "Show selected only",
+    "pages": [
+      "Grouping Management"
     ]
   },
   {
@@ -5778,6 +5811,14 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Editorial Dashboard"
     ],
     "inlineChinese": "新聞已審核並發布"
+  },
+  {
+    "source": "Story visibility",
+    "pages": [
+      "Story Composer",
+      "Story Management"
+    ],
+    "inlineChinese": "新聞可見範圍"
   },
   {
     "source": "Submitting…",
@@ -6422,13 +6463,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "visible menus",
     "pages": [
       "Role Management"
-    ]
-  },
-  {
-    "source": "Visible to DADE readers and on the public story board",
-    "pages": [
-      "Story Composer",
-      "Story Management"
     ]
   },
   {

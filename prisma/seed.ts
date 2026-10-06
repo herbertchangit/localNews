@@ -6,6 +6,30 @@ async function main() {
   if (!await p.jingSiMessage.count()) {
     await p.jingSiMessage.create({ data: { content: '不断地付出就是在造福，面对人事就是在修慧，若能福慧双具，就是慧命增长。' } });
   }
+  const existingGroups = await p.userGroup.findMany({
+    select: {
+      id: true,
+      harmonyGroupId: true,
+      users: { select: { id: true, harmonyGroupId: true } },
+    },
+  });
+  for (const group of existingGroups) {
+    const counts = new Map<string, number>();
+    for (const user of group.users) {
+      if (user.harmonyGroupId)
+        counts.set(user.harmonyGroupId, (counts.get(user.harmonyGroupId) || 0) + 1);
+    }
+    const harmonyGroupId = group.harmonyGroupId || [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+    if (!harmonyGroupId) continue;
+    const userIds = group.users
+      .filter((user) => user.harmonyGroupId === harmonyGroupId)
+      .map((user) => ({ id: user.id }));
+    await p.userGroup.update({
+      where: { id: group.id },
+      data: { harmonyGroupId, users: { set: userIds } },
+    });
+  }
   const initialized = await p.user.findUnique({ where: { email: 'admin@local.news' }, select: { id: true } });
   if (initialized) {
     console.log('Database already initialized; preserving user-managed records.');

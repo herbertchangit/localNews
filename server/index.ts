@@ -40,10 +40,16 @@ import {
 } from "./roleMenus.js";
 import { articlePublicationCutoff } from "./articleExpiry.js";
 import { taggedPhotoWhere } from "./taggedPhotos.js";
-import { viewerStoryWhere } from "./storyHarmony.js";
+import { overviewStoryWhere, viewerStoryWhere } from "./storyHarmony.js";
 import { roleProfilesAllowStoryCreation } from "./storyCreationAccess.js";
 import { hasPeopleHarmony, peopleWhereForHarmony } from "./peopleHarmony.js";
 import { registrationFormWhereForHarmony } from "./registrationHarmony.js";
+import {
+  groupingWhereForHarmony,
+  storyVisibilityData,
+  viewerStoryVisibilityWhere,
+  type StoryVisibility,
+} from "./storyVisibility.js";
 import {
   absoluteWebUrl,
   injectSocialMeta,
@@ -736,7 +742,7 @@ app.get("/api/story-options", auth(), async (q: Req, r) => {
       harmonyGroup: { select: { name: true } },
     },
   });
-  const [canCreate, categories, registrationForms] = await Promise.all([
+  const [canCreate, categories, registrationForms, storyGroups] = await Promise.all([
     canCreateStory(q.user!.id),
     db.category.findMany({
       where: { archived: false },
@@ -760,11 +766,17 @@ app.get("/api/story-options", auth(), async (q: Req, r) => {
       },
       orderBy: [{ fromEventDate: "asc" }, { eventName: "asc" }],
     }),
+    db.userGroup.findMany({
+      where: groupingWhereForHarmony(creator?.harmonyGroupId),
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
   r.json({
     canCreate,
     categories,
     registrationForms,
+    storyGroups,
     creatorHarmony: creator?.harmonyGroup?.name || null,
   });
 });
@@ -869,10 +881,15 @@ const newsroomRoles = [Role.ADMIN, Role.EDITOR, Role.REPORTER, Role.VOLUNTEER];
 const hasFullStoryAccess = (role: Role) =>
   role === Role.ADMIN || role === Role.EDITOR;
 const hasConfiguredStoryAccess = (q: Req) => Boolean(q.roleAuthorityConfigured);
-const canViewPrivateStories = (role?: Role) =>
-  !!role && role !== Role.DADE && role !== Role.AUDIENCE;
-const publishedVisibility = (q: Req) =>
-  canViewPrivateStories(q.user?.role) ? {} : { isPublic: true };
+const publishedVisibility = async (q: Req) => {
+  if (!q.user) return viewerStoryVisibilityWhere();
+  const current = await db.user.findUnique({
+    where: { id: q.user.id },
+    select: { role: true, roles: true },
+  });
+  const volunteer = Boolean(current && [current.role, ...current.roles].includes(Role.VOLUNTEER));
+  return viewerStoryVisibilityWhere({ userId: q.user.id, volunteer });
+};
 const storyHarmonyVisibility = async (user?: { id: string }) => {
   if (!user) return viewerStoryWhere();
   const current = await db.user.findUnique({
@@ -884,12 +901,30 @@ const storyHarmonyVisibility = async (user?: { id: string }) => {
     harmony: current?.harmonyGroup?.name,
   });
 };
+const overviewHarmonyVisibility = async (user?: { id: string }) => {
+  if (!user) return overviewStoryWhere();
+  const current = await db.user.findUnique({
+    where: { id: user.id },
+    select: {
+      role: true,
+      roles: true,
+      customRoles: true,
+      harmonyGroup: { select: { name: true } },
+    },
+  });
+  if (!current) return overviewStoryWhere({ admin: false, harmony: null });
+  return overviewStoryWhere({
+    admin: effectiveRoles(current).includes(Role.ADMIN),
+    harmony: current.harmonyGroup?.name,
+  });
+};
 const storyMediaLimit = (role: Role) => (hasFullStoryAccess(role) ? 100 : 12);
 const canEditArticle = (q: Req, article: { authorId: string }) =>
   hasConfiguredStoryAccess(q) || hasFullStoryAccess(q.user!.role) || article.authorId === q.user!.id;
 const articleInclude = {
   author: { select: { name: true } },
   category: true,
+  visibilityGroup: { select: { id: true, name: true } },
   photos: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
   },
@@ -980,8 +1015,29 @@ const newsroomArticleInput = z.object({
   categoryId: z.string().optional(),
   storyDate: storyDateField,
   isPublic: z.boolean().optional(),
+  visibility: z.enum(["PUBLIC", "PRIVATE", "GROUP"]).optional(),
+  visibilityGroupId: z.string().min(1).nullable().optional(),
   registrationFormId: z.string().min(1).nullable().optional(),
 });
+const validateStoryVisibility = async (
+  visibility: StoryVisibility,
+  visibilityGroupId: string | null | undefined,
+  userId: string,
+) => {
+  if (visibility !== "GROUP") return !visibilityGroupId;
+  if (!visibilityGroupId) return false;
+  const current = await db.user.findUnique({
+    where: { id: userId },
+    select: { harmonyGroupId: true },
+  });
+  return Boolean(await db.userGroup.findFirst({
+    where: {
+      id: visibilityGroupId,
+      ...groupingWhereForHarmony(current?.harmonyGroupId),
+    },
+    select: { id: true },
+  }));
+};
 const validateOpenRegistrationLink = async (
   registrationFormId: string | null | undefined,
   userId: string,
@@ -1083,7 +1139,7 @@ app.patch(
   async (q: Req, r) => {
     const current = await db.article.findUnique({
       where: { id: q.params.id },
-      select: { id: true, authorId: true, status: true },
+      select: { id: true, authorId: true, status: true, visibility: true, visibilityGroupId: true },
     });
     if (!current) return r.status(404).json({ error: "Story not found" });
     if (!canEditArticle(q, current))
@@ -1093,15 +1149,24 @@ app.patch(
     const changes = newsroomArticleInput.parse(q.body);
     if (!(await validateOpenRegistrationLink(changes.registrationFormId, q.user!.id)))
       return r.status(400).json({ error: "Select an open registration form" });
+    const visibility = (changes.visibility || (changes.isPublic === undefined
+      ? current.visibility
+      : changes.isPublic ? "PUBLIC" : "PRIVATE")) as StoryVisibility;
+    const visibilityGroupId = changes.visibilityGroupId === undefined
+      ? current.visibilityGroupId
+      : changes.visibilityGroupId;
+    if (!(await validateStoryVisibility(visibility, visibilityGroupId, q.user!.id)))
+      return r.status(400).json({ error: visibility === "GROUP" ? "Select a group from your Harmony" : "Private and Public stories cannot have a group" });
     const requiresReview = reviewChanges(q, current.status);
     const article = await db.article.update({
       where: { id: current.id },
       data: {
         ...changes,
+        ...storyVisibilityData(visibility, visibilityGroupId),
         status: requiresReview ? ArticleStatus.REVIEW : undefined,
         publishedAt: requiresReview ? null : undefined,
         isHeadline:
-          requiresReview || changes.isPublic === false ? false : undefined,
+          requiresReview || visibility !== "PUBLIC" ? false : undefined,
       },
       include: articleInclude,
     });
@@ -1501,7 +1566,7 @@ app.delete(
 app.get("/api/me/photos", auth(), async (q: Req, r) => {
   await expirePublishedArticles();
   const photos = await db.articlePhoto.findMany({
-    where: taggedPhotoWhere(q.user!.id, canViewPrivateStories(q.user!.role)),
+    where: taggedPhotoWhere(q.user!.id, await publishedVisibility(q)),
     select: { id: true, url: true, caption: true, article: { select: { title: true, slug: true, status: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -1554,8 +1619,8 @@ app.get("/api/articles", optionalAuth, async (q: Req, r) => {
     where: {
       status: ArticleStatus.PUBLISHED,
       categoryId,
-      ...publishedVisibility(q),
-      ...(await storyHarmonyVisibility(q.user)),
+      ...(await publishedVisibility(q)),
+      ...(await overviewHarmonyVisibility(q.user)),
     },
     include: articleInclude,
     orderBy: [
@@ -1595,8 +1660,7 @@ app.get("/api/articles/:slug", optionalAuth, async (q: Req, r) => {
     where: {
       slug: q.params.slug,
       status: ArticleStatus.PUBLISHED,
-      ...publishedVisibility(q),
-      ...(await storyHarmonyVisibility(q.user)),
+      ...(await publishedVisibility(q)),
     },
     select: { id: true },
   });
@@ -1702,8 +1766,7 @@ app.get("/api/articles/:id/discussion", optionalAuth, async (q: Req, r) => {
     where: {
       id: q.params.id,
       status: ArticleStatus.PUBLISHED,
-      ...publishedVisibility(q),
-      ...(await storyHarmonyVisibility(q.user)),
+      ...(await publishedVisibility(q)),
     },
     select: { id: true, photos: { select: { id: true } } },
   });
@@ -1728,8 +1791,7 @@ app.post("/api/articles/:id/responses", auth(), async (q: Req, r) => {
       where: {
         id: q.params.id,
         status: ArticleStatus.PUBLISHED,
-        ...publishedVisibility(q),
-        ...(await storyHarmonyVisibility(q.user)),
+        ...(await publishedVisibility(q)),
       },
       select: { id: true },
     });
@@ -1750,7 +1812,7 @@ app.post("/api/articles/:id/responses", auth(), async (q: Req, r) => {
 });
 app.get("/api/articles/:articleId/photo-tags/me", auth(), async (q: Req, r) => {
   const article = await db.article.findFirst({
-    where: { id: q.params.articleId, status: ArticleStatus.PUBLISHED, ...publishedVisibility(q), ...(await storyHarmonyVisibility(q.user)) },
+    where: { id: q.params.articleId, status: ArticleStatus.PUBLISHED, ...(await publishedVisibility(q)) },
     select: { photos: { where: { userTags: { some: { userId: q.user!.id } } }, select: { id: true } } },
   });
   if (!article) return r.status(404).json({ error: "Story not found" });
@@ -1758,7 +1820,7 @@ app.get("/api/articles/:articleId/photo-tags/me", auth(), async (q: Req, r) => {
 });
 app.post("/api/articles/:articleId/photo-tags/me/:photoId", auth(), async (q: Req, r) => {
   const photo = await db.articlePhoto.findFirst({
-    where: { id: q.params.photoId, articleId: q.params.articleId, article: { status: ArticleStatus.PUBLISHED, ...publishedVisibility(q), ...(await storyHarmonyVisibility(q.user)) } },
+    where: { id: q.params.photoId, articleId: q.params.articleId, article: { status: ArticleStatus.PUBLISHED, ...(await publishedVisibility(q)) } },
     select: { id: true, url: true },
   });
   if (!photo || isVideoUploadUrl(photo.url)) return r.status(404).json({ error: "Story photo not found" });
@@ -1782,8 +1844,7 @@ app.post(
           articleId: q.params.articleId,
           article: {
             status: ArticleStatus.PUBLISHED,
-            ...publishedVisibility(q),
-            ...(await storyHarmonyVisibility(q.user)),
+            ...(await publishedVisibility(q)),
           },
         },
         select: { id: true },
@@ -1817,8 +1878,7 @@ app.post("/api/articles/:id/comments", auth(), async (q: Req, r) => {
       where: {
         id: q.params.id,
         status: ArticleStatus.PUBLISHED,
-        ...publishedVisibility(q),
-        ...(await storyHarmonyVisibility(q.user)),
+        ...(await publishedVisibility(q)),
       },
       select: { id: true },
     });
@@ -2086,6 +2146,8 @@ const articleInput = z.object({
   isBreaking: z.boolean().optional(),
   isTrending: z.boolean().optional(),
   isPublic: z.boolean().optional(),
+  visibility: z.enum(["PUBLIC", "PRIVATE", "GROUP"]).optional(),
+  visibilityGroupId: z.string().min(1).nullable().optional(),
   registrationFormId: z.string().min(1).nullable().optional(),
 });
 app.post("/api/articles", auth(), async (q: Req, r) => {
@@ -2099,6 +2161,9 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
   const x = articleInput.parse(q.body);
   if (!(await validateOpenRegistrationLink(x.registrationFormId, q.user!.id)))
     return r.status(400).json({ error: "Select an open registration form" });
+  const visibility = (x.visibility || (x.isPublic === false ? "PRIVATE" : "PUBLIC")) as StoryVisibility;
+  if (!(await validateStoryVisibility(visibility, x.visibilityGroupId, q.user!.id)))
+    return r.status(400).json({ error: visibility === "GROUP" ? "Select a group from your Harmony" : "Private and Public stories cannot have a group" });
   const creator = await db.user.findUnique({
     where: { id: q.user!.id },
     select: { harmonyGroup: { select: { name: true } } },
@@ -2113,7 +2178,7 @@ app.post("/api/articles", auth(), async (q: Req, r) => {
     article = await db.article.create({
       data: {
         ...x,
-        isPublic: x.isPublic ?? true,
+        ...storyVisibilityData(visibility, x.visibilityGroupId),
         slug,
         authorId: q.user!.id,
         harmony: creator?.harmonyGroup?.name || null,
@@ -3554,47 +3619,67 @@ const userGroupingInput = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   userIds: z.array(z.string().min(1)).max(500).default([]),
 });
-const userGroupingInclude = {
+const userGroupingInclude = (harmonyGroupId: string) => ({
+  harmonyGroup: { select: { id: true, name: true } },
   users: {
+    where: { harmonyGroupId },
     select: { id: true, name: true, email: true, phone: true, role: true },
     orderBy: [{ name: "asc" as const }, { id: "asc" as const }],
   },
-};
-app.get("/api/admin/groupings/users", auth([Role.ADMIN]), async (_q, r) =>
+});
+const groupingHarmony = async (userId: string) =>
+  db.user.findUnique({
+    where: { id: userId },
+    select: { harmonyGroupId: true, harmonyGroup: { select: { id: true, name: true } } },
+  });
+app.get("/api/admin/groupings/users", auth([Role.ADMIN]), async (q: Req, r) => {
+  const scope = await groupingHarmony(q.user!.id);
+  if (!scope?.harmonyGroupId)
+    return r.status(403).json({ error: "A Harmony assignment is required to manage groups" });
   r.json(
     await db.user.findMany({
-      where: { suspended: false },
+      where: { suspended: false, harmonyGroupId: scope.harmonyGroupId },
       select: { id: true, name: true, email: true, phone: true, role: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     }),
-  ),
-);
-app.get("/api/admin/groupings", auth([Role.ADMIN]), async (_q, r) =>
+  );
+});
+app.get("/api/admin/groupings", auth([Role.ADMIN]), async (q: Req, r) => {
+  const scope = await groupingHarmony(q.user!.id);
+  if (!scope?.harmonyGroupId)
+    return r.status(403).json({ error: "A Harmony assignment is required to manage groups" });
   r.json(
     await db.userGroup.findMany({
-      include: userGroupingInclude,
+      where: { harmonyGroupId: scope.harmonyGroupId },
+      include: userGroupingInclude(scope.harmonyGroupId),
       orderBy: { name: "asc" },
     }),
-  ),
-);
+  );
+});
 app.post("/api/admin/groupings", auth([Role.ADMIN]), async (q: Req, r) => {
   const data = userGroupingInput.parse(q.body);
+  const scope = await groupingHarmony(q.user!.id);
+  if (!scope?.harmonyGroupId)
+    return r.status(403).json({ error: "A Harmony assignment is required to manage groups" });
   const duplicate = await db.userGroup.findFirst({
     where: { name: { equals: data.name, mode: "insensitive" } },
     select: { id: true },
   });
   if (duplicate) return r.status(409).json({ error: "A group with that name already exists" });
   const userIds = [...new Set(data.userIds)];
-  const matched = await db.user.count({ where: { id: { in: userIds } } });
+  const matched = await db.user.count({
+    where: { id: { in: userIds }, harmonyGroupId: scope.harmonyGroupId },
+  });
   if (matched !== userIds.length)
-    return r.status(400).json({ error: "One or more selected users no longer exist" });
+    return r.status(400).json({ error: "Every selected user must belong to your Harmony" });
   const group = await db.userGroup.create({
     data: {
       name: data.name,
       description: data.description || null,
+      harmonyGroupId: scope.harmonyGroupId,
       users: { connect: userIds.map((id) => ({ id })) },
     },
-    include: userGroupingInclude,
+    include: userGroupingInclude(scope.harmonyGroupId),
   });
   await db.auditLog.create({
     data: {
@@ -3607,6 +3692,14 @@ app.post("/api/admin/groupings", auth([Role.ADMIN]), async (q: Req, r) => {
 });
 app.patch("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
   const data = userGroupingInput.partial().parse(q.body);
+  const scope = await groupingHarmony(q.user!.id);
+  if (!scope?.harmonyGroupId)
+    return r.status(403).json({ error: "A Harmony assignment is required to manage groups" });
+  const existing = await db.userGroup.findFirst({
+    where: { id: q.params.id, harmonyGroupId: scope.harmonyGroupId },
+    select: { id: true },
+  });
+  if (!existing) return r.status(404).json({ error: "Group not found in your Harmony" });
   if (data.name) {
     const duplicate = await db.userGroup.findFirst({
       where: {
@@ -3619,9 +3712,11 @@ app.patch("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
   }
   const userIds = data.userIds ? [...new Set(data.userIds)] : undefined;
   if (userIds) {
-    const matched = await db.user.count({ where: { id: { in: userIds } } });
+    const matched = await db.user.count({
+      where: { id: { in: userIds }, harmonyGroupId: scope.harmonyGroupId },
+    });
     if (matched !== userIds.length)
-      return r.status(400).json({ error: "One or more selected users no longer exist" });
+      return r.status(400).json({ error: "Every selected user must belong to your Harmony" });
   }
   const group = await db.userGroup.update({
     where: { id: q.params.id },
@@ -3630,7 +3725,7 @@ app.patch("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
       description: data.description === undefined ? undefined : data.description || null,
       users: userIds ? { set: userIds.map((id) => ({ id })) } : undefined,
     },
-    include: userGroupingInclude,
+    include: userGroupingInclude(scope.harmonyGroupId),
   });
   await db.auditLog.create({
     data: {
@@ -3642,7 +3737,15 @@ app.patch("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
   r.json(group);
 });
 app.delete("/api/admin/groupings/:id", auth([Role.ADMIN]), async (q: Req, r) => {
-  const group = await db.userGroup.delete({ where: { id: q.params.id } });
+  const scope = await groupingHarmony(q.user!.id);
+  if (!scope?.harmonyGroupId)
+    return r.status(403).json({ error: "A Harmony assignment is required to manage groups" });
+  const existing = await db.userGroup.findFirst({
+    where: { id: q.params.id, harmonyGroupId: scope.harmonyGroupId },
+    select: { id: true },
+  });
+  if (!existing) return r.status(404).json({ error: "Group not found in your Harmony" });
+  const group = await db.userGroup.delete({ where: { id: existing.id } });
   await db.auditLog.create({
     data: {
       action: "USER_GROUP_DELETED",

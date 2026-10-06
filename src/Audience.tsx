@@ -56,6 +56,7 @@ type Story = {
   imageUrl?: string | null;
   photos?: { url: string }[];
   isHeadline?: boolean;
+  harmony?: string | null;
   storyDate?: string | null;
   publishedAt?: string;
   category: { name: string };
@@ -1468,8 +1469,7 @@ function AudienceDailyBriefStory({
         <div className="dailyBriefStoryMeta">
           <span>STORY DATE · {storyDateLabel}</span>
           <div className="meta">
-            {story.category.name} ·{" "}
-            {Math.max(2, Math.round(story.content.length / 500))} min read
+            {story.category.name} · {story.harmony || "Unassigned"}
           </div>
         </div>
         <h3>

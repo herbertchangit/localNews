@@ -107,6 +107,7 @@ type Article = {
   isBreaking: boolean;
   isTrending: boolean;
   isHeadline?: boolean;
+  harmony?: string | null;
   storyDate?: string | null;
   publishedAt?: string;
   views: number;
@@ -246,8 +247,7 @@ function DailyBrief({ articles }: { articles: Article[] }) {
                 <div className="dailyBriefStoryMeta">
                   <span>STORY DATE · {storyDateLabel}</span>
                   <div className="meta">
-                    {x.category.name} ·{" "}
-                    {Math.max(2, Math.round(x.content.length / 500))} min read
+                    {x.category.name} · {x.harmony || "Unassigned"}
                   </div>
                 </div>
                 <h3>

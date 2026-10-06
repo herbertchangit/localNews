@@ -45,6 +45,8 @@ import { useAuthorities } from "./menuAccess";
 
 type Category = { id: string; name: string };
 type RegistrationOption = { id: string; eventName: string; slug: string };
+type StoryGroup = { id: string; name: string };
+type StoryVisibility = "PUBLIC" | "PRIVATE" | "GROUP";
 type StoryPhoto = {
   id: string;
   url: string;
@@ -65,6 +67,9 @@ type Story = {
   status: string;
   isHeadline: boolean;
   isPublic: boolean;
+  visibility: StoryVisibility;
+  visibilityGroupId?: string | null;
+  visibilityGroup?: StoryGroup | null;
   imageUrl: string | null;
   photos: StoryPhoto[];
   updatedAt: string;
@@ -103,6 +108,7 @@ export default function StoryManagement() {
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [registrationForms, setRegistrationForms] = useState<RegistrationOption[]>([]);
+  const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [editing, setEditing] = useState<Story | null>(null);
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
@@ -145,6 +151,7 @@ export default function StoryManagement() {
       setStories(items);
       setCategories(options.categories);
       setRegistrationForms(options.registrationForms || []);
+      setStoryGroups(options.storyGroups || []);
       setCanCreate(Boolean(options.canCreate));
     } catch (error: any) {
       setNotice(error.message);
@@ -291,7 +298,8 @@ export default function StoryManagement() {
           categoryId: draft.categoryId,
           storyDate: draft.storyDate || null,
           registrationFormId: draft.registrationFormId || null,
-          isPublic: draft.isPublic,
+          visibility: draft.visibility,
+          visibilityGroupId: draft.visibility === "GROUP" ? draft.visibilityGroupId || null : null,
         }),
       });
       const activeMedia = photos.filter((photo) => !photo.removed);
@@ -616,10 +624,10 @@ export default function StoryManagement() {
                       {story.status === "ARCHIVED" ? "EXPIRED" : story.status}
                     </span>
                     <span
-                      className={`storyVisibilityBadge ${story.isPublic ? "public" : "private"}`}
+                      className={`storyVisibilityBadge ${story.visibility.toLowerCase()}`}
                     >
-                      {story.isPublic ? <Globe2 /> : <LockKeyhole />}
-                      {story.isPublic ? "Public" : "Private"}
+                      {story.visibility === "PUBLIC" ? <Globe2 /> : story.visibility === "GROUP" ? <Users /> : <LockKeyhole />}
+                      {story.visibility === "GROUP" ? `Group: ${story.visibilityGroup?.name || "Unassigned"}` : story.visibility === "PRIVATE" ? "Private" : "Public"}
                     </span>
                     {story.isHeadline && (
                       <span className="headlineBadge">
@@ -1042,28 +1050,36 @@ export default function StoryManagement() {
                 ))}
               </select>
             </label>
-            <div className="storyVisibilityControl">
-              <div>
-                <Globe2 />
-                <span>
-                  <b>Public</b>
-                  <small>
-                    Visible to DADE readers and on the public story board
-                  </small>
-                </span>
-              </div>
+            <div className="storyVisibilityFields">
               <label>
-                <input
-                  type="checkbox"
-                  role="switch"
-                  aria-label="Public story"
-                  checked={editing.isPublic}
-                  onChange={(event) =>
-                    updateEditing({ isPublic: event.target.checked })
-                  }
-                />
-                <i />
+                Story visibility / 新聞可見範圍
+                <select
+                  value={editing.visibility}
+                  onChange={(event) => updateEditing({
+                    visibility: event.target.value as StoryVisibility,
+                    visibilityGroupId: event.target.value === "GROUP" ? editing.visibilityGroupId : null,
+                  })}
+                >
+                  <option value="PUBLIC">Public — everyone</option>
+                  <option value="PRIVATE">Private — Volunteers only</option>
+                  <option value="GROUP">Group — selected group members</option>
+                </select>
               </label>
+              {editing.visibility === "GROUP" && (
+                <label>
+                  Group / 群組
+                  <select
+                    required
+                    value={editing.visibilityGroupId || ""}
+                    onChange={(event) => updateEditing({ visibilityGroupId: event.target.value || null })}
+                  >
+                    <option value="">Select a group from your Harmony</option>
+                    {storyGroups.map((group) => (
+                      <option key={group.id} value={group.id}>{group.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             <div className="storyRichTextField">
               <span>Summary / 摘要</span>

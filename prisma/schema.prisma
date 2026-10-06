@@ -128,13 +128,24 @@ model RegistrationForm {
   @@index([creatorId])
 }
 
+enum ArticleVisibility {
+  PUBLIC
+  PRIVATE
+  GROUP
+}
+
 model UserGroup {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
+  harmonyGroupId String?
+  harmonyGroup HarmonyGroup? @relation(fields: [harmonyGroupId], references: [id], onDelete: Restrict)
   users       User[]   @relation("UserGroupMembers")
+  visibleArticles Article[] @relation("ArticleVisibilityGroup")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([harmonyGroupId])
 }
 
 model RegistrationInvitation {
@@ -262,6 +273,7 @@ model HarmonyGroup {
   mutualLoves MutualLoveGroup[]
   users       User[]
   roleProfiles RoleMenuAccess[]
+  userGroups  UserGroup[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -317,6 +329,9 @@ model Article {
   isTrending  Boolean         @default(false)
   isHeadline  Boolean         @default(false)
   isPublic    Boolean         @default(true)
+  visibility  ArticleVisibility @default(PUBLIC)
+  visibilityGroupId String?
+  visibilityGroup UserGroup? @relation("ArticleVisibilityGroup", fields: [visibilityGroupId], references: [id], onDelete: SetNull)
   views       Int             @default(0)
   authorId    String
   author      User            @relation(fields: [authorId], references: [id])
@@ -334,6 +349,7 @@ model Article {
   photos      ArticlePhoto[]
 
   @@index([registrationFormId])
+  @@index([visibilityGroupId])
 }
 
 model ArticlePhoto {

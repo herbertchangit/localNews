@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import {
   FileText,
-  Globe2,
   ImagePlus,
   Plus,
   Save,
@@ -15,6 +14,8 @@ import { richTextToPlainText } from "./richTextUtils";
 
 type Category = { id: string; name: string };
 type RegistrationOption = { id: string; eventName: string; slug: string };
+type StoryGroup = { id: string; name: string };
+type StoryVisibility = "PUBLIC" | "PRIVATE" | "GROUP";
 type DraftPhoto = { id: string; dataUrl: string; caption: string };
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const OPEN_STORY_COMPOSER_EVENT = "localnews:open-story-composer";
@@ -36,6 +37,7 @@ export default function StoryComposer() {
   const [canCreate, setCanCreate] = useState(false),
     [categories, setCategories] = useState<Category[]>([]),
     [registrationForms, setRegistrationForms] = useState<RegistrationOption[]>([]),
+    [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]),
     [creatorHarmony, setCreatorHarmony] = useState<string | null>(null),
     [host, setHost] = useState<HTMLElement | null>(null),
     [open, setOpen] = useState(false),
@@ -54,6 +56,7 @@ export default function StoryComposer() {
         setCanCreate(data.canCreate);
         setCategories(data.categories);
         setRegistrationForms(data.registrationForms || []);
+        setStoryGroups(data.storyGroups || []);
         setCreatorHarmony(data.creatorHarmony || null);
       })
       .catch(() => setCanCreate(false));
@@ -111,6 +114,7 @@ export default function StoryComposer() {
           <StoryModal
             categories={categories}
             registrationForms={registrationForms}
+            storyGroups={storyGroups}
             creatorHarmony={creatorHarmony}
             token={token}
             onClose={() => setOpen(false)}
@@ -125,6 +129,7 @@ export default function StoryComposer() {
 function StoryModal({
   categories,
   registrationForms,
+  storyGroups,
   creatorHarmony,
   token,
   onClose,
@@ -132,6 +137,7 @@ function StoryModal({
 }: {
   categories: Category[];
   registrationForms: RegistrationOption[];
+  storyGroups: StoryGroup[];
   creatorHarmony: string | null;
   token: string;
   onClose: () => void;
@@ -144,7 +150,8 @@ function StoryModal({
       categoryId: categories[0]?.id || "",
       storyDate: "",
       registrationFormId: "",
-      isPublic: true,
+      visibility: "PUBLIC" as StoryVisibility,
+      visibilityGroupId: "",
     }),
     [photos, setPhotos] = useState<DraftPhoto[]>([]),
     [busy, setBusy] = useState(false),
@@ -199,6 +206,7 @@ function StoryModal({
           ...form,
           storyDate: form.storyDate || null,
           registrationFormId: form.registrationFormId || null,
+          visibilityGroupId: form.visibility === "GROUP" ? form.visibilityGroupId : null,
         }),
       });
       const story = await response.json();
@@ -393,28 +401,37 @@ function StoryModal({
             ))}
           </select>
         </label>
-        <div className="storyVisibilityControl">
-          <div>
-            <Globe2 />
-            <span>
-              <b>Public</b>
-              <small>
-                Visible to DADE readers and on the public story board
-              </small>
-            </span>
-          </div>
+        <div className="storyVisibilityFields">
           <label>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="Public story"
-              checked={form.isPublic}
-              onChange={(event) =>
-                setForm({ ...form, isPublic: event.target.checked })
-              }
-            />
-            <i />
+            Story visibility / 新聞可見範圍
+            <select
+              value={form.visibility}
+              onChange={(event) => setForm({
+                ...form,
+                visibility: event.target.value as StoryVisibility,
+                visibilityGroupId: event.target.value === "GROUP" ? form.visibilityGroupId : "",
+              })}
+            >
+              <option value="PUBLIC">Public — everyone</option>
+              <option value="PRIVATE">Private — Volunteers only</option>
+              <option value="GROUP">Group — selected group members</option>
+            </select>
           </label>
+          {form.visibility === "GROUP" && (
+            <label>
+              Group / 群組
+              <select
+                required
+                value={form.visibilityGroupId}
+                onChange={(event) => setForm({ ...form, visibilityGroupId: event.target.value })}
+              >
+                <option value="">Select a group from your Harmony</option>
+                {storyGroups.map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         <div className="storyRichTextField">
           <span>Summary / 摘要</span>

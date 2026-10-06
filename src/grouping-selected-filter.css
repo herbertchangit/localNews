@@ -1,0 +1,39 @@
+.groupingUserFilters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.groupingUserFilters .groupingUserSearch {
+  flex: 1;
+  height: 39px;
+  margin: 0;
+}
+
+.groupingSelectedFilter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  color: #345b49;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.groupingSelectedFilter input {
+  width: auto;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .groupingUserFilters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .groupingSelectedFilter {
+    min-height: 32px;
+  }
+}

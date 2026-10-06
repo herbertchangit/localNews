@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { newsroomStoryWhere, viewerStoryWhere } from "./storyHarmony";
+import {
+  newsroomStoryWhere,
+  overviewStoryWhere,
+  viewerStoryWhere,
+} from "./storyHarmony";
 
 describe("newsroomStoryWhere", () => {
   it("limits every signed-in user to stories in their harmony", () => {
@@ -16,5 +20,22 @@ describe("newsroomStoryWhere", () => {
 
   it("leaves the public story board unscoped when no user is signed in", () => {
     expect(viewerStoryWhere()).toEqual({});
+  });
+
+  it("filters the Overview by Harmony for non-admin users", () => {
+    expect(overviewStoryWhere({ admin: false, harmony: "Harmony A" })).toEqual({
+      harmony: "Harmony A",
+    });
+  });
+
+  it("does not Harmony-filter anonymous visitors or administrators", () => {
+    expect(overviewStoryWhere()).toEqual({});
+    expect(overviewStoryWhere({ admin: true, harmony: "Harmony A" })).toEqual({});
+  });
+
+  it("returns no Overview stories when a non-admin has no Harmony", () => {
+    expect(overviewStoryWhere({ admin: false, harmony: null })).toEqual({
+      id: { in: [] },
+    });
   });
 });
