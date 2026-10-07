@@ -25,6 +25,7 @@
 .audienceHeadlineBrief .sectionTitle span{color:#9e3e35}
 .audienceHeadlineBrief .dailyBriefTrack article.headlineStory{border-color:#d0b474;box-shadow:inset 4px 0 0 #d0b474}
 .audienceHeadlineBrief .dailyBriefTrack .thumb span{background:#d0b474;color:#173a2e}
+.audienceHeadlineBrief .dailyBriefTrack .headlineStory .thumb.hasImage{background-color:#eef1ec;background-repeat:no-repeat;background-size:contain}
 
 @media(max-width:850px){
   .dailyBriefTrack article{grid-template-columns:minmax(220px,34%) 1fr;gap:24px}
