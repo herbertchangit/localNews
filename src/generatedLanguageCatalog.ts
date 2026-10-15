@@ -2645,6 +2645,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Icon count is blocked. Enable Local News notifications in browser settings.",
+    "pages": [
+      "News Notifications"
+    ]
+  },
+  {
     "source": "Identity",
     "pages": [
       "Public Registration"

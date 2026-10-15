@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  canSyncAndroidStoryNotifications,
   storyNotificationTag,
   syncAndroidStoryNotifications,
 } from "./androidNotificationBadge";
@@ -12,6 +13,19 @@ const story = (id: string) => ({
 });
 
 describe("Android notification-backed app badges", () => {
+  it("syncs whenever Android notification permission is granted", () => {
+    expect(canSyncAndroidStoryNotifications({
+      androidDevice: true,
+      permission: "granted",
+      serviceWorkerSupported: true,
+    })).toBe(true);
+    expect(canSyncAndroidStoryNotifications({
+      androidDevice: true,
+      permission: "default",
+      serviceWorkerSupported: true,
+    })).toBe(false);
+  });
+
   it("creates one system notification for each unread story", async () => {
     const showNotification = vi.fn().mockResolvedValue(undefined);
     const registration = {

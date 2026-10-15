@@ -8,6 +8,16 @@ export type BadgeNotificationStory = {
 export const storyNotificationTag = (storyId: string) =>
   `local-news-unread:${storyId}`;
 
+export const canSyncAndroidStoryNotifications = ({
+  androidDevice,
+  permission,
+  serviceWorkerSupported,
+}: {
+  androidDevice: boolean;
+  permission: NotificationPermission;
+  serviceWorkerSupported: boolean;
+}) => androidDevice && permission === "granted" && serviceWorkerSupported;
+
 const isStoryNotification = (notification: Notification) =>
   notification.tag.startsWith("local-news-unread:");
 

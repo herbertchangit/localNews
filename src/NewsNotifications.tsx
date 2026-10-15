@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Bell, CheckCheck, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { syncAndroidStoryNotifications } from "./androidNotificationBadge";
+import {
+  canSyncAndroidStoryNotifications,
+  syncAndroidStoryNotifications,
+} from "./androidNotificationBadge";
 
 type NotificationStory = {
   id: string;
@@ -30,6 +33,15 @@ const readStoryIds = () => {
 
 const saveReadStoryIds = (ids: Set<string>) => localStorage.setItem(readStoriesKey, JSON.stringify([...ids]));
 
+const notificationRequestHeaders = () => {
+  try {
+    const token = JSON.parse(localStorage.getItem("ln_session") || "null")?.token;
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export default function NewsNotifications() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,7 +54,6 @@ export default function NewsNotifications() {
   const [notificationRevision, setNotificationRevision] = useState(0);
   const publicPage = !location.pathname.startsWith("/newsroom") && location.pathname !== "/login";
   const androidDevice = /Android/i.test(navigator.userAgent);
-  const installedApp = window.matchMedia("(display-mode: standalone)").matches;
 
   useEffect(() => {
     const refreshPermission = () => {
@@ -57,7 +68,10 @@ export default function NewsNotifications() {
     let active = true;
     const load = async () => {
       try {
-        const response = await fetch("/api/articles", { cache: "no-store" });
+        const response = await fetch("/api/articles", {
+          cache: "no-store",
+          headers: notificationRequestHeaders(),
+        });
         if (!response.ok) throw new Error();
         const stories: NotificationStory[] = await response.json();
         if (!active) return;
@@ -94,12 +108,11 @@ export default function NewsNotifications() {
   }, [unread.length]);
 
   useEffect(() => {
-    if (
-      !androidDevice ||
-      !installedApp ||
-      notificationPermission !== "granted" ||
-      !("serviceWorker" in navigator)
-    )
+    if (!canSyncAndroidStoryNotifications({
+      androidDevice,
+      permission: notificationPermission,
+      serviceWorkerSupported: "serviceWorker" in navigator,
+    }))
       return;
     navigator.serviceWorker.ready
       .then((registration) =>
@@ -137,8 +150,13 @@ export default function NewsNotifications() {
     latest &&
       location.pathname !== "/login" &&
       androidDevice &&
-      installedApp &&
       notificationPermission === "default",
+  );
+  const iconCountBlocked = Boolean(
+    latest &&
+      location.pathname !== "/login" &&
+      androidDevice &&
+      notificationPermission === "denied",
   );
 
   useEffect(() => {
@@ -156,5 +174,6 @@ export default function NewsNotifications() {
     </aside>}
     {unreadBadgeVisible && <button className="newsUnreadBadge" type="button" aria-label={`${unread.length} unread news stories`} title={`${unread.length} unread news stories`} onClick={() => publicPage ? setDismissedStoryId("") : openLatest()}><Bell /><span aria-hidden="true">{unread.length > 99 ? "99+" : unread.length}</span></button>}
     {enableIconCountVisible && <button className="newsBadgePermission" type="button" onClick={enableIconCount}><Bell />Enable icon count</button>}
+    {iconCountBlocked && <div className="newsBadgePermission newsBadgePermissionBlocked" role="status"><Bell />Icon count is blocked. Enable Local News notifications in browser settings.</div>}
   </>;
 }
