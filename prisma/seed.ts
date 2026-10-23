@@ -3,6 +3,20 @@ import bcrypt from 'bcryptjs';
 const p = new PrismaClient();
 
 async function main() {
+  const adminAccess = await p.roleMenuAccess.findUnique({ where: { role: Role.ADMIN } });
+  if (adminAccess && !adminAccess.menuIds.includes('parking_passes')) {
+    const authorities = (adminAccess.authorities || {}) as Record<string, unknown>;
+    await p.roleMenuAccess.update({
+      where: { id: adminAccess.id },
+      data: {
+        menuIds: [...adminAccess.menuIds, 'parking_passes'],
+        authorities: {
+          ...authorities,
+          parking_passes: ['new', 'view', 'edit', 'delete', 'copy_link'],
+        },
+      },
+    });
+  }
   if (!await p.jingSiMessage.count()) {
     await p.jingSiMessage.create({ data: { content: '不断地付出就是在造福，面对人事就是在修慧，若能福慧双具，就是慧命增长。' } });
   }

@@ -76,4 +76,12 @@ describe("role menu request routing", () => {
     expect(routeMenu("/api/admin/groupings/users", "GET")).toBe("settings_grouping");
     expect(routeMenu("/api/admin/groupings/group-id", "PATCH")).toBe("settings_grouping");
   });
+
+  it("authorizes parking pass CRUD through Parking Pass", () => {
+    expect(routeMenu("/api/admin/parking-passes", "GET")).toBe("parking_passes");
+    expect(routeMenu("/api/admin/parking-passes", "POST")).toBe("parking_passes");
+    expect(routeMenu("/api/admin/parking-passes/pass-id", "PATCH")).toBe("parking_passes");
+    expect(routeMenu("/api/admin/parking-passes/pass-id", "DELETE")).toBe("parking_passes");
+    expect(routeMenu("/api/parking-passes/public-token", "GET")).toBeNull();
+  });
 });

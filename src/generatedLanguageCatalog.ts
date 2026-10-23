@@ -146,6 +146,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "News Category Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
+      "Parking Pass Management",
       "User Management Full"
     ],
     "inlineChinese": "操作"
@@ -164,6 +165,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "App",
       "Healthcare Admin",
       "News Category Management",
+      "Parking Pass Management",
       "User Management Full"
     ],
     "inlineChinese": "使用中"
@@ -178,6 +180,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Active newsroom desk",
     "pages": [
       "Department Management"
+    ]
+  },
+  {
+    "source": "Active passes",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -385,6 +393,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "ADMINISTRATION / ORGANIZATION",
     "pages": [
       "Department Management"
+    ]
+  },
+  {
+    "source": "ADMINISTRATION / PARKING PASS",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -865,6 +879,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "by",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "By",
     "pages": [
       "Article Detail",
@@ -893,6 +913,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "News Category Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
+      "Parking Pass Management",
       "Registration Management",
       "Role Management",
       "Story Composer",
@@ -914,6 +935,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Story Management"
     ],
     "inlineChinese": "圖片說明"
+  },
+  {
+    "source": "Car plate number",
+    "pages": [
+      "Parking Pass Management"
+    ]
   },
   {
     "source": "categories /",
@@ -1077,6 +1104,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Grouping Management",
       "Jing Si Management",
       "News Category Management",
+      "Parking Pass Management",
       "Role Management"
     ]
   },
@@ -1586,6 +1614,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Delete parking pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Delete selected (",
     "pages": [
       "Account Management"
@@ -1694,6 +1728,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Display the matching event-date code for registered users to scan from Your Appointments.",
     "pages": [
       "Registration Management"
+    ]
+  },
+  {
+    "source": "Do not admit this vehicle",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -1814,6 +1854,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "e.g. 012-345 6789",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "e.g. Bandar Puteri",
     "pages": [
       "Area Management"
@@ -1842,6 +1888,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "e.g. Registration Coordinator",
     "pages": [
       "Role Management"
+    ]
+  },
+  {
+    "source": "e.g. VAA 1234",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -2014,6 +2066,18 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Edit parking pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "EDIT PARKING PASS",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Edit registration form",
     "pages": [
       "Registration Management"
@@ -2074,6 +2138,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "ELECTRONIC PARKING PASS",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Email address",
     "pages": [
       "App",
@@ -2117,6 +2187,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "English source",
     "pages": [
       "Language Mapping Management"
+    ]
+  },
+  {
+    "source": "Enter a valid visitor mobile number before sharing",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -2733,6 +2809,48 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Issue and manage electronic parking passes for visitors.",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Issue electronic pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Issue parking pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Issue pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Issued",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Issued by",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Issued on",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "items · photos 5 MB · videos 25 MB",
     "pages": [
       "Story Management"
@@ -2902,6 +3020,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "News Category Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
+      "Parking Pass Management",
       "Public Header",
       "Reader Settings",
       "Registration Management",
@@ -2961,6 +3080,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Editorial Dashboard"
     ],
     "inlineChinese": "正在載入審核隊列…"
+  },
+  {
+    "source": "Loading electronic pass…",
+    "pages": [
+      "Parking Pass Management"
+    ]
   },
   {
     "source": "Loading event records…",
@@ -3026,6 +3151,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Loading parking passes…",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Loading people…",
     "pages": [
       "Cooperation People",
@@ -3077,6 +3208,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "News Category Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
+      "Parking Pass Management",
       "Public Header",
       "Reader Settings",
       "Registration Management",
@@ -3290,6 +3422,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Mobile number",
     "pages": [
+      "Parking Pass Management",
       "Registration Management"
     ],
     "inlineChinese": "手机号码:"
@@ -3479,6 +3612,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "inlineChinese": "新聞通知"
   },
   {
+    "source": "NEW PARKING PASS",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "New password",
     "pages": [
       "Account Management",
@@ -3602,6 +3741,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "News Category Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
+      "Parking Pass Management",
       "Registration Management",
       "Role Management",
       "Story Management",
@@ -3761,6 +3901,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "No organization chart rows match your search.",
     "pages": [
       "Org Chart Maintenance"
+    ]
+  },
+  {
+    "source": "No parking passes found.",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -4127,6 +4273,43 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Paragraph",
     "pages": [
       "Registration Management"
+    ]
+  },
+  {
+    "source": "Parking Pass",
+    "pages": [
+      "App",
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Parking pass deleted",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Parking pass revoked",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Parking pass unavailable",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Pass is active",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "passes",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -4974,6 +5157,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "inlineChinese": "修改中"
   },
   {
+    "source": "Revoked",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Role",
     "pages": [
       "Account Management",
@@ -5035,6 +5224,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Grouping Management",
       "Org Chart Maintenance",
       "Org Structure Normalized",
+      "Parking Pass Management",
       "Registration Management",
       "Role Management",
       "Story Management",
@@ -5110,6 +5300,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Grouping Management",
       "Jing Si Management",
       "News Category Management",
+      "Parking Pass Management",
       "Public Registration",
       "Reader Settings",
       "Registration Management",
@@ -5200,6 +5391,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Search parking passes",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Search people",
     "pages": [
       "Cooperation People"
@@ -5246,6 +5443,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Search users to add",
     "pages": [
       "Grouping Management"
+    ]
+  },
+  {
+    "source": "Search visitor, mobile or car plate",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -5495,6 +5698,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Share by WhatsApp",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Share how this story speaks to you and join the conversation.",
     "pages": [
       "Article Detail"
@@ -5632,6 +5841,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "App",
       "Healthcare Admin",
       "News Category Management",
+      "Parking Pass Management",
       "Story Management",
       "User Management Full"
     ],
@@ -6101,6 +6311,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "inlineChinese": "類別總數"
   },
   {
+    "source": "Total passes",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Total people",
     "pages": [
       "App",
@@ -6230,6 +6446,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "pages": [
       "Audience",
       "Reader Settings"
+    ]
+  },
+  {
+    "source": "Update visitor pass",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -6373,6 +6595,18 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Valid electronic pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Vehicle",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Verified reporting, local context, and community voices—all in one place.",
     "pages": [
       "Audience"
@@ -6438,6 +6672,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "View electronic pass",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "View Facebook",
     "pages": [
       "Article Detail"
@@ -6469,6 +6709,30 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "visible menus",
     "pages": [
       "Role Management"
+    ]
+  },
+  {
+    "source": "Visitor",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Visitor name",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "VISITOR PARKING",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
+    "source": "Visitor parking approved",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {

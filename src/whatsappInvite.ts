@@ -18,3 +18,10 @@ export function whatsappEventInvitationUrl({phone,recipientName,inviterName,even
   const message=`Hello ${recipientName}, ${inviterName} invited you to ${eventName}. Register here: ${shareUrl}`;
   return`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
+
+export function whatsappParkingPassUrl({phone,visitorName,carPlateNumber,shareUrl}:{phone:string;visitorName:string;carPlateNumber:string;shareUrl:string}){
+  const number=whatsappPhone(phone);
+  if(!number)return'';
+  const message=`Hello ${visitorName}, your electronic Parking Pass for vehicle ${carPlateNumber} is ready. Show this pass on arrival: ${shareUrl}`;
+  return`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+}

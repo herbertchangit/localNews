@@ -9,6 +9,7 @@ export const MENU_DEFINITIONS = [
   { id: "stories", label: "Stories — Story CRUD", group: "Main menu" },
   { id: "people", label: "People", group: "Main menu" },
   { id: "registrations", label: "Registration", group: "Main menu" },
+  { id: "parking_passes", label: "Parking Pass", group: "Main menu" },
   { id: "talk_with_doc", label: "Talk With Doc", group: "Talk With Doc" },
   { id: "health_events", label: "Events", group: "Talk With Doc" },
   { id: "appointments", label: "Appointments", group: "Talk With Doc" },
@@ -214,6 +215,7 @@ export const routeMenu = (path: string, method = "GET") => {
   if (/^\/api\/(?:newsroom\/)?articles|^\/api\/editor\/articles/.test(path)) return "stories";
   if (/^\/api\/registrations\/mine(?:\/|$)/.test(path)) return "appointments";
   if (/^\/api\/registrations/.test(path)) return "registrations";
+  if (/^\/api\/admin\/parking-passes/.test(path)) return "parking_passes";
   if (/^\/api\/admin\/health\/events/.test(path)) return "health_events";
   if (/^\/api\/(?:admin|doctor)\/health\/appointments|^\/api\/health-events\/appointments/.test(path)) return "appointments";
   if (/^\/api\/admin\/health\/doctors|^\/api\/doctor\/health/.test(path)) return "doctors";

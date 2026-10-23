@@ -35,6 +35,10 @@ import { createRegistrationRouter } from "./registration.js";
 import { createReaderProfileRouter } from "./readerProfile.js";
 import { createAreaRouter } from "./areas.js";
 import {
+  createParkingPassRouter,
+  createPublicParkingPassRouter,
+} from "./parkingPasses.js";
+import {
   createRoleAuthorityMiddleware,
   createRoleMenuRouter,
 } from "./roleMenus.js";
@@ -3576,6 +3580,11 @@ app.post(
   },
 );
 app.use("/api/registrations", createRegistrationRouter(db, secret));
+app.use("/api/parking-passes", createPublicParkingPassRouter(db));
+app.use(
+  "/api/admin/parking-passes",
+  createParkingPassRouter(db, auth([Role.ADMIN])),
+);
 app.use("/api/me/reader-account", createReaderProfileRouter(db, secret));
 app.get("/api/public/areas", async (_q, r) =>
   r.json(

@@ -43,6 +43,7 @@ import {
   ShieldCheck,
   MapPinned,
   ChevronDown,
+  CarFront,
 } from "lucide-react";
 import AccountManagement from "./AccountManagement";
 import DepartmentManagement from "./DepartmentManagement";
@@ -88,6 +89,7 @@ import SignUpForm from "./SignUpForm";
 import { useActiveAppointmentCount } from "./useActiveAppointmentCount";
 import RoleManagement from "./RoleManagement";
 import { useMenuAccess } from "./menuAccess";
+import ParkingPassManagement, { PublicParkingPass } from "./ParkingPassManagement";
 import { LanguageDropdown } from "./I18n";
 import "./homepage-categories.css";
 import { firstHttpUrl, firstPhotoUrl, previewImageForUrl } from "./richTextUtils";
@@ -738,6 +740,19 @@ function SessionSidebarMenu({ current }: { current: Session }) {
             Registration
           </button>
         )}
+      {visible("parking_passes") && (
+        <button
+          className={
+            where.pathname === "/newsroom/parking-passes"
+              ? "sessionCommonSidebarButton active"
+              : "sessionCommonSidebarButton"
+          }
+          onClick={() => go("/newsroom/parking-passes")}
+        >
+          <CarFront />
+          Parking Pass
+        </button>
+      )}
       {visible("talk_with_doc") && (
         <button
           className={
@@ -1004,6 +1019,15 @@ function AdminSidebarMenu({ current }: { current: Session }) {
             >
               <ClipboardList />
               Registration
+            </Link>
+          )}
+          {visible("parking_passes") && (
+            <Link
+              className={active("/newsroom/parking-passes")}
+              to="/newsroom/parking-passes"
+            >
+              <CarFront />
+              Parking Pass
             </Link>
           )}
         </>
@@ -2325,6 +2349,7 @@ function NewsroomByRole() {
   if (visible("stories")) return <Navigate to="/newsroom/stories" replace />;
   if (visible("talk_with_doc")) return <Navigate to="/newsroom/health-services" replace />;
   if (visible("appointments")) return <Navigate to="/newsroom/appointments" replace />;
+  if (visible("parking_passes")) return <Navigate to="/newsroom/parking-passes" replace />;
   if (visible("settings")) return <Navigate to="/newsroom/settings" replace />;
   return <Navigate to="/login" replace />;
 }
@@ -2366,6 +2391,7 @@ export default function App() {
         <Route path="/" element={<HomeBySession />} />
         <Route path="/stories/:slug" element={<ArticleDetail />} />
         <Route path="/registration/:slug" element={<PublicRegistration />} />
+        <Route path="/parking-pass/:token" element={<PublicParkingPass />} />
         <Route path="/login" element={<Login />} />
         <Route path="/newsroom/photos" element={<RequireAuth><MyPhotos /></RequireAuth>} />
         <Route
@@ -2397,6 +2423,14 @@ export default function App() {
           element={
             <RequireAuth>
               <RegistrationManagement />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/newsroom/parking-passes"
+          element={
+            <RequireAuth>
+              <RequireMenu id="parking_passes"><ParkingPassManagement /></RequireMenu>
             </RequireAuth>
           }
         />

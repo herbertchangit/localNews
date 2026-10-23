@@ -82,9 +82,27 @@ model User {
   passkeys                  PasskeyCredential[]
   passkeyChallenges         WebAuthnChallenge[]
   groups                    UserGroup[]          @relation("UserGroupMembers")
+  issuedParkingPasses       ParkingPass[]        @relation("ParkingPassIssuer")
   lastLoginAt               DateTime?
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt
+}
+
+model ParkingPass {
+  id             String   @id @default(cuid())
+  publicToken    String   @unique
+  visitorName    String
+  mobileNumber   String
+  carPlateNumber String
+  active         Boolean  @default(true)
+  issuedById     String
+  issuedBy       User     @relation("ParkingPassIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([issuedById, createdAt])
+  @@index([mobileNumber])
+  @@index([carPlateNumber])
 }
 
 model RoleMenuAccess {
