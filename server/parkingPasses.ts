@@ -12,6 +12,8 @@ const parkingPassInput = z.object({
   carPlateNumber: z.string().trim().min(2).max(20).transform((value) =>
     value.toUpperCase().replace(/\s+/g, " "),
   ),
+  eventName: z.string().trim().min(2).max(150),
+  eventDate: z.coerce.date(),
   active: z.boolean().optional(),
 });
 
@@ -21,6 +23,8 @@ const passSelect = {
   visitorName: true,
   mobileNumber: true,
   carPlateNumber: true,
+  eventName: true,
+  eventDate: true,
   active: true,
   createdAt: true,
   updatedAt: true,

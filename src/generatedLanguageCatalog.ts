@@ -879,12 +879,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "by",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
     "source": "By",
     "pages": [
       "Article Detail",
@@ -1081,6 +1075,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Clear search",
     "pages": [
       "Account Management"
+    ]
+  },
+  {
+    "source": "Clone parking pass",
+    "pages": [
+      "Parking Pass Management"
     ]
   },
   {
@@ -1731,12 +1731,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Do not admit this vehicle",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
     "source": "Doctor",
     "pages": [
       "Health Event Board",
@@ -2138,12 +2132,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "ELECTRONIC PARKING PASS",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
     "source": "Email address",
     "pages": [
       "App",
@@ -2211,7 +2199,8 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Event",
     "pages": [
-      "Healthcare Admin"
+      "Healthcare Admin",
+      "Parking Pass Management"
     ]
   },
   {
@@ -2230,6 +2219,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   {
     "source": "Event date",
     "pages": [
+      "Parking Pass Management",
       "Public Registration"
     ],
     "inlineChinese": "活动日期:"
@@ -2262,6 +2252,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Event name",
     "pages": [
       "Healthcare Admin",
+      "Parking Pass Management",
       "Registration Management"
     ]
   },
@@ -2828,24 +2819,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
   },
   {
     "source": "Issue pass",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
-    "source": "Issued",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
-    "source": "Issued by",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
-    "source": "Issued on",
     "pages": [
       "Parking Pass Management"
     ]
@@ -4283,13 +4256,19 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "PARKING PASS",
+    "pages": [
+      "Parking Pass Management"
+    ]
+  },
+  {
     "source": "Parking pass deleted",
     "pages": [
       "Parking Pass Management"
     ]
   },
   {
-    "source": "Parking pass revoked",
+    "source": "PARKING PASS REVOKED",
     "pages": [
       "Parking Pass Management"
     ]
@@ -6595,7 +6574,7 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Valid electronic pass",
+    "source": "VALID PARKING PASS",
     "pages": [
       "Parking Pass Management"
     ]
@@ -6718,19 +6697,14 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "VISITOR",
+    "pages": [
+      "Parking Pass Management"
+    ],
+    "inlineChinese": "访客"
+  },
+  {
     "source": "Visitor name",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
-    "source": "VISITOR PARKING",
-    "pages": [
-      "Parking Pass Management"
-    ]
-  },
-  {
-    "source": "Visitor parking approved",
     "pages": [
       "Parking Pass Management"
     ]

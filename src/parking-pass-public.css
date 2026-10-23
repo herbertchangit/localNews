@@ -1,0 +1,92 @@
+.publicParkingPassPage {
+  min-height: 100vh;
+  background: #dfe5e0;
+  padding: 20px 12px;
+  display: grid;
+  place-items: center;
+}
+
+body:has(.publicParkingPassPage) .languageSwitch { display: none; }
+
+.publicParkingPassCard {
+  position: relative;
+  width: min(100%, 430px, calc((100vh - 40px) * 9 / 16));
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  padding: clamp(18px, 5vw, 30px);
+  color: #101713;
+  border: 1px solid #c6cfca;
+  box-shadow: 0 18px 50px #163b2c2b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #f5f8f5;
+  background-image:
+    linear-gradient(#cbd3cf 1px, transparent 1px),
+    linear-gradient(90deg, #cbd3cf 1px, transparent 1px),
+    linear-gradient(90deg, transparent 50%, #cbd3cf 50%, #cbd3cf calc(50% + 1px), transparent calc(50% + 1px));
+  background-size: 42px 24px, 42px 24px, 42px 48px;
+}
+
+.publicParkingPassCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #ffffff70, #ffffffbf 55%, #ffffff80);
+  pointer-events: none;
+}
+
+.publicParkingPassCard > * { position: relative; z-index: 1; }
+.publicParkingMeta { width: 100%; display: flex; justify-content: space-between; align-items: center; color: #c44719; font-size: clamp(11px, 3vw, 14px); }
+.publicParkingMeta strong { letter-spacing: .08em; }
+.publicParkingPassCard > header { width: 100%; margin-top: 7%; padding: 0; border: 0; display: block; text-align: center; }
+.publicParkingPassCard > header h1 { margin: 0; font: 900 clamp(48px, 16vw, 78px)/.95 'Libre Franklin', sans-serif; letter-spacing: .05em; }
+.publicParkingPassCard > header h2 { margin: 2% 0 0; font: 900 clamp(30px, 10vw, 47px)/1 'Libre Franklin', sans-serif; letter-spacing: -.025em; white-space: nowrap; }
+.publicParkingCars { display: flex; justify-content: center; gap: 3px; margin: 2% 0 -1%; }
+.publicParkingCars svg { width: clamp(28px, 9vw, 42px); height: auto; fill: #101713; stroke-width: 1.7; }
+
+.publicParkingPlate {
+  width: 100%;
+  margin: 9% 0 7%;
+  padding: 4% 2%;
+  background: #ffffffbd;
+  border: 0;
+  border-block: 2px solid #d3d8d4;
+  border-radius: 0;
+  color: #d00000;
+  text-align: center;
+  font: 950 clamp(34px, 11vw, 52px)/1 'Libre Franklin', sans-serif;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.publicParkingVisitor { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.publicParkingVisitor small { color: #59635d; font-size: clamp(9px, 2.7vw, 12px); font-weight: 800; letter-spacing: .16em; }
+.publicParkingVisitor strong { margin-top: 5%; font: 800 clamp(24px, 7.5vw, 35px)/1.1 'Libre Franklin', sans-serif; }
+.publicParkingVisitor span { margin-top: 4%; font-size: clamp(12px, 3.5vw, 15px); color: #59635d; letter-spacing: .06em; }
+.publicParkingEvent { width: 100%; margin-top: auto; padding: 0 4% 4%; text-align: center; font: 800 clamp(12px, 3.6vw, 16px)/1.25 'Libre Franklin', sans-serif; }
+.publicParkingStatus {
+  width: 100%;
+  margin: 0;
+  padding: 3.2%;
+  background: #174f3a;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: clamp(10px, 3vw, 13px);
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.publicParkingStatus svg { width: 18px; height: 18px; }
+.publicParkingPassCard.invalid { border: 5px solid #a53d36; }
+.publicParkingPassCard.invalid::after { content: "REVOKED"; position: absolute; z-index: 2; top: 44%; left: -12%; width: 124%; padding: 3% 0; background: #a53d36e8; color: #fff; text-align: center; font: 900 clamp(28px, 10vw, 48px) 'Libre Franklin'; letter-spacing: .12em; transform: rotate(-12deg); }
+.publicParkingPassCard.invalid > .publicParkingStatus { background: #8f302a; }
+
+@media (max-width: 520px) {
+  .publicParkingPassPage { padding: 0; background: #f5f8f5; }
+  .publicParkingPassCard { width: min(100vw, calc(100svh * 9 / 16)); min-height: 100svh; aspect-ratio: 9 / 16; border: 0; box-shadow: none; }
+}

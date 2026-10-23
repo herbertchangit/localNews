@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   CarFront,
   CheckCircle2,
+  Copy,
   Pencil,
   Plus,
   Search,
@@ -15,6 +16,7 @@ import {
 import { useAuthorities } from "./menuAccess";
 import { whatsappParkingPassUrl } from "./whatsappInvite";
 import "./parking-pass.css";
+import "./parking-pass-public.css";
 
 type ParkingPass = {
   id: string;
@@ -22,6 +24,8 @@ type ParkingPass = {
   visitorName: string;
   mobileNumber: string;
   carPlateNumber: string;
+  eventName: string;
+  eventDate: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -33,14 +37,19 @@ type ParkingPassEditor = {
   visitorName: string;
   mobileNumber: string;
   carPlateNumber: string;
+  eventName: string;
+  eventDate: string;
   active: boolean;
 };
 
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
+const dateInputValue = (value = new Date().toISOString()) => value.slice(0, 10);
 const emptyEditor = (): ParkingPassEditor => ({
   visitorName: "",
   mobileNumber: "",
   carPlateNumber: "",
+  eventName: "",
+  eventDate: dateInputValue(),
   active: true,
 });
 const passUrl = (pass: ParkingPass) =>
@@ -86,7 +95,7 @@ export default function ParkingPassManagement() {
     const needle = query.trim().toLowerCase();
     if (!needle) return passes;
     return passes.filter((pass) =>
-      `${pass.visitorName} ${pass.mobileNumber} ${pass.carPlateNumber} ${pass.issuedBy.name}`
+      `${pass.visitorName} ${pass.mobileNumber} ${pass.carPlateNumber} ${pass.eventName} ${pass.issuedBy.name}`
         .toLowerCase()
         .includes(needle),
     );
@@ -157,17 +166,18 @@ export default function ParkingPassManagement() {
           </div>
           {loading ? <div className="emptyState">Loading parking passes…</div> : filtered.length ? (
             <div className="parkingPassTable">
-              <div className="parkingPassRow parkingPassHeader"><span>Visitor</span><span>Vehicle</span><span>Issued</span><span>Status</span><span>Actions</span></div>
+              <div className="parkingPassRow parkingPassHeader"><span>Visitor</span><span>Vehicle</span><span>Event</span><span>Status</span><span>Actions</span></div>
               {filtered.map((pass) => (
                 <div className="parkingPassRow" key={pass.id}>
                   <div><b>{pass.visitorName}</b><small>{pass.mobileNumber}</small></div>
                   <strong>{pass.carPlateNumber}</strong>
-                  <div><time>{new Date(pass.createdAt).toLocaleDateString()}</time><small>by {pass.issuedBy.name}</small></div>
+                  <div><b>{pass.eventName}</b><time>{new Date(pass.eventDate).toLocaleDateString()}</time></div>
                   <span className={pass.active ? "parkingPassStatus active" : "parkingPassStatus revoked"}>{pass.active ? "Active" : "Revoked"}</span>
                   <div className="parkingPassActions">
                     <a href={passUrl(pass)} target="_blank" rel="noreferrer" title="View electronic pass"><ShieldCheck /></a>
                     {allowed("copy_link") && <button title="Share by WhatsApp" onClick={() => share(pass)}><Share2 /></button>}
-                    {allowed("edit") && <button title="Edit parking pass" onClick={() => setEditing({ id: pass.id, visitorName: pass.visitorName, mobileNumber: pass.mobileNumber, carPlateNumber: pass.carPlateNumber, active: pass.active })}><Pencil /></button>}
+                    {allowed("new") && <button title="Clone parking pass" onClick={() => setEditing({ visitorName: pass.visitorName, mobileNumber: pass.mobileNumber, carPlateNumber: pass.carPlateNumber, eventName: pass.eventName, eventDate: dateInputValue(pass.eventDate), active: true })}><Copy /></button>}
+                    {allowed("edit") && <button title="Edit parking pass" onClick={() => setEditing({ id: pass.id, visitorName: pass.visitorName, mobileNumber: pass.mobileNumber, carPlateNumber: pass.carPlateNumber, eventName: pass.eventName, eventDate: dateInputValue(pass.eventDate), active: pass.active })}><Pencil /></button>}
                     {allowed("delete") && <button className="danger" title="Delete parking pass" onClick={() => remove(pass)}><Trash2 /></button>}
                   </div>
                 </div>
@@ -183,6 +193,8 @@ export default function ParkingPassManagement() {
             <label>Visitor name<input autoFocus required minLength={2} maxLength={100} value={editing.visitorName} onChange={(event) => setEditing({ ...editing, visitorName: event.target.value })} /></label>
             <label>Mobile number<input required inputMode="tel" minLength={7} maxLength={30} placeholder="e.g. 012-345 6789" value={editing.mobileNumber} onChange={(event) => setEditing({ ...editing, mobileNumber: event.target.value })} /></label>
             <label>Car plate number<input required minLength={2} maxLength={20} autoCapitalize="characters" placeholder="e.g. VAA 1234" value={editing.carPlateNumber} onChange={(event) => setEditing({ ...editing, carPlateNumber: event.target.value.toUpperCase() })} /></label>
+            <label>Event name<input required minLength={2} maxLength={150} value={editing.eventName} onChange={(event) => setEditing({ ...editing, eventName: event.target.value })} /></label>
+            <label>Event date<input required type="date" value={editing.eventDate} onChange={(event) => setEditing({ ...editing, eventDate: event.target.value })} /></label>
             {editing.id && <label className="parkingPassActive"><input type="checkbox" checked={editing.active} onChange={(event) => setEditing({ ...editing, active: event.target.checked })} />Pass is active</label>}
             <div className="modalActions"><button type="button" onClick={() => setEditing(null)}>Cancel</button><button className="new" disabled={saving}>{saving ? "Saving…" : editing.id ? "Save changes" : "Issue pass"}</button></div>
           </form>
@@ -207,13 +219,25 @@ export function PublicParkingPass() {
   }, [token]);
   return (
     <main className="publicParkingPassPage">
-      <Link to="/" className="brand"><span>LN</span><div>LOCAL NEWS<small>VISITOR PARKING</small></div></Link>
       {error ? <section className="publicParkingPassCard invalid"><XCircle /><h1>Parking pass unavailable</h1><p>{error}</p></section> : !pass ? <section className="publicParkingPassCard"><p>Loading electronic pass…</p></section> : (
         <section className={`publicParkingPassCard${pass.active ? "" : " invalid"}`}>
-          <header><span><CarFront /></span><div><small>ELECTRONIC PARKING PASS</small><h1>{pass.active ? "Visitor parking approved" : "Parking pass revoked"}</h1></div></header>
+          <div className="publicParkingMeta">
+            <strong>#{pass.publicToken.slice(0, 8).toUpperCase()}</strong>
+            <time>{new Date(pass.eventDate).toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" })}</time>
+          </div>
+          <header>
+            <h1>停车证</h1>
+            <div className="publicParkingCars"><CarFront /><CarFront /></div>
+            <h2>PARKING PASS</h2>
+          </header>
           <div className="publicParkingPlate">{pass.carPlateNumber}</div>
-          <dl><div><dt>Visitor</dt><dd>{pass.visitorName}</dd></div><div><dt>Mobile number</dt><dd>{pass.mobileNumber}</dd></div><div><dt>Issued on</dt><dd>{new Date(pass.createdAt).toLocaleString()}</dd></div><div><dt>Issued by</dt><dd>{pass.issuedBy.name}</dd></div></dl>
-          <footer>{pass.active ? <><CheckCircle2 />Valid electronic pass</> : <><XCircle />Do not admit this vehicle</>}</footer>
+          <div className="publicParkingVisitor">
+            <small>VISITOR / 访客</small>
+            <strong>{pass.visitorName}</strong>
+            <span>{pass.mobileNumber}</span>
+          </div>
+          <div className="publicParkingEvent">{pass.eventName}</div>
+          <div className="publicParkingStatus">{pass.active ? <><CheckCircle2 />VALID PARKING PASS</> : <><XCircle />PARKING PASS REVOKED</>}</div>
         </section>
       )}
     </main>

@@ -94,6 +94,8 @@ model ParkingPass {
   visitorName    String
   mobileNumber   String
   carPlateNumber String
+  eventName      String   @default("Visitor Parking")
+  eventDate      DateTime @default(now())
   active         Boolean  @default(true)
   issuedById     String
   issuedBy       User     @relation("ParkingPassIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
