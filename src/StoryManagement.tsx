@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import PhotoTags from "./PhotoTags";
+import StoryMediaViewControls, { type StoryMediaViewMode } from "./StoryMediaViewControls";
 import "./story-url-preview.css";
 import "./story-media.css";
 import "./story-preview.css";
@@ -104,7 +105,7 @@ export default function StoryManagement() {
   const current = session();
   const isAdmin = current?.user.role === "ADMIN";
   const isEditor = current?.user.role === "EDITOR";
-  const maxMediaItems = isAdmin || isEditor ? 100 : 12;
+  const maxMediaItems = 50;
   const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [registrationForms, setRegistrationForms] = useState<RegistrationOption[]>([]);
@@ -113,6 +114,7 @@ export default function StoryManagement() {
   const [editing, setEditing] = useState<Story | null>(null);
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
   const [draggedPhotoId, setDraggedPhotoId] = useState("");
+  const [mediaView, setMediaView] = useState<StoryMediaViewMode>("tile");
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
@@ -816,15 +818,18 @@ export default function StoryManagement() {
                     <GripVertical /> Drag media to change its sequence. The first photo is used as the story-board thumbnail.
                   </p>
                 </div>
-                <button
-                  className="storyMediaAddButton"
-                  type="button"
-                  disabled={saving || activePhotos.length >= maxMediaItems}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <ImagePlus />
-                  Add media / 新增媒體
-                </button>
+                <div className="storyMediaToolbar">
+                  <StoryMediaViewControls value={mediaView} onChange={setMediaView} />
+                  <button
+                    className="storyMediaAddButton"
+                    type="button"
+                    disabled={saving || activePhotos.length >= maxMediaItems}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <ImagePlus />
+                    Add media / 新增媒體
+                  </button>
+                </div>
               </div>
               <input
                 ref={fileRef}
@@ -868,7 +873,7 @@ export default function StoryManagement() {
                   <span>No photos or videos yet / 尚未有照片或影片</span>
                 </div>
               )}
-              <div className="storyGalleryGrid">
+              <div className={`storyGalleryGrid mediaView-${mediaView}`}>
                 {activePhotos.map((photo, index) => (
                   <div
                     className={`storyGalleryItem ${draggedPhotoId === photo.id ? "dragging" : ""}`}
@@ -981,6 +986,7 @@ export default function StoryManagement() {
                 ))}
               </div>
               <div className="storyGalleryFooter">
+                <StoryMediaViewControls value={mediaView} onChange={setMediaView} />
                 <button
                   className="storyMediaAddButton"
                   type="button"

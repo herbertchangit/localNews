@@ -78,13 +78,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "A story can have up to 12 photos",
-    "pages": [
-      "Story Composer"
-    ],
-    "inlineChinese": "每篇新聞最多可有 12 張照片"
-  },
-  {
     "source": "A system email will be generated if blank",
     "pages": [
       "Sign Up Form"
@@ -308,11 +301,10 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "Add up to 12 photos",
+    "source": "Add up to",
     "pages": [
       "Story Composer"
-    ],
-    "inlineChinese": "最多新增 12 張照片"
+    ]
   },
   {
     "source": "Add user",
@@ -2900,6 +2892,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Large Icon",
+    "pages": [
+      "Story Media View Controls"
+    ]
+  },
+  {
     "source": "Last login",
     "pages": [
       "Account Management"
@@ -2955,6 +2953,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "News Category Management"
     ],
     "inlineChinese": "關聯新聞"
+  },
+  {
+    "source": "Listing",
+    "pages": [
+      "Story Media View Controls"
+    ]
   },
   {
     "source": "LIVE",
@@ -3328,6 +3332,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Meal required",
     "pages": [
       "Audience"
+    ]
+  },
+  {
+    "source": "Media listing view",
+    "pages": [
+      "Story Media View Controls"
     ]
   },
   {
@@ -4460,6 +4470,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Article Detail"
     ],
     "inlineChinese": "照片已標記。"
+  },
+  {
+    "source": "photos",
+    "pages": [
+      "Story Composer"
+    ],
+    "inlineChinese": "最多新增"
   },
   {
     "source": "Photos",
@@ -5788,6 +5805,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Small Icon",
+    "pages": [
+      "Story Media View Controls"
+    ]
+  },
+  {
     "source": "Sort order",
     "pages": [
       "Org Chart Maintenance",
@@ -6238,6 +6261,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Tigers secure dramatic cup semi-final victory",
     "pages": [
       "App"
+    ]
+  },
+  {
+    "source": "Tile",
+    "pages": [
+      "Story Media View Controls"
     ]
   },
   {

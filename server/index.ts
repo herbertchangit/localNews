@@ -922,7 +922,7 @@ const overviewHarmonyVisibility = async (user?: { id: string }) => {
     harmony: current.harmonyGroup?.name,
   });
 };
-const storyMediaLimit = (role: Role) => (hasFullStoryAccess(role) ? 100 : 12);
+const storyMediaLimit = (_role: Role) => 50;
 const canEditArticle = (q: Req, article: { authorId: string }) =>
   hasConfiguredStoryAccess(q) || hasFullStoryAccess(q.user!.role) || article.authorId === q.user!.id;
 const articleInclude = {
@@ -1076,7 +1076,7 @@ const storyPhotoUpdate = z.object({ caption: z.string().trim().max(240) });
 const storyPhotoOrderBody = z.object({
   photoIds: z
     .array(z.string())
-    .max(100)
+    .max(50)
     .refine((ids) => new Set(ids).size === ids.length, {
       message: "Media order cannot contain duplicate items",
     }),

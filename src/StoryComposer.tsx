@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
+import StoryMediaViewControls, { type StoryMediaViewMode } from "./StoryMediaViewControls";
 import { richTextToPlainText } from "./richTextUtils";
 
 type Category = { id: string; name: string };
@@ -17,6 +18,7 @@ type RegistrationOption = { id: string; eventName: string; slug: string };
 type StoryGroup = { id: string; name: string };
 type StoryVisibility = "PUBLIC" | "PRIVATE" | "GROUP";
 type DraftPhoto = { id: string; dataUrl: string; caption: string };
+const MAX_STORY_MEDIA_ITEMS = 50;
 const session = () => JSON.parse(localStorage.getItem("ln_session") || "null");
 const OPEN_STORY_COMPOSER_EVENT = "localnews:open-story-composer";
 
@@ -154,15 +156,16 @@ function StoryModal({
       visibilityGroupId: "",
     }),
     [photos, setPhotos] = useState<DraftPhoto[]>([]),
+    [mediaView, setMediaView] = useState<StoryMediaViewMode>("tile"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const choosePhotos = async (files?: FileList | null) => {
     if (!files?.length) return;
     const incoming = Array.from(files);
-    if (photos.length + incoming.length > 12)
+    if (photos.length + incoming.length > MAX_STORY_MEDIA_ITEMS)
       return setError(
-        "A story can have up to 12 photos / 每篇新聞最多可有 12 張照片",
+        `A story can have up to ${MAX_STORY_MEDIA_ITEMS} photos / 每篇新聞最多可有 ${MAX_STORY_MEDIA_ITEMS} 張照片`,
       );
     for (const file of incoming) {
       if (!/^image\/(png|jpeg|webp)$/.test(file.type))
@@ -263,17 +266,20 @@ function StoryModal({
           <div className="composerStoryPhotosHeading">
             <div>
               <b>Story photos and captions / 新聞照片及說明</b>
-              <span>Add up to 12 photos / 最多新增 12 張照片</span>
+              <span>Add up to {MAX_STORY_MEDIA_ITEMS} photos / 最多新增 {MAX_STORY_MEDIA_ITEMS} 張照片</span>
             </div>
-            <button
-              className="storyMediaAddButton"
-              type="button"
-              disabled={busy || photos.length >= 12}
-              onClick={() => photoInputRef.current?.click()}
-            >
-              <ImagePlus />
-              Add media / 新增媒體
-            </button>
+            <div className="storyMediaToolbar">
+              <StoryMediaViewControls value={mediaView} onChange={setMediaView} />
+              <button
+                className="storyMediaAddButton"
+                type="button"
+                disabled={busy || photos.length >= MAX_STORY_MEDIA_ITEMS}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <ImagePlus />
+                Add media / 新增媒體
+              </button>
+            </div>
           </div>
           <input
             ref={photoInputRef}
@@ -293,7 +299,7 @@ function StoryModal({
             </div>
           )}
           {!!photos.length && (
-            <div className="composerGallery">
+            <div className={`composerGallery mediaView-${mediaView}`}>
               {photos.map((photo, index) => (
                 <div key={photo.id}>
                   <img src={photo.dataUrl} alt={`Story preview ${index + 1}`} />
@@ -330,10 +336,11 @@ function StoryModal({
             </div>
           )}
           <div className="composerStoryPhotosFooter">
+            <StoryMediaViewControls value={mediaView} onChange={setMediaView} />
             <button
               className="storyMediaAddButton"
               type="button"
-              disabled={busy || photos.length >= 12}
+              disabled={busy || photos.length >= MAX_STORY_MEDIA_ITEMS}
               onClick={() => photoInputRef.current?.click()}
             >
               <ImagePlus />
