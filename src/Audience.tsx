@@ -94,6 +94,25 @@ function StoryRegistrationParticipants({ story }: { story: Story }) {
   );
 }
 type NewsCategory = { id: string; name: string; slug: string };
+type DailyBriefTab = "current" | "future";
+
+function localCalendarDateKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function isFutureStory(story: Story, todayKey: string) {
+  const dateKey = localCalendarDateKey(
+    story.storyDate || story.publishedAt || new Date(),
+  );
+  return Boolean(dateKey && dateKey > todayKey);
+}
+
 type Me = {
   id: string;
   name: string;
@@ -1502,6 +1521,7 @@ export function AudienceHomepageDashboard() {
   const [stories, setStories] = useState<Story[]>([]),
     [categories, setCategories] = useState<NewsCategory[]>([]),
     [selectedCategory, setSelectedCategory] = useState<string | null>(null),
+    [dailyBriefTab, setDailyBriefTab] = useState<DailyBriefTab>("current"),
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
   useEffect(() => {
@@ -1540,10 +1560,17 @@ export function AudienceHomepageDashboard() {
       current = false;
     };
   }, [selectedCategory]);
-  const headline = stories.find((story) => story.isHeadline),
+  const todayKey = localCalendarDateKey(new Date()),
+    upToDateStories = stories.filter(
+      (story) => !isFutureStory(story, todayKey),
+    ),
+    futureStories = stories.filter((story) => isFutureStory(story, todayKey)),
+    tabStories =
+      dailyBriefTab === "future" ? futureStories : upToDateStories,
+    headline = tabStories.find((story) => story.isHeadline),
     regularStories = headline
-      ? stories.filter((story) => story.id !== headline.id)
-      : stories;
+      ? tabStories.filter((story) => story.id !== headline.id)
+      : tabStories;
   return (
     <div className="dash audienceDash">
       <AudienceSidebar active="overview" />
@@ -1574,13 +1601,33 @@ export function AudienceHomepageDashboard() {
             </button>
           ))}
         </nav>
+        <nav className="dailyBriefTabs" aria-label="Daily Brief story date">
+          <button
+            className={dailyBriefTab === "current" ? "active" : ""}
+            aria-pressed={dailyBriefTab === "current"}
+            onClick={() => setDailyBriefTab("current")}
+          >
+            <span>Up-To-Date</span>
+            <small>{upToDateStories.length}</small>
+          </button>
+          <button
+            className={dailyBriefTab === "future" ? "active" : ""}
+            aria-pressed={dailyBriefTab === "future"}
+            onClick={() => setDailyBriefTab("future")}
+          >
+            <span>Future activities</span>
+            <small>{futureStories.length}</small>
+          </button>
+        </nav>
         {busy ? (
           <div className="panel emptyState">Loading stories…</div>
         ) : error ? (
           <div className="panel emptyState">{error}</div>
-        ) : !stories.length ? (
+        ) : !tabStories.length ? (
           <div className="panel emptyState">
-            No published stories in this category.
+            {dailyBriefTab === "future"
+              ? "No future activities in this category."
+              : "No up-to-date stories in this category."}
           </div>
         ) : (
           <>

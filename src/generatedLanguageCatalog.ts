@@ -1519,6 +1519,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Daily Brief story date",
+    "pages": [
+      "Audience"
+    ]
+  },
+  {
     "source": "Date",
     "pages": [
       "Healthcare Admin",
@@ -2473,6 +2479,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Fully booked",
     "pages": [
       "Health Event Board"
+    ]
+  },
+  {
+    "source": "Future activities",
+    "pages": [
+      "Audience"
     ]
   },
   {
@@ -3824,13 +3836,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "No editable stories.",
-    "pages": [
-      "Story Management"
-    ],
-    "inlineChinese": "暫無可編輯新聞。"
-  },
-  {
     "source": "No event appointments found for this contact number.",
     "pages": [
       "Account Management"
@@ -3852,6 +3857,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "No fixed slots are configured. Submit a preferred time for administrator confirmation.",
     "pages": [
       "Health Event Board"
+    ]
+  },
+  {
+    "source": "No future activities in this category.",
+    "pages": [
+      "Audience"
     ]
   },
   {
@@ -3926,12 +3937,6 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
-    "source": "No published stories in this category.",
-    "pages": [
-      "Audience"
-    ]
-  },
-  {
     "source": "No registration forms yet",
     "pages": [
       "Registration Management"
@@ -3950,11 +3955,24 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "No stories match the selected filters.",
+    "pages": [
+      "Story Management"
+    ],
+    "inlineChinese": "沒有符合篩選條件的新聞。"
+  },
+  {
     "source": "No stories waiting for verification.",
     "pages": [
       "Editorial Dashboard"
     ],
     "inlineChinese": "暫無待審核新聞。"
+  },
+  {
+    "source": "No up-to-date stories in this category.",
+    "pages": [
+      "Audience"
+    ]
   },
   {
     "source": "No users added",
@@ -5429,6 +5447,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Search stories",
+    "pages": [
+      "Story Management"
+    ],
+    "inlineChinese": "搜尋新聞"
+  },
+  {
     "source": "Search users",
     "pages": [
       "Account Management",
@@ -5952,6 +5977,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "inlineChinese": "新聞已永久刪除"
   },
   {
+    "source": "Story filters",
+    "pages": [
+      "Story Management"
+    ]
+  },
+  {
     "source": "STORY GALLERY",
     "pages": [
       "Article Detail"
@@ -6279,6 +6310,12 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     "source": "Title",
     "pages": [
       "Registration Management"
+    ]
+  },
+  {
+    "source": "Title, author, category or Harmony",
+    "pages": [
+      "Story Management"
     ]
   },
   {
@@ -6712,6 +6749,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
       "Article Detail",
       "Audience"
     ]
+  },
+  {
+    "source": "Visibility",
+    "pages": [
+      "Story Management"
+    ],
+    "inlineChinese": "可見性"
   },
   {
     "source": "visible menus",

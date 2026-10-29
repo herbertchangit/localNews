@@ -17,6 +17,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   Settings,
   Star,
   Trash2,
@@ -48,6 +49,8 @@ type Category = { id: string; name: string };
 type RegistrationOption = { id: string; eventName: string; slug: string };
 type StoryGroup = { id: string; name: string };
 type StoryVisibility = "PUBLIC" | "PRIVATE" | "GROUP";
+type StoryStatusFilter = "published" | "expired" | "both";
+type StoryVisibilityFilter = "public" | "private" | "both";
 type StoryPhoto = {
   id: string;
   url: string;
@@ -115,6 +118,11 @@ export default function StoryManagement() {
   const [photos, setPhotos] = useState<EditablePhoto[]>([]);
   const [draggedPhotoId, setDraggedPhotoId] = useState("");
   const [mediaView, setMediaView] = useState<StoryMediaViewMode>("tile");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<StoryStatusFilter>("published");
+  const [visibilityFilter, setVisibilityFilter] =
+    useState<StoryVisibilityFilter>("both");
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
@@ -500,6 +508,24 @@ export default function StoryManagement() {
   const editingContentPreviewUrl = editingContentUrl
     ? previewImageForUrl(editingContentUrl)
     : null;
+  const filteredStories = useMemo(() => {
+    const search = searchTerm.trim().toLocaleLowerCase();
+    return stories.filter((story) => {
+      const expired = story.status === "ARCHIVED";
+      if (statusFilter === "published" && expired) return false;
+      if (statusFilter === "expired" && !expired) return false;
+      const isPublic = story.visibility === "PUBLIC";
+      if (visibilityFilter === "public" && !isPublic) return false;
+      if (visibilityFilter === "private" && isPublic) return false;
+      if (!search) return true;
+      return [
+        story.title,
+        story.author.name,
+        story.category.name,
+        story.harmony || "",
+      ].some((value) => value.toLocaleLowerCase().includes(search));
+    });
+  }, [searchTerm, statusFilter, stories, visibilityFilter]);
 
   return (
     <div className="dash">
@@ -565,6 +591,62 @@ export default function StoryManagement() {
             <button onClick={() => setNotice("")}>×</button>
           </div>
         )}
+        <section className="storyFilters" aria-label="Story filters">
+          <label className="storySearchField">
+            <span>Search stories / 搜尋新聞</span>
+            <div>
+              <Search />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Title, author, category or Harmony"
+              />
+            </div>
+          </label>
+          <fieldset>
+            <legend>Status / 狀態</legend>
+            <div className="storyFilterOptions">
+              {([
+                ["published", "Published"],
+                ["expired", "Expired"],
+                ["both", "Both"],
+              ] as const).map(([value, label]) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name="story-status-filter"
+                    value={value}
+                    checked={statusFilter === value}
+                    onChange={() => setStatusFilter(value)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Visibility / 可見性</legend>
+            <div className="storyFilterOptions">
+              {([
+                ["public", "Public"],
+                ["private", "Private"],
+                ["both", "Both"],
+              ] as const).map(([value, label]) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name="story-visibility-filter"
+                    value={value}
+                    checked={visibilityFilter === value}
+                    onChange={() => setVisibilityFilter(value)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </section>
         <div className="panel storyManagerPanel">
           <div className="storyManagerHeader">
             <span>Photos / 照片</span>
@@ -578,13 +660,13 @@ export default function StoryManagement() {
               Loading stories… / 正在載入新聞…
             </div>
           )}
-          {!busy && !stories.length && (
+          {!busy && !filteredStories.length && (
             <div className="editorialEmpty">
-              No editable stories. / 暫無可編輯新聞。
+              No stories match the selected filters. / 沒有符合篩選條件的新聞。
             </div>
           )}
           {!busy &&
-            stories.map((story) => {
+            filteredStories.map((story) => {
               const contentUrl = firstHttpUrl(story.content);
               const contentPreviewUrl = contentUrl
                 ? previewImageForUrl(contentUrl)
