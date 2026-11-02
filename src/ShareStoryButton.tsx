@@ -24,14 +24,18 @@ export const storyShareUrl = (origin: string, slug: string, previewImage?: strin
   return url.href;
 };
 
-const copyLink = async (url: string) => {
+export const storyShareText = (title: string, url: string) =>
+  `${title.trim()}\n${url}`;
+
+const copyStory = async (title: string, url: string) => {
+  const text = storyShareText(title, url);
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(text);
     return;
   }
 
   const input = document.createElement("textarea");
-  input.value = url;
+  input.value = text;
   input.setAttribute("readonly", "");
   input.style.position = "fixed";
   input.style.opacity = "0";
@@ -76,7 +80,7 @@ export default function ShareStoryButton({
         await navigator.share({ title, text: title, url });
         return;
       }
-      await copyLink(url);
+      await copyStory(title, url);
       setStatus("copied");
       resetStatusLater();
     } catch (error) {
@@ -88,7 +92,7 @@ export default function ShareStoryButton({
 
   const label =
     status === "copied"
-      ? "Link copied"
+      ? "Story copied"
       : status === "error"
         ? "Unable to share"
         : "Share";

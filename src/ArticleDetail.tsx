@@ -9,6 +9,7 @@ import "./story-lightbox.css";
 import "./tag-me.css";
 import { firstHttpUrl, isFacebookUrl, isVideoUrl, previewImageForUrl, richTextToPlainText } from "./richTextUtils";
 import ShareStoryButton from "./ShareStoryButton";
+import { sessionTokenExpired } from "./sessionToken";
 
 type Photo = { id: string; url: string; caption: string | null; sortOrder: number };
 type Article = {
@@ -73,7 +74,19 @@ const emptyDiscussion: Discussion = {
   photoResponses: {},
   comments: [],
 };
-const readSession = (): Session | null => { try { return JSON.parse(localStorage.getItem("ln_session") || "null"); } catch { return null; } };
+const readSession = (): Session | null => {
+  try {
+    const current = JSON.parse(localStorage.getItem("ln_session") || "null");
+    if (!current?.token || sessionTokenExpired(current.token)) {
+      localStorage.removeItem("ln_session");
+      return null;
+    }
+    return current;
+  } catch {
+    localStorage.removeItem("ln_session");
+    return null;
+  }
+};
 
 function ReaderHeader() {
   return <PublicHeader><nav>{["Local", "Politics", "Business", "Sports", "Culture"].map((item) => <Link to="/" key={item}>{item}</Link>)}</nav></PublicHeader>;
@@ -90,7 +103,7 @@ function PhotoResponseControls({ photoId, state, disabled, openResponders, onTog
 
 export default function ArticleDetail({ preview = false }: { preview?: boolean }) {
   const { slug, id } = useParams();
-  const session = readSession();
+  const [session, setSession] = useState<Session | null>(() => readSession());
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -128,6 +141,18 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
   }, [mediaViewer?.kind]);
 
   const authHeaders = session ? { Authorization: `Bearer ${session.token}` } : {};
+  const requireAuthenticatedResponse = (
+    response: Response,
+    data: any,
+    fallback: string,
+  ) => {
+    if (response.status === 401) {
+      localStorage.removeItem("ln_session");
+      setSession(null);
+      throw new Error("Your session expired. Sign in again to respond or comment.");
+    }
+    if (!response.ok) throw new Error(data?.error || fallback);
+  };
   useEffect(() => {
     setLoading(true);
     setError("");
@@ -177,7 +202,7 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
     try {
       const response = await fetch(`/api/articles/${article.id}/responses`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify({ category }) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save response");
+      requireAuthenticatedResponse(response, data, "Could not save response");
       setDiscussion((current) => ({ ...current, responses: data.responses, responders: data.responders, viewerResponse: data.viewerResponse }));
       setNotice("Response saved");
     } catch (caught: any) { setNotice(caught.message); }
@@ -192,7 +217,7 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
     try {
       const response = await fetch(`/api/articles/${article.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify({ body: commentBody }) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not post comment");
+      requireAuthenticatedResponse(response, data, "Could not post comment");
       setDiscussion((current) => ({ ...current, comments: [data, ...current.comments] }));
       setCommentBody("");
       setNotice("Comment posted");
@@ -207,7 +232,7 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
     try {
       const response = await fetch(`/api/articles/${article.id}/photos/${photoId}/responses`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: JSON.stringify({ category }) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save photo response");
+      requireAuthenticatedResponse(response, data, "Could not save photo response");
       setDiscussion((current) => ({ ...current, photoResponses: { ...current.photoResponses, [photoId]: data } }));
       setNotice("Photo response saved");
     } catch (caught: any) { setNotice(caught.message); }
@@ -249,15 +274,15 @@ export default function ArticleDetail({ preview = false }: { preview?: boolean }
         <div><b>By {article.author.name}</b><span><Clock />{readMinutes} min read</span>{!preview && <span><Eye />{article.views.toLocaleString()} views</span>}<time>{new Date(article.storyDate || article.publishedAt || article.updatedAt || Date.now()).toLocaleDateString()}</time></div>
         {!preview && <ShareStoryButton title={article.title} slug={article.slug} previewImage={photos[0]?.url} className="articleShareButton" />}
       </header>
-      {photos[0] && <figure className="articleLeadPhoto"><button type="button" className="articleMediaCard" onClick={() => openMedia(0)} aria-label={`${facebookPreview ? "View Facebook" : youtubePreview || isVideoUrl(photos[0].url) ? "Play video" : "View photo"}: ${photos[0].caption || article.title}`}><StoryMedia media={photos[0]} title={article.title} thumbnail /><span className="articleMediaCue">{facebookPreview ? <><Eye />View Facebook / 查看 Facebook</> : youtubePreview || isVideoUrl(photos[0].url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{!preview && photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>}
+      {photos[0] && <figure className="articleLeadPhoto"><button type="button" className="articleMediaCard" onClick={() => openMedia(0)} aria-label={`${facebookPreview ? "View Facebook" : youtubePreview || isVideoUrl(photos[0].url) ? "Play video" : "View photo"}: ${photos[0].caption || article.title}`}><StoryMedia media={photos[0]} title={article.title} thumbnail /><span className="articleMediaCue">{facebookPreview ? <><Eye />View Facebook / 查看 Facebook</> : youtubePreview || isVideoUrl(photos[0].url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photos[0].caption && <figcaption>{photos[0].caption}</figcaption>}{!preview && photos[0].id !== "cover" && <PhotoResponseControls photoId={photos[0].id} state={discussion.photoResponses[photos[0].id]} disabled={!session || discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>}
       <RichText value={article.content} className="articleBody" onLinkClick={openFacebookLink} />
-      {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片與影片</h2></div><div>{photos.slice(1).map((photo, index) => <figure key={photo.id}><button type="button" className="articleMediaCard" onClick={() => openMedia(index + 1)} aria-label={`${isVideoUrl(photo.url) ? "Play video" : "View photo"}: ${photo.caption || article.title}`}><StoryMedia media={photo} title={article.title} thumbnail /><span className="articleMediaCue">{isVideoUrl(photo.url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photo.caption && <figcaption>{photo.caption}</figcaption>}{!preview && <PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>)}</div></section>}
+      {photos.length > 1 && <section className="articleGallery"><div><small>STORY GALLERY · 新聞相簿</small><h2>More from this story / 更多新聞照片與影片</h2></div><div>{photos.slice(1).map((photo, index) => <figure key={photo.id}><button type="button" className="articleMediaCard" onClick={() => openMedia(index + 1)} aria-label={`${isVideoUrl(photo.url) ? "Play video" : "View photo"}: ${photo.caption || article.title}`}><StoryMedia media={photo} title={article.title} thumbnail /><span className="articleMediaCue">{isVideoUrl(photo.url) ? <><Play />Play video / 播放影片</> : <><Eye />View photo / 查看照片</>}</span></button>{photo.caption && <figcaption>{photo.caption}</figcaption>}{!preview && <PhotoResponseControls photoId={photo.id} state={discussion.photoResponses[photo.id]} disabled={!session || discussionLoading || !!photoResponseBusy} openResponders={openResponders} onToggle={(key) => setOpenResponders((current) => current === key ? "" : key)} onRespond={savePhotoResponse} />}</figure>)}</div></section>}
     </article>
     {!preview && <section className="storyDiscussion" aria-labelledby="story-discussion-title">
       <div className="discussionTitle"><small>READER VOICES</small><h2 id="story-discussion-title">Responses and comments</h2><p>Share how this story speaks to you and join the conversation.</p></div>
       <div className="responsePanel">
         <h3>Your response</h3>
-        <div className="responseOptions">{responseOptions.map((option) => { const key = `story-${option.value}`, users = discussion.responders?.[option.value] || [], tooltipId = `${key}-responders`; return <button type="button" key={option.value} className={`${discussion.viewerResponse === option.value ? "selected " : ""}${openResponders === key ? "showResponders" : ""}`} aria-label={`${option.english} / ${option.chinese}: ${discussion.responses[option.value]} responses${users.length ? `. Responded by ${users.map((user) => user.name).join(", ")}` : ". No responders yet"}`} aria-describedby={tooltipId} aria-expanded={openResponders === key} aria-pressed={discussion.viewerResponse === option.value} disabled={responseBusy || discussionLoading} onClick={() => { setOpenResponders((current) => current === key ? "" : key); saveResponse(option.value); }}><span className="responseGlyph" aria-hidden="true">{option.chinese}</span><em aria-hidden="true">{discussion.responses[option.value]}</em><ResponseNames id={tooltipId} option={option} users={users} /></button>; })}</div>
+        <div className="responseOptions">{responseOptions.map((option) => { const key = `story-${option.value}`, users = discussion.responders?.[option.value] || [], tooltipId = `${key}-responders`; return <button type="button" key={option.value} className={`${discussion.viewerResponse === option.value ? "selected " : ""}${openResponders === key ? "showResponders" : ""}`} aria-label={`${option.english} / ${option.chinese}: ${discussion.responses[option.value]} responses${users.length ? `. Responded by ${users.map((user) => user.name).join(", ")}` : ". No responders yet"}`} aria-describedby={tooltipId} aria-expanded={openResponders === key} aria-pressed={discussion.viewerResponse === option.value} disabled={!session || responseBusy || discussionLoading} onClick={() => { setOpenResponders((current) => current === key ? "" : key); saveResponse(option.value); }}><span className="responseGlyph" aria-hidden="true">{option.chinese}</span><em aria-hidden="true">{discussion.responses[option.value]}</em><ResponseNames id={tooltipId} option={option} users={users} /></button>; })}</div>
         {session ? <p className="responseHint">Choose one response. You can change it at any time.</p> : <div className="discussionSignIn"><Link to="/login" state={{ from: `/stories/${slug}` }}>Sign in to respond or comment</Link></div>}
       </div>
       {session && <form className="commentForm" onSubmit={postComment}><label htmlFor="story-comment">Share a comment</label><textarea id="story-comment" value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Write your comment…" maxLength={1000} rows={4} /><div><small>{commentBody.length} / 1000</small><button disabled={commentBusy || commentBody.trim().length < 2}>{commentBusy ? "Posting…" : <><Send />Post comment</>}</button></div></form>}

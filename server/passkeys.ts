@@ -231,7 +231,7 @@ export function createPasskeyRouter(
       const token = jwt.sign(
         { id: stored.user.id, role: stored.user.role as Role },
         secret,
-        { expiresIn: "8h" },
+        { expiresIn: "5d" },
       );
       res.json({ token, user: publicUser(stored.user) });
     } catch (error: any) {

@@ -433,6 +433,7 @@ Object.assign(zh, {
   "Post comment": "發布留言",
   "Posting…": "發布中……",
   "Response saved": "回應已儲存",
+  "Your session expired. Sign in again to respond or comment.": "登入已過期，請重新登入後回應或留言。",
   "Photo responses": "照片回應",
   "Photo response saved": "照片回應已儲存",
   "Comment posted": "留言已發布",
@@ -443,6 +444,7 @@ Object.assign(zh, {
 Object.assign(zh, {
   Share: "分享",
   "Link copied": "連結已複製",
+  "Story copied": "新聞標題及連結已複製",
   "Unable to share": "無法分享",
 });
 

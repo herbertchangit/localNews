@@ -334,7 +334,7 @@ const loginUserSelect = {
   },
   sessionFor = (user: any) => ({
     token: jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user), customRoles: user.customRoles || [] }, secret, {
-      expiresIn: "8h",
+      expiresIn: "5d",
     }),
     user: {
       id: user.id,
@@ -613,7 +613,7 @@ app.post("/api/auth/register", async (q, r) => {
     },
   });
   const token = jwt.sign({ id: user.id, role: user.role, roles: effectiveRoles(user), customRoles: user.customRoles || [] }, secret, {
-    expiresIn: "8h",
+    expiresIn: "5d",
   });
   r.status(201).json({ token, user });
 });

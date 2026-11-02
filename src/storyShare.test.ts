@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { storySharePreviewVersion, storyShareUrl } from "./ShareStoryButton";
+import {
+  storySharePreviewVersion,
+  storyShareText,
+  storyShareUrl,
+} from "./ShareStoryButton";
 
 describe("story share links", () => {
   it("adds a stable preview-photo fingerprint for social cache refresh", () => {
@@ -14,5 +18,16 @@ describe("story share links", () => {
 
   it("produces a compact deterministic fingerprint", () => {
     expect(storySharePreviewVersion("/uploads/photo.jpg")).toMatch(/^[a-z0-9]+$/);
+  });
+
+  it("copies the story title and link together", () => {
+    expect(
+      storyShareText(
+        "  Community garden opens  ",
+        "https://news.example/stories/community-garden",
+      ),
+    ).toBe(
+      "Community garden opens\nhttps://news.example/stories/community-garden",
+    );
   });
 });
