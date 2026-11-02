@@ -5963,6 +5963,13 @@ export const GENERATED_LANGUAGE_CATALOG: LanguageCatalogEntry[] = [
     ]
   },
   {
+    "source": "Story Date",
+    "pages": [
+      "Story Management"
+    ],
+    "inlineChinese": "新聞日期"
+  },
+  {
     "source": "STORY DATE ·",
     "pages": [
       "App",

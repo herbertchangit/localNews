@@ -27,6 +27,9 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import PhotoTags from "./PhotoTags";
@@ -44,6 +47,11 @@ import {
 } from "./richTextUtils";
 import { openStoryComposer } from "./StoryComposer";
 import { useAuthorities } from "./menuAccess";
+import {
+  sortStories,
+  type StorySort,
+  type StorySortKey,
+} from "./storySorting";
 
 type Category = { id: string; name: string };
 type RegistrationOption = { id: string; eventName: string; slug: string };
@@ -123,6 +131,10 @@ export default function StoryManagement() {
     useState<StoryStatusFilter>("published");
   const [visibilityFilter, setVisibilityFilter] =
     useState<StoryVisibilityFilter>("both");
+  const [storySort, setStorySort] = useState<StorySort>({
+    key: "storyDate",
+    direction: "desc",
+  });
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [headlineBusy, setHeadlineBusy] = useState("");
@@ -510,7 +522,7 @@ export default function StoryManagement() {
     : null;
   const filteredStories = useMemo(() => {
     const search = searchTerm.trim().toLocaleLowerCase();
-    return stories.filter((story) => {
+    const matchingStories = stories.filter((story) => {
       const expired = story.status === "ARCHIVED";
       if (statusFilter === "published" && expired) return false;
       if (statusFilter === "expired" && !expired) return false;
@@ -525,7 +537,31 @@ export default function StoryManagement() {
         story.harmony || "",
       ].some((value) => value.toLocaleLowerCase().includes(search));
     });
-  }, [searchTerm, statusFilter, stories, visibilityFilter]);
+    return sortStories(matchingStories, storySort);
+  }, [searchTerm, statusFilter, stories, storySort, visibilityFilter]);
+
+  const toggleStorySort = (key: StorySortKey) =>
+    setStorySort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  const storySortAria = (key: StorySortKey) => {
+    const active = storySort.key === key;
+    return active
+      ? storySort.direction === "asc"
+        ? "ascending"
+        : "descending"
+      : "none";
+  };
+  const storySortIcon = (key: StorySortKey) =>
+    storySort.key !== key ? (
+      <ArrowUpDown />
+    ) : storySort.direction === "asc" ? (
+      <ArrowUp />
+    ) : (
+      <ArrowDown />
+    );
 
   return (
     <div className="dash">
@@ -650,8 +686,21 @@ export default function StoryManagement() {
         <div className="panel storyManagerPanel">
           <div className="storyManagerHeader">
             <span>Photos / 照片</span>
-            <span>Story / 新聞</span>
-            <span>Status / 狀態</span>
+            <span className="storySortableHeader" role="columnheader" aria-sort={storySortAria("story")}>
+              <button type="button" onClick={() => toggleStorySort("story")}>
+                Story / 新聞{storySortIcon("story")}
+              </button>
+            </span>
+            <span className="storySortableHeader" role="columnheader" aria-sort={storySortAria("status")}>
+              <button type="button" onClick={() => toggleStorySort("status")}>
+                Status / 狀態{storySortIcon("status")}
+              </button>
+            </span>
+            <span className="storySortableHeader" role="columnheader" aria-sort={storySortAria("storyDate")}>
+              <button type="button" onClick={() => toggleStorySort("storyDate")}>
+                Story Date / 新聞日期{storySortIcon("storyDate")}
+              </button>
+            </span>
             <span>Updated / 更新</span>
             <span>Action / 操作</span>
           </div>
@@ -698,9 +747,6 @@ export default function StoryManagement() {
                     <small>
                       <strong>{story.harmony || "Unassigned / 未分配"}</strong>
                       {` · ${story.author.name} · ${story.category.name}`}
-                      {story.storyDate
-                        ? ` · ${new Date(story.storyDate).toLocaleDateString()}`
-                        : ""}
                     </small>
                   </div>
                   <div className="storyStatus">
@@ -720,7 +766,14 @@ export default function StoryManagement() {
                       </span>
                     )}
                   </div>
-                  <time>{new Date(story.updatedAt).toLocaleDateString()}</time>
+                  <time className="storyDate">
+                    {story.storyDate
+                      ? new Date(story.storyDate).toLocaleDateString()
+                      : "—"}
+                  </time>
+                  <time className="storyUpdatedDate">
+                    {new Date(story.updatedAt).toLocaleDateString()}
+                  </time>
                   <div className="storyActions">
                     {allowed("view") && <button
                       type="button"
