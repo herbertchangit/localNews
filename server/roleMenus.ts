@@ -206,6 +206,11 @@ export function createRoleMenuRouter(db: PrismaClient, secret: string) {
 
 export const routeMenu = (path: string, method = "GET") => {
   if (/^\/api\/articles\/[^/]+\/photo-tags\/me(?:\/|$)/.test(path)) return null;
+  if (
+    /^\/api\/articles\/[^/]+\/(?:responses|comments)\/?$/.test(path) ||
+    /^\/api\/articles\/[^/]+\/photos\/[^/]+\/responses\/?$/.test(path)
+  )
+    return null;
   if (method === "DELETE" && /^\/api\/me\/photos\/[^/]+\/?$/.test(path)) return null;
   if (/^\/api\/me\/photos(?:\/|$)/.test(path)) return "photos";
   if (path.toLowerCase() === "/api/registrations/mine/check-in") return null;

@@ -57,6 +57,17 @@ describe("role menu request routing", () => {
     expect(routeMenu("/api/articles/story-id/status", "PATCH")).toBe("stories");
   });
 
+  it("does not apply story CRUD authority to reader engagement", () => {
+    expect(routeMenu("/api/articles/story-id/responses", "POST")).toBeNull();
+    expect(routeMenu("/api/articles/story-id/comments", "POST")).toBeNull();
+    expect(
+      routeMenu(
+        "/api/articles/story-id/photos/photo-id/responses",
+        "POST",
+      ),
+    ).toBeNull();
+  });
+
   it("authorizes a user's registration appointment changes through Appointments", () => {
     expect(routeMenu("/api/registrations/mine/check-in", "POST")).toBeNull();
     expect(routeMenu("/api/registrations/mine/submissions/submission-id", "PATCH")).toBeNull();
